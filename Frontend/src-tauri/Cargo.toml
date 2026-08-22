@@ -1,0 +1,23 @@
+[package]
+name = "yms-yard-twin"
+version = "1.0.0"
+description = "YMS Yard Twin — Chennai CFS desktop client"
+authors = ["Gateway Distriparks"]
+edition = "2021"
+
+[lib]
+name = "yms_yard_twin_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

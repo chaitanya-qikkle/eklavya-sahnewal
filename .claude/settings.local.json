@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node parse-dxf.mjs \"../GATEWAY_Site Plan-CHennai CFS.dxf\")",
+      "Bash(node -e ' *)",
+      "Bash(node --input-type=module)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173/ -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/pages/YardOverview3D.jsx\" -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/scene/textures.js\" -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/scene/coords.js\" -o /dev/null -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(xargs grep -l -i \"containerlivestatus\\\\|container.live.status\\\\|live.status\")",
+      "Bash(curl -s \"http://localhost:5173/src/App.jsx\" -o /dev/null -w \"App %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/pages/YardLiveStatus3D.jsx\" -o /dev/null -w \"YardLiveStatus3D %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/container/pages/LiveStatus.jsx\" -o /dev/null -w \"LiveStatus %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/store/api/ymsApi.js\" -o /dev/null -w \"ymsApi %{http_code}\\\\n\")",
+      "Bash(node parse-geofence.mjs)",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/pages/YardLiveStatus3D.jsx\" -o /dev/null -w \"Page %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/scene/YardScene.jsx\" -o /dev/null -w \"Scene %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/src/modules/yard3d/scene/geofence.js\" -o /dev/null -w \"Geofence %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/slot-geofence.json\" -o /dev/null -w \"JSON %{http_code}\\\\n\")",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(curl -s \"http://localhost:5173/slot-geofence.json\" -o /dev/null -w \"Geofence JSON %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5173/yard-layout.json\" -o /dev/null -w \"Yard JSON %{http_code}\\\\n\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" http://127.0.0.1:8000/v1/container/container-live-status)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" http://localhost:8000/v1/container/container-live-status)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" http://localhost:5173/v1/container/container-live-status)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep -E \"\\\\.\\(py|txt|toml|sh|bat|conf\\)$\")",
+      "Bash(grep -E \"\\\\.\\(js|ts|json|sh|bat|conf\\)$\")",
+      "Bash(grep -r \"uvicorn\\\\|Uvicorn\\\\|app.run\" \"d:\\\\Qikkle\\\\Application\\\\YMS_Eklavya\\\\YMS_Eklavya\\\\Backend\" --include=\"*.py\" ! -path \"*/env/*\")",
+      "Bash(xargs ls -lh)",
+      "Bash(ls -la \"d:\\\\Qikkle\\\\Application\\\\YMS_Eklavya\\\\YMS_Eklavya\\\\\" | grep -E \"^\\\\.\" 2>/dev/null)",
+      "Read(//d/Qikkle/Application/YMS_Eklavya/YMS_Eklavya\" | grep -E ^. 2>/dev/**)",
+      "Bash(grep -ri \"if __name__\" \"d:\\\\Qikkle\\\\Application\\\\YMS_Eklavya\\\\YMS_Eklavya\\\\Backend\" --include=\"*.py\" ! -path \"*/env/*\" ! -path \"*/__pycache__/*\")",
+      "Bash(npx eslint *)",
+      "Bash(node -e \"const c=require\\('Q:/Web Applications/YMS_MAIN/Frontend/package.json'\\); console.log\\(JSON.stringify\\(c.scripts\\)\\)\")"
+    ]
+  }
+}

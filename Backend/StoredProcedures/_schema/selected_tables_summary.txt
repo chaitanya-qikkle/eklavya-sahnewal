@@ -1,0 +1,180 @@
+[ESS_MST_BLOCK]
+- BlockID: int NOT NULL
+- YardID: int NULL
+- PlantID: int NOT NULL
+- BlockName: nvarchar(200) NOT NULL
+- BlockCode: nvarchar(100) NULL
+- RowStart: nvarchar(10) NULL
+- RowEnd: nvarchar(10) NULL
+- TotalColumns: int NULL
+- Polygon: nvarchar(-1) NULL
+- IsActive: bit NULL
+- IsDeleted: bit NULL
+- CreatedBy: int NULL
+- CreatedDate: datetime NULL
+- ModifiedBy: int NULL
+- ModifiedDate: datetime NULL
+
+[ESS_MST_YARD]
+- YardID: bigint NOT NULL
+- PlantID: bigint NULL
+- YardName: varchar(200) NULL
+- YardCode: varchar(200) NULL
+- YardTypeID: bigint NULL
+- LatLong: varchar(500) NULL
+- Polygon: geometry NULL
+- IsActive: bit NULL
+- IsDelete: bit NULL
+- CreatedBy: bigint NULL
+- CreatedDate: datetime NULL
+- ModifiedBy: bigint NULL
+- ModifiedDate: datetime NULL
+- DeletedBy: bigint NULL
+- DeletedDate: datetime NULL
+- TotalRows: int NULL
+- TotalCols: int NULL
+
+[TBL_CONTAINER_INVENTORY]
+- INVENTORY_ID: int NOT NULL
+- CONTAINER_NO: varchar(15) NOT NULL
+- CONTAINER_SIZE_ID: int NOT NULL
+- CONTAINER_TYPE_ID: int NOT NULL
+- RFID_TAG_ID: varchar(30) NULL
+- COMMODITY_ID: int NULL
+- LINE_ID: int NULL
+- CUSTOMER_ID: int NULL
+- CONTAINER_PROCESS_ID: int NOT NULL
+- INVENTORY_STATUS: varchar(20) NOT NULL
+- IS_PRE_GATE: bit NOT NULL
+- YARD_ID: int NULL
+- SLOT_ID: int NULL
+- LAST_LOCATION: int NULL
+- LAST_LAT: decimal(18,6) NULL
+- LAST_LON: decimal(18,6) NULL
+- OFFLOAD_LOCATION: int NULL
+- OFFLOAD_EQP: int NULL
+- OFFLOAD_LAT: decimal(18,6) NULL
+- OFFLOAD_LON: decimal(18,6) NULL
+- PLANNED_LOCATION: int NULL
+- LAST_EQP: int NULL
+- GATE_IN_DATE: datetime NULL
+- GATE_OUT_DATE: datetime NULL
+- LAST_MOVED_DATE: datetime NULL
+- OFFLOAD_DATE: datetime NULL
+- TOSS_IN_DATE: datetime NULL
+- TOSS_OUT_DATE: datetime NULL
+- CREATED_BY: int NOT NULL
+- CREATED_DATE: datetime NOT NULL
+- MODIFIED_BY: int NULL
+- MODIFIED_DATE: datetime NULL
+- IS_ACTIVE: bit NOT NULL
+
+[TBL_EKDEVICE_DATA]
+- FIRMWARE: nvarchar(40) NULL
+- PACKET_ID: int NULL
+- PACKET_STATUS: int NULL
+- DEVICE_IMEI: nvarchar(40) NULL
+- KALMAR_NO: nvarchar(40) NULL
+- GPS_FIX: int NULL
+- DATE_TIME: datetime NULL
+- LATITUDE: decimal(18,6) NULL
+- LAT_DIR: int NULL
+- LONGITUDE: decimal(18,6) NULL
+- LON_DIR: int NULL
+- NO_SATELIGHT: int NULL
+- LK_STATUS: bit NULL
+- IGNITION: bit NULL
+- INPUT_IO: nvarchar(20) NULL
+- OUTPUT_IO: nvarchar(20) NULL
+- ANALOG1: nvarchar(20) NULL
+- ANALOG2: nvarchar(20) NULL
+- ENCODER1: nvarchar(100) NULL
+- ENCODER2: nvarchar(100) NULL
+- RFIDDATA: nvarchar(100) NULL
+- FRAMEID: int NULL
+- Sr_No: int NOT NULL
+
+[TBL_EQUIPMENT_TRANSACTION]
+- TRANSACTION_ID: int NOT NULL
+- LOCATION_ID: int NULL
+- INVENTORY_ID: int NULL
+- CONTAINER_TAG_ID: int NULL
+- OCR_CONTAINER_NO: nvarchar(30) NULL
+- GPS_LATITUDE: decimal(10,8) NULL
+- GPS_LONGITUDE: decimal(11,8) NULL
+- DEVICE_ID: varchar(50) NULL
+- PACKET_TYPE: varchar(50) NULL
+- CONTAINER_TRANS_TYPE: int NOT NULL
+- TRANSACTION_DATE: datetime NOT NULL
+- CREATED_ON: datetime NOT NULL
+- UPDATED_STATUS: varchar(50) NULL
+- MODIFIED_DATE: datetime NULL
+- MODIFIED_BY: bigint NULL
+
+[TBL_MST_EQUIPMENT]
+- Eqp_ID: bigint NOT NULL
+- Plant_ID: bigint NULL
+- Equipment_Name: varchar(50) NULL
+- Device_ID: varchar(50) NULL
+- Installation_Date: date NULL
+- Owner_Name: varchar(100) NULL
+- Equipment_Type: varchar(100) NULL
+- Equipment_Maker: varchar(100) NULL
+- Sim_ID: nvarchar(-1) NULL
+- VTM_ImeiNo: varchar(200) NULL
+- JobAllow: bit NOT NULL
+- IsActive: bit NOT NULL
+- IsDelete: bit NOT NULL
+- IsRemoveDevice: int NOT NULL
+- IsManualBreakdown: int NOT NULL
+- CreatedBy: int NULL
+- CreatedDate: datetime NULL
+- ModifiedBy: int NULL
+- ModifiedDate: datetime NULL
+- DeletedBy: int NULL
+- DeletedDate: datetime NULL
+
+[TBL_MST_PLANT]
+- PLANT_ID: int NOT NULL
+- PLANT_CODE: nvarchar(100) NULL
+- PLANT_NAME: nvarchar(300) NOT NULL
+- LOCATION: nvarchar(500) NULL
+- IS_ACTIVE: bit NOT NULL
+- IS_DELETED: bit NOT NULL
+- CREATED_BY: int NULL
+- CREATED_DATE: datetime NOT NULL
+- MODIFIED_BY: int NULL
+- MODIFIED_DATE: datetime NULL
+- CLIENT_ID: int NULL
+
+[TBL_MST_ROLE]
+- ROLE_ID: int NOT NULL
+- ROLE: varchar(50) NOT NULL
+- IS_ACTIVE: bit NULL
+- IS_DELETED: bit NULL
+- CREATED_BY: int NOT NULL
+- CREATED_DATE: datetime NOT NULL
+- MODIFIED_BY: int NULL
+- MODIFIED_DATE: datetime NULL
+- DELETED_BY: int NULL
+- DELETED_DATE: datetime NULL
+- PLANT_ID: int NULL
+
+[TBL_MST_USER]
+- USER_ID: bigint NOT NULL
+- ROLE_ID: int NOT NULL
+- FIRST_NAME: varchar(50) NULL
+- LAST_NAME: varchar(50) NULL
+- USERNAME: varchar(50) NULL
+- PASSWORD: varchar(50) NULL
+- EMAIL_ID: varchar(100) NULL
+- FAILED_ATTEMPT: int NULL
+- LOGIN_ATTEMPT: int NULL
+- IsActive: bit NULL
+- CREATED_BY: int NOT NULL
+- CREATED_DATE: datetime NOT NULL
+- MODIFIED_BY: int NULL
+- MODIFIED_DATE: datetime NULL
+- DELETED_BY: int NULL
+- DELETED_DATE: datetime NULL
+- IS_DELETED: bit NOT NULL

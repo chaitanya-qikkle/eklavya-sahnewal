@@ -1,0 +1,445 @@
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
+import { API_ENDPOINTS } from '../../config/api'
+
+function normalizeRolesResponse(data) {
+  const rawList = data?.data && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : [])
+
+  const filtered = rawList.filter((role) => {
+    const isDeleted =
+      role?.IS_DELETED === true || role?.IS_DELETED === 1 ||
+      role?.is_deleted === true || role?.is_deleted === 1 ||
+      role?.IS_DELETE === true || role?.IS_DELETE === 1 ||
+      role?.is_delete === true || role?.is_delete === 1
+
+    return !isDeleted
+  })
+
+  const roles = filtered.map((role, index) => ({
+    id: role?.ROLE_ID || role?.role_id || role?.id || role?.ID || index,
+    roleName: role?.ROLE || role?.Role || role?.role || role?.ROLE_NAME || role?.RoleName || role?.role_name || '',
+    plantId: role?.PLANT_ID ?? role?.plant_id ?? null,
+    plantName: role?.PLANT_NAME || role?.plant_name ? [role?.PLANT_NAME || role?.plant_name] : [],
+  }))
+
+  return { rawRoles: rawList, roles }
+}
+
+function normalizePlantsResponse(data) {
+  const rawList = data?.data && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : [])
+
+  const plants = rawList
+    .filter((plant) => {
+      const isDeleted = plant?.IS_DELETED === true || plant?.IS_DELETED === 1 || plant?.is_deleted === true || plant?.is_deleted === 1
+      return !isDeleted
+    })
+    .map((plant, index) => ({
+      id: plant?.PLANT_ID || plant?.plant_id || plant?.id || index,
+      plantCode: plant?.PLANT_CODE || plant?.plant_code || '',
+      plantName: plant?.PLANT_NAME || plant?.plant_name || '',
+      location: plant?.LOCATION || plant?.location || '',
+      active: plant?.IS_ACTIVE ?? plant?.is_active ?? true,
+    }))
+
+  return { rawPlants: rawList, plants }
+}
+
+function normalizeUsersResponse(data) {
+  const rawList = data?.data && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : [])
+
+  const users = rawList.map((user, index) => ({
+    id: user?.USER_ID || user?.user_id || user?.id || index + 1,
+    roleId: user?.ROLE_ID ?? user?.role_id ?? null,
+    firstName: user?.FIRST_NAME || user?.first_name || '',
+    lastName: user?.LAST_NAME || user?.last_name || '',
+    username: user?.USERNAME || user?.username || '',
+    emailId: user?.EMAIL_ID || user?.email_id || user?.email || '',
+    ROLE: user?.ROLE || user?.role || '',
+    PLANT_ID: user?.PLANT_ID || user?.plant_id || null,
+    PLANT_NAME: user?.PLANT_NAME || user?.plant_name || '',
+    CUSTOMER_ID: user?.CUSTOMER_ID || user?.customer_id || null,
+    CUSTOMER_NAME: user?.CUSTOMER_NAME || user?.customer_name || '',
+    IsActive: user?.IsActive ?? user?.is_active ?? true,
+  }))
+
+  return { rawUsers: rawList, users }
+}
+
+export const ymsApi = createApi({
+  reducerPath: 'ymsApi',
+  baseQuery: fetchBaseQuery({
+    baseUrl: '',  // Use relative URLs, Vite proxy handles routing
+    prepareHeaders: (headers) => {
+      const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken')
+      if (token) {
+        headers.set('authorization', `Bearer ${token}`)
+      }
+      headers.set('content-type', 'application/json')
+      return headers
+    },
+  }),
+  tagTypes: ['Roles', 'Users', 'Menus', 'RoleMenus', 'Plants', 'Process', 'Equipment', 'EquipmentTransactions', 'ContainerInventory'],
+  endpoints: (builder) => ({
+
+    // ─── Auth ────────────────────────────────────────────────────────────────
+
+    getRoles: builder.query({
+      query: () => ({ url: API_ENDPOINTS.AUTH.GET_ROLES, method: 'GET' }),
+      transformResponse: (response) => normalizeRolesResponse(response),
+      providesTags: ['Roles'],
+    }),
+
+    getUsers: builder.query({
+      query: () => ({ url: API_ENDPOINTS.AUTH.GET_USERS, method: 'GET' }),
+      transformResponse: (response) => normalizeUsersResponse(response),
+      providesTags: (result) => {
+        const base = [{ type: 'Users', id: 'LIST' }]
+        const items = (result?.users || []).map((u) => ({ type: 'Users', id: u.id }))
+        return base.concat(items)
+      },
+    }),
+
+    createRole: builder.mutation({
+      query: ({ role, plant_id, created_by = '1' }) => ({
+        url: API_ENDPOINTS.AUTH.CREATE_ROLE,
+        method: 'POST',
+        body: { role, plant_id, created_by },
+      }),
+      invalidatesTags: ['Roles'],
+    }),
+
+    createUser: builder.mutation({
+      query: ({ role_id, first_name, last_name, username, password, email_id, created_by = 1 }) => ({
+        url: API_ENDPOINTS.AUTH.CREATE_USER,
+        method: 'POST',
+        body: { role_id, first_name, last_name, username, password, email_id, created_by },
+      }),
+      invalidatesTags: [{ type: 'Users', id: 'LIST' }],
+    }),
+
+    updateUser: builder.mutation({
+      query: ({ user_id, role_id, first_name, last_name, username, password, email_id, is_active = true, modified_by = 1 }) => ({
+        url: API_ENDPOINTS.AUTH.UPDATE_USER,
+        method: 'POST',
+        body: { user_id, role_id, first_name, last_name, username, password, email_id, is_active, modified_by },
+      }),
+      invalidatesTags: (result, error, arg) => [{ type: 'Users', id: 'LIST' }, { type: 'Users', id: arg?.user_id }],
+    }),
+
+    updateRole: builder.mutation({
+      query: ({ role_id, role, plant_id, modified_by = 1, is_active = 1, is_delete = 0 }) => ({
+        url: API_ENDPOINTS.AUTH.UPDATE_ROLE,
+        method: 'POST',
+        body: { role_id, role, plant_id, modified_by, is_active, is_delete },
+      }),
+      invalidatesTags: ['Roles'],
+    }),
+
+    deleteRole: builder.mutation({
+      query: ({ role_id, deleted_by = 1 }) => ({
+        url: API_ENDPOINTS.AUTH.DELETE_ROLE,
+        method: 'POST',
+        body: { role_id, deleted_by },
+      }),
+      invalidatesTags: ['Roles'],
+    }),
+
+    deleteUser: builder.mutation({
+      query: ({ user_id, deleted_by = 1 }) => ({
+        url: API_ENDPOINTS.AUTH.DELETE_USER,
+        method: 'POST',
+        body: { user_id, deleted_by },
+      }),
+      invalidatesTags: [{ type: 'Users', id: 'LIST' }],
+    }),
+
+    getMenus: builder.query({
+      query: () => ({ url: API_ENDPOINTS.AUTH.GET_MENUS, method: 'GET' }),
+      providesTags: ['Menus'],
+    }),
+
+    createMenu: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MENU.CREATE_MENU,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Menus'],
+    }),
+
+    updateMenu: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MENU.UPDATE_MENU,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Menus'],
+    }),
+
+    deleteMenu: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.AUTH.DELETE_MENU,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Menus'],
+    }),
+
+    getRoleMenus: builder.query({
+      query: (role_id) => ({
+        url: `${API_ENDPOINTS.AUTH.GET_ROLE_MENUS}?role_id=${role_id}`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, arg) => [{ type: 'RoleMenus', id: arg }],
+    }),
+
+    setRoleMenus: builder.mutation({
+      query: ({ role_id, menu_ids, created_by = 1 }) => ({
+        url: API_ENDPOINTS.MENU.SET_ROLE_MENUS,
+        method: 'POST',
+        body: { role_id, menu_ids, created_by },
+      }),
+      invalidatesTags: (result, error, arg) => [
+        { type: 'RoleMenus', id: arg?.role_id },
+        'Menus',
+      ],
+    }),
+
+    getPlants: builder.query({
+      query: () => ({ url: API_ENDPOINTS.MASTER.GET_PLANT, method: 'GET' }),
+      transformResponse: (response) => normalizePlantsResponse(response),
+      providesTags: ['Plants'],
+    }),
+
+    addPlant: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.ADD_PLANT,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Plants'],
+    }),
+
+    updatePlant: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.UPDATE_PLANT,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Plants', 'Roles'],
+    }),
+
+    deletePlant: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.DELETE_PLANT,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Plants', 'Roles'],
+    }),
+
+    // ─── Master: Process ─────────────────────────────────────────────────────
+
+    getProcess: builder.query({
+      query: () => ({ url: API_ENDPOINTS.MASTER.GET_PROCESS, method: 'GET' }),
+      providesTags: ['Process'],
+    }),
+
+    addProcess: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.ADD_PROCESS,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Process'],
+    }),
+
+    updateProcess: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.UPDATE_PROCESS,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Process'],
+    }),
+
+    deleteProcess: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.DELETE_PROCESS,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Process'],
+    }),
+
+    // ─── Master: Equipment ───────────────────────────────────────────────────
+
+    getEquipment: builder.query({
+      query: (eqp_id) => ({
+        url: eqp_id
+          ? `${API_ENDPOINTS.MASTER.GET_EQUIPMENT}?eqp_id=${eqp_id}`
+          : API_ENDPOINTS.MASTER.GET_EQUIPMENT,
+        method: 'GET',
+      }),
+      providesTags: ['Equipment'],
+    }),
+
+    addEquipment: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.ADD_EQUIPMENT,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Equipment'],
+    }),
+
+    updateEquipment: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.UPDATE_EQUIPMENT,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Equipment'],
+    }),
+
+    deleteEquipment: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.DELETE_EQUIPMENT,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Equipment'],
+    }),
+
+    // ─── Master: Equipment Transactions ──────────────────────────────────────
+
+    getEquipmentTransactions: builder.query({
+      query: ({ device_id, from_date, to_date, top = 50 } = {}) => {
+        const params = new URLSearchParams()
+        if (device_id) params.set('device_id', device_id)
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        if (top != null) params.set('top', String(top))
+
+        const qs = params.toString()
+        return {
+          url: qs
+            ? `${API_ENDPOINTS.MASTER.GET_EQUIPMENT_TRANSACTION}?${qs}`
+            : API_ENDPOINTS.MASTER.GET_EQUIPMENT_TRANSACTION,
+          method: 'GET',
+        }
+      },
+      providesTags: (result, error, arg) => [{ type: 'EquipmentTransactions', id: arg?.device_id || 'LIST' }],
+    }),
+
+    getEquipmentTransaction: builder.query({
+      query: (transaction_id) => ({
+        url: `${API_ENDPOINTS.MASTER.GET_EQUIPMENT_TRANSACTION}?transaction_id=${transaction_id}`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, arg) => [{ type: 'EquipmentTransactions', id: arg }],
+    }),
+
+    addEquipmentTransaction: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.ADD_EQUIPMENT_TRANSACTION,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['EquipmentTransactions'],
+    }),
+
+    updateEquipmentTransaction: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.UPDATE_EQUIPMENT_TRANSACTION,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (result, error, arg) => ['EquipmentTransactions', { type: 'EquipmentTransactions', id: arg?.transaction_id }],
+    }),
+
+    deleteEquipmentTransaction: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.DELETE_EQUIPMENT_TRANSACTION,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['EquipmentTransactions'],
+    }),
+
+    getEquipmentTransactionLatest: builder.query({
+      query: () => ({ url: API_ENDPOINTS.MASTER.GET_EQUIPMENT_TRANSACTION_LATEST, method: 'GET' }),
+      providesTags: ['EquipmentTransactions'],
+    }),
+
+    getEquipmentTransactionLiveLocations: builder.query({
+      query: () => ({ url: API_ENDPOINTS.MASTER.GET_EQUIPMENT_TRANSACTION_LIVE_LOCATIONS, method: 'GET' }),
+      providesTags: ['EquipmentTransactions'],
+    }),
+
+    // ─── Container Inventory ─────────────────────────────────────────────────
+
+    searchContainer: builder.query({
+      query: (term) => ({
+        url: `${API_ENDPOINTS.CONTAINER.SEARCH_CONTAINER}?term=${term}`,
+        method: 'GET',
+      }),
+    }),
+
+    getContainerInventory: builder.query({
+      query: ({ page_index = 1, page_size = 25, search_for = '', process_type = '' } = {}) => {
+        const params = new URLSearchParams({
+          page_index: String(page_index),
+          page_size: String(page_size),
+        })
+        if (search_for?.trim()) params.append('search_for', search_for.trim().toUpperCase())
+        if (process_type && process_type !== 'all') params.append('process_type', process_type)
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_INVENTORY}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+      providesTags: ['ContainerInventory'],
+    }),
+  }),
+})
+
+
+export const {
+  useGetRolesQuery,
+  useGetUsersQuery,
+  useCreateRoleMutation,
+  useCreateUserMutation,
+  useUpdateUserMutation,
+  useUpdateRoleMutation,
+  useDeleteRoleMutation,
+  useDeleteUserMutation,
+  useGetMenusQuery,
+  useCreateMenuMutation,
+  useUpdateMenuMutation,
+  useDeleteMenuMutation,
+  useGetRoleMenusQuery,
+  useSetRoleMenusMutation,
+  useGetPlantsQuery,
+  useAddPlantMutation,
+  useUpdatePlantMutation,
+  useDeletePlantMutation,
+  useGetProcessQuery,
+  useAddProcessMutation,
+  useUpdateProcessMutation,
+  useDeleteProcessMutation,
+  useGetEquipmentQuery,
+  useAddEquipmentMutation,
+  useUpdateEquipmentMutation,
+  useDeleteEquipmentMutation,
+  useGetEquipmentTransactionsQuery,
+  useLazyGetEquipmentTransactionsQuery,
+  useGetEquipmentTransactionQuery,
+  useAddEquipmentTransactionMutation,
+  useUpdateEquipmentTransactionMutation,
+  useDeleteEquipmentTransactionMutation,
+  useGetEquipmentTransactionLatestQuery,
+  useGetEquipmentTransactionLiveLocationsQuery,
+  useLazySearchContainerQuery,
+  useGetContainerInventoryQuery,
+  useLazyGetContainerInventoryQuery,
+} = ymsApi

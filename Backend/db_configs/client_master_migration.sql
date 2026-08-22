@@ -1,0 +1,182 @@
+IF OBJECT_ID('dbo.TBL_MST_CLIENT', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.TBL_MST_CLIENT (
+        CLIENT_ID INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        CLIENT_NAME NVARCHAR(150) NOT NULL,
+        LOGO_PATH NVARCHAR(500) NULL,
+        IS_ACTIVE BIT NOT NULL CONSTRAINT DF_TBL_MST_CLIENT_IS_ACTIVE DEFAULT (1),
+        IS_DELETED BIT NOT NULL CONSTRAINT DF_TBL_MST_CLIENT_IS_DELETED DEFAULT (0),
+        CREATED_BY INT NULL,
+        CREATED_DATE DATETIME NOT NULL CONSTRAINT DF_TBL_MST_CLIENT_CREATED_DATE DEFAULT (GETDATE()),
+        MODIFIED_BY INT NULL,
+        MODIFIED_DATE DATETIME NULL
+    );
+END;
+GO
+
+IF COL_LENGTH('dbo.TBL_MST_CLIENT', 'LOGO_PATH') IS NULL
+BEGIN
+    ALTER TABLE dbo.TBL_MST_CLIENT
+    ADD LOGO_PATH NVARCHAR(500) NULL;
+END;
+GO
+
+IF OBJECT_ID('dbo.SP_CLIENT_ADD', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.SP_CLIENT_ADD;
+GO
+
+CREATE PROCEDURE dbo.SP_CLIENT_ADD
+    @CLIENT_NAME NVARCHAR(150),
+    @LOGO_PATH NVARCHAR(500) = NULL,
+    @IS_ACTIVE BIT = 1,
+    @CREATED_BY INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        INSERT INTO dbo.TBL_MST_CLIENT (
+            CLIENT_NAME,
+            LOGO_PATH,
+            IS_ACTIVE,
+            IS_DELETED,
+            CREATED_BY,
+            CREATED_DATE
+        )
+        VALUES (
+            @CLIENT_NAME,
+            @LOGO_PATH,
+            @IS_ACTIVE,
+            0,
+            @CREATED_BY,
+            GETDATE()
+        );
+
+        SELECT 1 AS Status, 'Client created successfully' AS Message, SCOPE_IDENTITY() AS CLIENT_ID, @LOGO_PATH AS LOGO_PATH;
+    END TRY
+    BEGIN CATCH
+        SELECT 0 AS Status, ERROR_MESSAGE() AS Message;
+    END CATCH;
+END;
+GO
+
+IF OBJECT_ID('dbo.SP_CLIENT_GET', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.SP_CLIENT_GET;
+GO
+
+CREATE PROCEDURE dbo.SP_CLIENT_GET
+    @CLIENT_ID INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @CLIENT_ID IS NULL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM dbo.TBL_MST_CLIENT WHERE ISNULL(IS_DELETED, 0) = 0)
+        BEGIN
+            SELECT 0 AS Status, 'No clients found' AS Message;
+            RETURN;
+        END;
+
+        SELECT
+            CLIENT_ID,
+            CLIENT_NAME,
+            LOGO_PATH,
+            IS_ACTIVE,
+            IS_DELETED
+        FROM dbo.TBL_MST_CLIENT
+        WHERE ISNULL(IS_DELETED, 0) = 0
+        ORDER BY CLIENT_NAME;
+        RETURN;
+    END;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM dbo.TBL_MST_CLIENT
+        WHERE CLIENT_ID = @CLIENT_ID AND ISNULL(IS_DELETED, 0) = 0
+    )
+    BEGIN
+        SELECT 0 AS Status, 'Client not found' AS Message;
+        RETURN;
+    END;
+
+    SELECT
+        CLIENT_ID,
+        CLIENT_NAME,
+        LOGO_PATH,
+        IS_ACTIVE,
+        IS_DELETED
+    FROM dbo.TBL_MST_CLIENT
+    WHERE CLIENT_ID = @CLIENT_ID AND ISNULL(IS_DELETED, 0) = 0;
+END;
+GO
+
+IF OBJECT_ID('dbo.SP_CLIENT_MODIFY', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.SP_CLIENT_MODIFY;
+GO
+
+CREATE PROCEDURE dbo.SP_CLIENT_MODIFY
+    @CLIENT_ID INT,
+    @CLIENT_NAME NVARCHAR(150),
+    @LOGO_PATH NVARCHAR(500) = NULL,
+    @MODIFIED_BY INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        UPDATE dbo.TBL_MST_CLIENT
+        SET
+            CLIENT_NAME = @CLIENT_NAME,
+            LOGO_PATH = COALESCE(@LOGO_PATH, LOGO_PATH),
+            MODIFIED_BY = @MODIFIED_BY,
+            MODIFIED_DATE = GETDATE()
+        WHERE CLIENT_ID = @CLIENT_ID AND ISNULL(IS_DELETED, 0) = 0;
+
+        IF @@ROWCOUNT = 0
+        BEGIN
+            SELECT 0 AS Status, 'Client not found or already deleted' AS Message;
+            RETURN;
+        END;
+
+        SELECT 1 AS Status, 'Client updated successfully' AS Message;
+    END TRY
+    BEGIN CATCH
+        SELECT 0 AS Status, ERROR_MESSAGE() AS Message;
+    END CATCH;
+END;
+GO
+
+IF OBJECT_ID('dbo.SP_CLIENT_DELETE', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.SP_CLIENT_DELETE;
+GO
+
+CREATE PROCEDURE dbo.SP_CLIENT_DELETE
+    @CLIENT_ID INT,
+    @MODIFIED_BY INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        UPDATE dbo.TBL_MST_CLIENT
+        SET
+            IS_DELETED = 1,
+            IS_ACTIVE = 0,
+            MODIFIED_BY = @MODIFIED_BY,
+            MODIFIED_DATE = GETDATE()
+        WHERE CLIENT_ID = @CLIENT_ID AND ISNULL(IS_DELETED, 0) = 0;
+
+        IF @@ROWCOUNT = 0
+        BEGIN
+            SELECT 0 AS Status, 'Client not found or already deleted' AS Message;
+            RETURN;
+        END;
+
+        SELECT 1 AS Status, 'Client deleted successfully' AS Message;
+    END TRY
+    BEGIN CATCH
+        SELECT 0 AS Status, ERROR_MESSAGE() AS Message;
+    END CATCH;
+END;
+GO

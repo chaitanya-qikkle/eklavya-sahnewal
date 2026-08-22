@@ -1,0 +1,48 @@
+/node_modules
+/dist
+.DS_Store
+*.local
+.env
+.env.local
+.env.*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Python (backend)
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Backend venv (should not be committed)
+YMS_Backend/env/
+
+# Build artifacts & temp files
+eslint-report.json
+dist.zip
+temp_*.json
+*.zip
+
+# Tauri build output
+src-tauri/target/

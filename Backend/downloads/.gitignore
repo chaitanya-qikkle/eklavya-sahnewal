@@ -1,0 +1,5 @@
+# Installer files — too large for GitHub (>100MB)
+# Copy these manually to server after each build
+*.exe
+*.msi
+*.apk

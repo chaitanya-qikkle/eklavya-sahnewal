@@ -1,0 +1,432 @@
+from fastapi import APIRouter, HTTPException, Query, Depends
+from utils.db_utils import SQLManager
+from middleware.auth_middleware import get_current_user
+from pydantic import BaseModel, field_validator
+from typing import Optional
+
+router = APIRouter()
+
+
+@router.get("/kiosk-search")
+def kiosk_container_search(term: str, top: Optional[int] = 20):
+    db = SQLManager()
+    try:
+        result = db.execute_query("EXEC dbo.SP_KIOSK_CONTAINER_SEARCH ?, ?", (term.strip(), top))
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/container-live-status")
+def get_container_live_status(
+    plant_id:     int = Query(0),
+    search_for:   Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Full in-yard live-status feed via GET_CONTAINERLIVESTATUS.
+
+    The SP is hard-paginated (25 rows/page with @SearchFor, 15 rows/page
+    without) and returns no total-count column, but LiveStatus.jsx, the 3D
+    yard view, and the dashboards all expect one call to return the whole
+    in-yard list. So we page through the SP here and concatenate — with
+    ~1200 containers in yard that's dozens of round-trips per call.
+    """
+    db = SQLManager()
+    search_for = (search_for or "").strip()
+    page_size  = 25 if search_for else 15
+    try:
+        rows = []
+        page_index = 1
+        while True:
+            result = db.execute_query(
+                "EXEC dbo.GET_CONTAINERLIVESTATUS ?, ?, ?",
+                (page_index, search_for, plant_id),
+            )
+            if not result or result.get("status") != "success":
+                return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+            page_rows = result.get("data") or []
+            rows.extend(page_rows)
+            if len(page_rows) < page_size or page_index > 500:  # 500 = safety cap
+                break
+            page_index += 1
+        mapped = [
+            {
+                "CONTAINER_NO":      r.get("ContainerNo"),
+                "CONTAINER_SIZE":    r.get("ContainerSize"),
+                "CONTAINER_TYPE":    r.get("ContainerType"),
+                "CONTAINER_PROCESS": r.get("Process"),
+                "INVENTORY_STATUS":  r.get("ContainerStatus"),
+                "LOCATION_NAME":     r.get("ContainerLocation"),
+                "YARD_TYPE":         r.get("YardType"),
+                "GATE_IN_DATE":      r.get("GateInDate"),
+                "TOSS_IN_DATE":      r.get("LastShiftDate"),
+                "TIME_IN_YARD":      r.get("GateInTAT"),
+                "OFFLOAD_TAT":       r.get("OffloadTAT"),
+                "OFFLOAD_EQP":       r.get("EquipmentName"),
+                "LATITUDE":          r.get("Latitude"),
+                "LONGITUDE":         r.get("Longitude"),
+                "OFFLOAD_LAT":       r.get("Latitude"),
+                "OFFLOAD_LON":       r.get("Longitude"),
+                "DOCUMENT_NO":       r.get("DocumentNo"),
+                "BOOKING_NO":        r.get("BookingNo"),
+                "MODE":              r.get("Mode"),
+                "TERMINAL":          r.get("Terminal"),
+                "NO_OF_MOVES":       r.get("NoOfMoves"),
+                "YARD_IN_TIME":      r.get("YardInTime"),
+                "YARD_OUT_TIME":     r.get("YardOutTime"),
+                "RAIL_IN_DATETIME":  r.get("RailInDateTime"),
+                "RAIL_OUT_DATETIME": r.get("RailOutDateTime"),
+                "GATE_OUT_DATE":     r.get("GateOutDate"),
+                "RELEASE_STATUS":    r.get("ReleaseStatus"),
+                "MASTERTABLE":       r.get("ContainerLocation"),
+                "BLOCK_NAME":        r.get("ContainerLocation"),
+            }
+            for r in rows
+        ]
+        return {"status": "success", "count": len(mapped), "data": mapped}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/container-status-report")
+def get_container_status_report(
+    from_date: Optional[str] = None,
+    to_date:   Optional[str] = None,
+):
+    db = SQLManager()
+    try:
+        from datetime import datetime, timedelta
+        fd = from_date or (datetime.today() - timedelta(days=180)).strftime("%Y-%m-%d")
+        td = to_date   or datetime.today().strftime("%Y-%m-%d")
+        # Use only date part — RPT_GATE_INOUT expects DATE params
+        fd = fd[:10]
+        td = td[:10]
+        result = db.execute_query(
+            "EXEC dbo.SP_MONTHLY_GATE_INOUT ?, ?",
+            (fd, td),
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/container-gate-report")
+def get_container_gate_report(
+    from_date: Optional[str] = None,
+    to_date:   Optional[str] = None,
+):
+    db = SQLManager()
+    try:
+        from datetime import datetime, timedelta
+        fd = from_date or (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        td = to_date   or datetime.today().strftime("%Y-%m-%d")
+        fd = fd[:10]
+        td = td[:10]
+        result = db.execute_query(
+            "EXEC dbo.GET_CONTAINER_LIVE_STATUS_REPORT ?, ?",
+            (fd, td),
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/location-slots")
+def get_location_slots():
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            """
+            SELECT
+                SlotID    AS SlotId,
+                SlotName  AS SLOTNAME,
+                LatLong   AS LATLONG,
+                [Row]     AS [ROW],
+                [Column]  AS [COLUMN],
+                YardId    AS YARDID,
+                BlockId   AS BLOCK
+            FROM ESS_MST_SLOT
+            """
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/yard-3d-inventory")
+def get_yard_3d_inventory():
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.SP_YARD_3D_INVENTORY")
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/yard-3d-slot-list")
+def get_yard_3d_slot_list():
+    db = SQLManager()
+    try:
+        result = db.execute_query("EXEC dbo.SP_YARD_3D_SLOT_LIST")
+        if result and result.get("status") == "success":
+            return result
+        return {"status": "error", "message": "No positioned containers", "data": []}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/container-info")
+def get_container_info(container_no: str = ""):
+    db = SQLManager()
+    try:
+        response = db.execute_query(
+            "EXEC dbo.SP_CONTAINER_INFO ?",
+            (container_no.strip().upper(),),
+        )
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/lifecycle-details")
+def get_lifecycle_details(
+    container_no: str,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_CONTAINERLIFECYCLE_DETAILS ?, ?",
+            (container_no.strip().upper(), current_user.get("plant_id", 1)),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/lifecycle-offload-timeline")
+def get_offload_timeline(
+    master_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_OFFLOAD_TIMELINEDETAILS ?",
+            (master_id,),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/lifecycle-gateinout")
+def get_gateinout_timeline(
+    master_id: int,
+    container_no: str,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_GATEINOUT_TIMELINE ?, ?",
+            (master_id, container_no.strip().upper()),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/daily-utilisation")
+def get_daily_utilisation(
+    from_date: Optional[str] = None,
+    to_date:   Optional[str] = None,
+    group_by:  Optional[str] = None,
+):
+    from datetime import datetime, timedelta
+
+    def _parse(val: Optional[str]) -> Optional[str]:
+        if not val:
+            return None
+        return val.strip().replace("T", " ")
+
+    today  = datetime.today()
+    f_date = _parse(from_date) or (today - timedelta(days=29)).strftime("%Y-%m-%d")
+    t_date = _parse(to_date)   or today.strftime("%Y-%m-%d")
+    grp    = (group_by or "").strip().lower()
+
+    ALLOWED = {"process", "size", "type", "status"}
+    if grp and grp not in ALLOWED:
+        return {"status": "error", "message": f"group_by must be one of {sorted(ALLOWED)}"}
+
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.SP_DAILY_UTILISATION ?, ?, ?",
+            (f_date, t_date, grp or None),
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        rows = result.get("data") or []
+        return {
+            "status":    "success",
+            "from_date": f_date,
+            "to_date":   t_date,
+            "group_by":  grp or None,
+            "count":     len(rows),
+            "data":      rows,
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
+@router.get("/container-inventory")
+def get_container_inventory(
+    page_index: int = Query(1, ge=1),
+    search_for: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Paginated in-yard inventory via GET_CONTAINERLIVESTATUS.
+
+    The SP fixes its own page size (25 rows/page when @SearchFor is given,
+    15 rows/page otherwise) and returns no total-count column, so pagination
+    here is "load more"-style: has_next_page is inferred from whether the
+    page came back full, not from a real total.
+    """
+    db = SQLManager()
+    search_for = (search_for or "").strip()
+    plant_id   = current_user.get("plant_id", 1)
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_CONTAINERLIVESTATUS ?, ?, ?",
+            (page_index, search_for, plant_id),
+        )
+        if result["status"] != "success":
+            raise HTTPException(status_code=500, detail=result["message"])
+
+        rows      = result.get("data") or []
+        page_size = 25 if search_for else 15
+
+        return {
+            "status":          "success",
+            "page_index":      page_index,
+            "page_size":       page_size,
+            "records_on_page": len(rows),
+            "has_next_page":   len(rows) == page_size,
+            "data":            rows,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close_connection()
+
+
+# ── Update Physical Container Location ────────────────────────────────────────
+
+class UpdateLocationRequest(BaseModel):
+    container_no: str
+    location: str  # Block:Row:Column:Stack  e.g. "B2:C:8:2"
+
+    @field_validator("container_no")
+    @classmethod
+    def clean_container_no(cls, v: str) -> str:
+        v = v.strip().upper().replace(" ", "")
+        if not v:
+            raise ValueError("container_no cannot be empty")
+        return v
+
+    @field_validator("location")
+    @classmethod
+    def clean_location(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("location cannot be empty")
+        parts = [p.strip() for p in v.split(":")]
+        if len(parts) < 4 or any(p == "" for p in parts):
+            raise ValueError("location must be Block:Row:Column:Stack  e.g. B2:C:8:2")
+        return v
+
+
+@router.post("/update-physical-location")
+def update_physical_container_location(body: UpdateLocationRequest):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.UPD_PHYSICAL_CONTAINER_LOCATION ?, ?",
+            (body.container_no, body.location),
+            commit=True,
+        )
+        if not result or result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "SP failed"))
+
+        rows      = result.get("data") or []
+        sp_result = rows[0].get("Result") if rows else None
+
+        if sp_result == 2:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Location '{body.location}' not found. Check Block:Row:Column:Stack values.",
+            )
+        if sp_result != 1:
+            raise HTTPException(status_code=500, detail=f"Unexpected SP result: {sp_result}")
+
+        return {
+            "status":       "success",
+            "message":      f"Container {body.container_no} location updated to {body.location}",
+            "container_no": body.container_no,
+            "location":     body.location,
+            "updated_by":   "mobile",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+    finally:
+        db.close_connection()

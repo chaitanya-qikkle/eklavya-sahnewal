@@ -1,0 +1,61 @@
+"""
+Reports repository — DB calls for all report endpoints.
+"""
+from typing import Optional
+
+from app.repositories.base import BaseRepository
+
+
+class ReportsRepository(BaseRepository):
+
+    def get_gate_report(
+        self,
+        from_date: str,
+        to_date: str,
+        container_no: str,
+    ) -> dict:
+        return self._exec(
+            "EXEC [dbo].[RPT_GATE_INOUT] @fromDate = ?, @toDate = ?, @ContainerNo = ?",
+            (from_date, to_date, container_no),
+        )
+
+    def get_device_lock_report(
+        self,
+        report_type: str,
+        equipment_names: str,
+        from_date: str,
+        to_date: str,
+        plant_id: int,
+        location: str,
+    ) -> dict:
+        return self._exec(
+            "EXEC [dbo].[GET_DEVICE_LOCK_REPORT] ?, ?, ?, ?, ?, ?",
+            (report_type, equipment_names, from_date, to_date, plant_id, location),
+        )
+
+    def get_device_raw_data(
+        self,
+        machine: str,
+        from_date: str,
+        to_date: str,
+    ) -> dict:
+        return self._exec_all(
+            "EXEC [dbo].[REPORT_PROC_DEVICE_DATA] @from_date=?, @to_date=?, @machine=?",
+            (from_date, to_date, machine),
+        )
+
+    def update_device_container(
+        self,
+        plant_id: int,
+        eqp_trans_id: int,
+        cont_no: str,
+        user_id: int,
+    ) -> dict:
+        return self._exec(
+            "EXEC [dbo].[UPD_DEVICEDATADETAIL_CONTNO_BY_IMG] ?, ?, ?, ?",
+            (plant_id, eqp_trans_id, cont_no, user_id),
+            commit=True,
+        )
+
+    def get_daily_utilisation(self, sql: str, params: tuple) -> dict:
+        return self._exec(sql, params)

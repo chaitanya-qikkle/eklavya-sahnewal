@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "notes": "YMS Yard Twin latest release",
+  "pub_date": "2026-06-07T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "http://127.0.0.1:5000/downloads/YMS-Yard-Twin-Setup.exe",
+      "signature": ""
+    }
+  }
+}

@@ -1,0 +1,28 @@
+/env
+/venv
+/.venv
+/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.env.local
+.env.*.local
+*.log
+logs/
+modules/logs/
+.DS_Store
+.vscode/
+.idea/
+
+# Compiled / cache
+__pycache__/
+*.pyc
+
+# Build artifacts
+uploads/
+stitching_outputs/
+downloads/*.apk
+downloads/*.exe
+downloads/*.msi
