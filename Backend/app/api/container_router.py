@@ -127,16 +127,19 @@ def update_physical_location(body: UpdateLocationRequest):
 @router.get("/pre-gate-survey")
 def get_pre_gate_survey(
     gate_type:    Optional[str] = None,
+    gate_name:    Optional[str] = None,
     from_date:    Optional[str] = None,
     to_date:      Optional[str] = None,
     container_no: Optional[str] = None,
+    plant_id:     int = Query(0),
     page:      int = Query(1,  ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
     svc = _service()
     try:
         return svc.get_pre_gate_survey(
-            gate_type, from_date, to_date, container_no, page, page_size, STITCHING_DIR
+            gate_type, gate_name, from_date, to_date, container_no,
+            page, page_size, STITCHING_DIR, plant_id,
         )
     finally:
         svc.repo.db.close()

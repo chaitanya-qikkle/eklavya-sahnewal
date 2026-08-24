@@ -48,14 +48,15 @@ class ContainerRepository(BaseRepository):
 
     def get_pre_gate_survey(
         self,
-        from_date: str,
-        to_date: str,
-        gate_type: str,
+        plant_id: int,
+        from_date: Optional[str],
+        to_date: Optional[str],
+        gate_name: Optional[str],
     ) -> dict:
         # Parameterized — no f-string interpolation
         return self._exec(
-            "EXEC dbo.GET_EKL_TRN_CONTAINER_ESURVEY ?, ?, ?",
-            (from_date, to_date, gate_type),
+            "EXEC dbo.GET_ESURVEY_DETAIL @PlantID = ?, @FromDate = ?, @ToDate = ?, @ContainerNo = NULL, @GateName = ?",
+            (plant_id, from_date, to_date, gate_name),
         )
 
     def get_daily_utilisation(self, from_date: str, to_date: str, group_by: Optional[str]) -> dict:

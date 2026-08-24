@@ -97,40 +97,40 @@ class ContainerService:
     def get_pre_gate_survey(
         self,
         gate_type: Optional[str],
+        gate_name: Optional[str],
         from_date: Optional[str],
         to_date: Optional[str],
         container_no: Optional[str],
         page: int,
         page_size: int,
         stitching_dir: pathlib.Path,
+        plant_id: int = 0,
     ) -> dict:
-        fd = from_date or "1900-01-01"
-        td = to_date   or "9999-12-31"
-        gt = gate_type or ""
-
-        result = self.repo.get_pre_gate_survey(fd, td, gt)
+        result = self.repo.get_pre_gate_survey(plant_id, from_date or None, to_date or None, gate_name or None)
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": [], "total": 0}
 
         rows = result.get("data", []) or []
 
-        if container_no:
-            q = container_no.upper()
-            rows = [r for r in rows if q in str(r.get("CONTAINER_NO") or "").upper()]
-
         for row in rows:
-            gate_raw       = (row.get("GateName") or "").strip().upper()
-            row["_gate_type"] = "GATE_OUT" if row.get("GATE_OUT_DATE") or "OUT" in gate_raw else "GATE_IN"
+            _normalize_survey_row(row, stitching_dir)
 
-        gate_in_count  = sum(1 for r in rows if r["_gate_type"] == "GATE_IN")
-        gate_out_count = sum(1 for r in rows if r["_gate_type"] == "GATE_OUT")
+        if container_no:
+            q = container_no.strip().upper()
+            rows = [r for r in rows if q in (r.get("ContainerNo") or "").upper()]
+
+        if gate_type:
+            gt = gate_type.strip().upper()
+            rows = [r for r in rows if r.get("GateType") == gt]
+
+        gate_in_count  = sum(1 for r in rows if r["GateType"] == "GATE_IN")
+        gate_out_count = sum(1 for r in rows if r["GateType"] == "GATE_OUT")
+
+        rows.sort(key=lambda r: str(r.get("SurveyTime") or ""), reverse=True)
 
         total       = len(rows)
         total_pages = max(1, -(-total // page_size))
         page_rows   = rows[(page - 1) * page_size: page * page_size]
-
-        for row in page_rows:
-            _normalize_survey_row(row, stitching_dir)
 
         return {
             "status":         "success",
@@ -185,21 +185,19 @@ def _img_url(stitching_dir: pathlib.Path, gate: str, date_part: str, cont: str, 
 
 
 def _normalize_survey_row(row: dict, stitching_dir: pathlib.Path) -> None:
-    row["ContainerNo"] = (row.get("CONTAINER_NO") or "").strip()
-    row["GateInDate"]  = row.get("GATE_IN_DATE") or None
-    row["GateOutDate"] = row.get("GATE_OUT_DATE") or None
-    row["Status"]      = row.get("INVENTORY_STATUS") or ""
-    row["ContSize"]    = row.get("Cont_Size") or ""
-    row["ContType"]    = row.get("Cont_Type") or ""
-    row["Process"]     = row.get("ProcessCode") or ""
-    row["DocumentNo"]  = row.get("DOCUMENT_NO") or ""
+    row["ContainerNo"] = (row.get("ContNo") or "").strip()
+    row["ContSize"]    = row.get("ContainerSize") or ""
+    row["ContType"]    = row.get("ContainerType") or ""
+    row["Status"]      = row.get("ContainerStatus") or ""
+    row["Location"]    = row.get("ContainerLocationName") or ""
+    row["VehicleNo"]   = row.get("TrailerNo") or row.get("ANPRVehicleNo") or ""
 
     gate_raw          = (row.get("GateName") or "").strip()
     row["GateName"]   = gate_raw
-    row["SurveyTime"] = row.get("SurveyTime") or row["GateInDate"] or None
-    row["GateType"]   = "GATE_OUT" if row["GateOutDate"] or "OUT" in gate_raw.upper() else "GATE_IN"
+    row["SurveyTime"] = row.get("SurveyTime") or row.get("GateInDate") or None
+    row["GateType"]   = "GATE_OUT" if row.get("GateOutDate") else "GATE_IN"
 
-    date_src = row["SurveyTime"] or row["GateInDate"]
+    date_src = row["SurveyTime"] or row.get("GateInDate")
     cont     = row["ContainerNo"]
     if cont and date_src and gate_raw:
         try:
@@ -207,7 +205,8 @@ def _normalize_survey_row(row: dict, stitching_dir: pathlib.Path) -> None:
             row["IMG_LEFT"]  = _img_url(stitching_dir, gate_raw, dp, cont, "left")
             row["IMG_RIGHT"] = _img_url(stitching_dir, gate_raw, dp, cont, "right")
             row["IMG_TOP"]   = _img_url(stitching_dir, gate_raw, dp, cont, "top")
+            row["IMG_BACK"]  = _img_url(stitching_dir, gate_raw, dp, cont, "back")
         except Exception:
-            row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = None
+            row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = row["IMG_BACK"] = None
     else:
-        row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = None
+        row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = row["IMG_BACK"] = None

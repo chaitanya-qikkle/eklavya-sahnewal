@@ -27,7 +27,7 @@ _bearer_opt    = HTTPBearer(auto_error=False)
 
 # ── Token creation ────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: int, username: str, plant_id: int) -> str:
+def create_access_token(user_id: str, username: str, plant_id: int) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub":      str(user_id),
@@ -40,7 +40,7 @@ def create_access_token(user_id: int, username: str, plant_id: int) -> str:
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: str) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub":  str(user_id),
@@ -67,7 +67,7 @@ def get_current_user(
     FastAPI dependency — validates the Bearer token and returns user context.
 
     Returns:
-        { "user_id": int, "username": str, "plant_id": int }
+        { "user_id": str (GUID), "username": str, "plant_id": int }
     """
     try:
         payload = decode_token(credentials.credentials)

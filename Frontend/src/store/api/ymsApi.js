@@ -537,12 +537,14 @@ export const ymsApi = createApi({
     // ─── Pre-Gate Survey (E-Survey) ──────────────────────────────────────────
 
     getPreGateSurvey: builder.query({
-      query: ({ gate_type, from_date, to_date, container_no, page = 1, page_size = 20 } = {}) => {
+      query: ({ gate_type, gate_name, from_date, to_date, container_no, plant_id, page = 1, page_size = 20 } = {}) => {
         const params = new URLSearchParams()
         if (gate_type)    params.set('gate_type',    gate_type)
+        if (gate_name)    params.set('gate_name',    gate_name)
         if (from_date)    params.set('from_date',    from_date)
         if (to_date)      params.set('to_date',      to_date)
         if (container_no) params.set('container_no', container_no)
+        if (plant_id !== undefined && plant_id !== null) params.set('plant_id', String(plant_id))
         params.set('page',      String(page))
         params.set('page_size', String(page_size))
         return {

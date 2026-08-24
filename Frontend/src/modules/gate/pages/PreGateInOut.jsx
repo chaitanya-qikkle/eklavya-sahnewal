@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
-  FiImage, FiX, FiCalendar, FiLogIn,
-  FiChevronLeft, FiChevronRight, FiDownload,
+  FiImage, FiX, FiCalendar, FiLogIn, FiLogOut,
+  FiChevronLeft, FiChevronRight, FiDownload, FiMapPin, FiTruck as FiTruckIcon,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaTruck } from 'react-icons/fa'
@@ -13,15 +13,12 @@ import { buildAssetUrl } from '../../../config/api'
 
 const PAGE_SIZE = 20
 
-function formatDate(raw) {
-  if (!raw) return null
-  try {
-    const d = new Date(String(raw).replace(' ', 'T'))
-    if (isNaN(d.getTime())) return String(raw)
-    const p = (n) => String(n).padStart(2, '0')
-    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
-  } catch { return String(raw) }
-}
+const IMAGE_SIDES = [
+  { key: 'IMG_LEFT',  label: 'L', side: 'left'  },
+  { key: 'IMG_RIGHT', label: 'R', side: 'right' },
+  { key: 'IMG_BACK',  label: 'B', side: 'back'  },
+  { key: 'IMG_TOP',   label: 'T', side: 'top'   },
+]
 
 function formatDateParts(raw) {
   if (!raw) return null
@@ -36,36 +33,9 @@ function formatDateParts(raw) {
   } catch { return null }
 }
 
-/* ─── Survey Image Thumbnail ─────────────────────────────────────────────── */
-function SurveyImage({ url, side, onClick }) {
-  const [err, setErr] = useState(false)
-  useEffect(() => { setErr(false) }, [url])
-
-  if (!url || err) {
-    return (
-      <div className="flex flex-col items-center justify-center bg-slate-100 rounded-lg border border-dashed border-slate-300 h-14 w-full text-slate-300 gap-0.5 select-none">
-        <FiImage className="text-sm" />
-        <span className="text-[9px] capitalize font-medium">{side}</span>
-      </div>
-    )
-  }
-  return (
-    <button
-      onClick={() => onClick(url, side)}
-      className="relative group overflow-hidden rounded-lg border border-slate-200 shadow-sm hover:shadow-md h-14 w-full focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/40 transition-all"
-      title={`View ${side}`}
-    >
-      <img
-        src={url} alt={side}
-        onError={() => setErr(true)}
-        loading="lazy"
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-      />
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 flex items-end justify-center pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <span className="text-white text-[9px] font-semibold capitalize">{side}</span>
-      </div>
-    </button>
-  )
+function formatDate(raw) {
+  const parts = formatDateParts(raw)
+  return parts ? `${parts.date} ${parts.time}` : ''
 }
 
 /* ─── Lightbox ───────────────────────────────────────────────────────────── */
@@ -119,15 +89,42 @@ function DateCell({ raw, highlight }) {
   )
 }
 
+/* ─── Image Cell (4 thumbnails: left/right/back/top) ───────────────────────── */
+function ImagesCell({ row, onOpen }) {
+  return (
+    <div className="flex items-center gap-1 justify-center">
+      {IMAGE_SIDES.map(({ key, label, side }) => {
+        const url = buildAssetUrl(row[key])
+        return url ? (
+          <button
+            key={key}
+            onClick={() => onOpen(url, side)}
+            title={`View ${side}`}
+            className="w-7 h-7 rounded-lg border border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white flex items-center justify-center text-[9px] font-bold transition-all"
+          >
+            {label}
+          </button>
+        ) : (
+          <span
+            key={key}
+            className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 flex items-center justify-center text-[9px] font-bold"
+          >
+            {label}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 export default function PreGateInOut() {
-  const today = new Date().toISOString().split('T')[0]
-
-  const [fromDate,    setFromDate]    = useState(today)
-  const [toDate,      setToDate]      = useState(today)
+  const [fromDate,    setFromDate]    = useState('')
+  const [toDate,      setToDate]      = useState('')
   const [containerNo, setContainerNo] = useState('')
+  const [gateFilter,  setGateFilter]  = useState('ALL')
   const [page,        setPage]        = useState(1)
-  const [sortCol,     setSortCol]     = useState('InDate')
+  const [sortCol,     setSortCol]     = useState('SurveyTime')
   const [sortDir,     setSortDir]     = useState('desc')
   const [lightbox,    setLightbox]    = useState(null)
 
@@ -135,11 +132,12 @@ export default function PreGateInOut() {
 
   const buildArgs = useCallback((pg = 1) => {
     const args = { page: pg, page_size: PAGE_SIZE }
-    if (fromDate)           args.from_date    = fromDate
-    if (toDate)             args.to_date      = toDate
-    if (containerNo.trim()) args.container_no = containerNo.trim()
+    if (fromDate)               args.from_date    = fromDate
+    if (toDate)                 args.to_date      = toDate
+    if (containerNo.trim())     args.container_no = containerNo.trim()
+    if (gateFilter !== 'ALL')   args.gate_type    = gateFilter
     return args
-  }, [fromDate, toDate, containerNo])
+  }, [fromDate, toDate, containerNo, gateFilter])
 
   useEffect(() => { fetchSurvey(buildArgs(1)) }, []) // eslint-disable-line
 
@@ -149,22 +147,31 @@ export default function PreGateInOut() {
     const allRows = Array.isArray(data?.data) ? data.data : []
     if (!allRows.length) return
     const sheetData = allRows.map((row, i) => ({
-      '#':               i + 1,
-      'Container No':    row.ContainerNo    || '',
-      'Container Type':  row.ContainerType  || '',
-      'Container Size':  row.ContainerSize  || '',
-      'Gate In Date':    row.InDate         ? formatDate(row.InDate) : '',
+      '#':              i + 1,
+      'Container No':   row.ContainerNo   || '',
+      'Size':           row.ContSize      || '',
+      'Type':           row.ContType      || '',
+      'Process':        row.Process       || '',
+      'Gate':           row.GateName      || '',
+      'Direction':      row.GateType      || '',
+      'Gate In Date':   row.GateInDate    ? formatDate(row.GateInDate)  : '',
+      'Gate Out Date':  row.GateOutDate   ? formatDate(row.GateOutDate) : '',
+      'Survey Time':    row.SurveyTime    ? formatDate(row.SurveyTime)  : '',
+      'Location':       row.Location      || '',
+      'Vehicle No':     row.VehicleNo     || '',
+      'Document No':    row.DocumentNo    || '',
+      'Status':         row.Status        || '',
     }))
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Pre Gate Survey')
-    XLSX.writeFile(wb, `PreGateSurvey_${fromDate}_${toDate}.xlsx`)
+    XLSX.writeFile(wb, `PreGateSurvey_${fromDate || 'today'}_${toDate || 'today'}.xlsx`)
   }
 
-  const handleClear  = () => {
-    setFromDate(today); setToDate(today)
-    setContainerNo(''); setPage(1)
-    fetchSurvey({ page: 1, page_size: PAGE_SIZE, from_date: today, to_date: today })
+  const handleClear = () => {
+    setFromDate(''); setToDate('')
+    setContainerNo(''); setGateFilter('ALL'); setPage(1)
+    fetchSurvey({ page: 1, page_size: PAGE_SIZE })
   }
 
   const goToPage = (pg) => {
@@ -187,8 +194,10 @@ export default function PreGateInOut() {
     })
   })()
 
-  const total       = data?.total       ?? 0
-  const total_pages = data?.total_pages ?? 1
+  const total          = data?.total          ?? 0
+  const gate_in_count  = data?.gate_in_count   ?? 0
+  const gate_out_count = data?.gate_out_count  ?? 0
+  const total_pages    = data?.total_pages     ?? 1
 
   const TH = ({ col, children }) => (
     <th
@@ -220,19 +229,25 @@ export default function PreGateInOut() {
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
               <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
-                <FaTruck /> Gate Entry Report
+                <FaTruck /> Pre Gate In / Out
               </h1>
               <p className="text-slate-500 mt-0.5 text-sm">
-                Gate In records — {total.toLocaleString()} total records
+                {total.toLocaleString()} total records
               </p>
             </div>
 
-            {/* Stat card */}
-            <div>
-              <div className="bg-gradient-to-br from-[#0e4a78] to-[#0a3b61] rounded-xl shadow-lg p-3 sm:p-4 text-white">
-                <p className="text-xs uppercase tracking-wider font-semibold text-blue-100">Total Records</p>
-                <p className="text-2xl sm:text-3xl font-bold mt-1">{total}</p>
-              </div>
+            {/* Stat cards */}
+            <div className="grid grid-cols-3 gap-3 lg:gap-4">
+              {[
+                { label: 'Total',    val: total,          cls: 'from-[#0e4a78] to-[#0a3b61]',    light: 'text-blue-100'    },
+                { label: 'Gate In',  val: gate_in_count,   cls: 'from-emerald-600 to-emerald-500', light: 'text-emerald-100' },
+                { label: 'Gate Out', val: gate_out_count,  cls: 'from-amber-500 to-amber-600',     light: 'text-amber-100'   },
+              ].map(s => (
+                <div key={s.label} className={`bg-gradient-to-br ${s.cls} rounded-xl shadow-lg p-3 sm:p-4 text-white`}>
+                  <p className={`text-xs uppercase tracking-wider font-semibold ${s.light}`}>{s.label}</p>
+                  <p className="text-2xl sm:text-3xl font-bold mt-1">{s.val.toLocaleString()}</p>
+                </div>
+              ))}
             </div>
           </header>
 
@@ -258,6 +273,22 @@ export default function PreGateInOut() {
                 onChange={e => setToDate(e.target.value)}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Direction</label>
+              <div className="flex gap-1.5">
+                {['ALL', 'GATE_IN', 'GATE_OUT'].map(t => (
+                  <button key={t} onClick={() => setGateFilter(t)}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold border-2 transition-all ${
+                      gateFilter === t
+                        ? 'bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white border-[#0e4a78] shadow-md'
+                        : 'bg-white text-slate-600 border-slate-300 hover:border-[#0e4a78] hover:text-[#0e4a78]'
+                    }`}>
+                    {t === 'ALL' ? 'All' : t === 'GATE_IN' ? 'Gate In' : 'Gate Out'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
@@ -312,7 +343,7 @@ export default function PreGateInOut() {
                   <FaTruck />
                 </div>
                 <div>
-                  <p className="font-semibold text-base">Gate Entry Report</p>
+                  <p className="font-semibold text-base">Pre Gate In / Out Report</p>
                   <p className="text-xs text-white/60">
                     Page {page} of {total_pages} · {total.toLocaleString()} total · {PAGE_SIZE} per page
                   </p>
@@ -347,15 +378,21 @@ export default function PreGateInOut() {
                     <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white text-xs">
                       <th className="px-2 py-2 text-left font-semibold uppercase tracking-wider border-r border-white/10 w-8">#</th>
                       <TH col="ContainerNo">Container No</TH>
-                      <TH col="InDate">Gate In Date</TH>
-                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-20">Image</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Size / Type</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Process</th>
+                      <TH col="GateName">Gate</TH>
+                      <TH col="GateInDate">Gate In</TH>
+                      <TH col="GateOutDate">Gate Out</TH>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Vehicle No</th>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-32">Images</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-16 text-center">
+                        <td colSpan={10} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range and click Search</p>
@@ -363,10 +400,11 @@ export default function PreGateInOut() {
                       </tr>
                     ) : rows.map((row, idx) => {
                       const serial = (page - 1) * PAGE_SIZE + idx + 1
+                      const isIn = row.GateType === 'GATE_IN'
 
                       return (
                         <tr
-                          key={row.ID ?? idx}
+                          key={row.ContMasterID ?? row.ContainerNo ?? idx}
                           className={`border-b border-slate-100 hover:bg-blue-50 transition-colors
                             ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
                         >
@@ -378,17 +416,61 @@ export default function PreGateInOut() {
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-[#0e4a78] font-black font-mono text-xs">
                               {row.ContainerNo || '—'}
                             </span>
+                            {row.DocumentNo && <div className="text-[10px] text-slate-400 mt-0.5 pl-1">{row.DocumentNo}</div>}
+                          </td>
+
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.ContSize || row.ContType ? (
+                              <>
+                                <p className="text-xs font-bold text-slate-700">{row.ContSize || '—'}</p>
+                                <p className="text-[10px] text-slate-400">{row.ContType || ''}</p>
+                              </>
+                            ) : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+
+                          <td className="px-3 py-2 text-[11px] text-slate-600 font-medium whitespace-nowrap">
+                            {row.Process || '—'}
+                          </td>
+
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <p className="text-[11px] font-semibold text-slate-700">{row.GateName || '—'}</p>
+                            <span className={`inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                              isIn ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                   : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {isIn ? <FiLogIn size={9} /> : <FiLogOut size={9} />}
+                              {isIn ? 'IN' : 'OUT'}
+                            </span>
                           </td>
 
                           <td className="px-3 py-2 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <FiLogIn className="text-emerald-400 flex-shrink-0" size={11} />
-                              <DateCell raw={row.InDate} highlight />
+                              <DateCell raw={row.GateInDate} highlight={isIn} />
                             </div>
                           </td>
 
-                          <td className="px-1.5 py-1.5 w-20">
-                            <SurveyImage url={row.CameraImg} side="camera" onClick={(u, l) => setLightbox({ url: u, label: l })} />
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <FiLogOut className="text-amber-400 flex-shrink-0" size={11} />
+                              <DateCell raw={row.GateOutDate} />
+                            </div>
+                          </td>
+
+                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[140px] truncate">
+                            {row.Location
+                              ? <span className="inline-flex items-center gap-1"><FiMapPin size={10} className="text-slate-400" />{row.Location}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+
+                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
+                            {row.VehicleNo
+                              ? <span className="inline-flex items-center gap-1"><FiTruckIcon size={10} className="text-slate-400" />{row.VehicleNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+
+                          <td className="px-1.5 py-1.5 w-32">
+                            <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                           </td>
                         </tr>
                       )

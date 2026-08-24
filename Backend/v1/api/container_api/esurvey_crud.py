@@ -28,102 +28,74 @@ def serve_survey_image(p: str):
     return FileResponse(str(target), media_type=media, headers={"Cache-Control": "public, max-age=3600"})
 
 
-# ── Gate Entry Report (paginated) — uses GET_GATEENTRY_REPORT SP ──────────────
+# ── Pre-Gate Survey (paginated) — uses GET_ESURVEY_DETAIL SP ──────────────────
 @router.get("/pre-gate-survey")
 def get_pre_gate_survey(
     from_date:    Optional[str] = None,
     to_date:      Optional[str] = None,
     container_no: Optional[str] = None,
+    gate_type:    Optional[str] = None,
+    gate_name:    Optional[str] = None,
+    plant_id:     int = Query(0),
     page:      int = Query(1,  ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    # kept for backwards-compat but unused now
-    gate_type: Optional[str] = None,
 ):
     """
-    Paginated gate entry report using GET_GATEENTRY_REPORT SP.
-    Returns: { status, total, page, page_size, total_pages, data }
+    Paginated pre-gate e-survey report using GET_ESURVEY_DETAIL SP.
+    Returns: { status, total, gate_in_count, gate_out_count, page, page_size, total_pages, data }
     """
     db = SQLManager()
     try:
-        from datetime import date
-        today = date.today().isoformat()
-        fd = from_date or today
-        td = to_date   or today
-
         result = db.execute_query(
-            "EXEC dbo.GET_GATEENTRY_REPORT ?, ?, 0",
-            (fd, td),
+            "EXEC dbo.GET_ESURVEY_DETAIL @PlantID = ?, @FromDate = ?, @ToDate = ?, @ContainerNo = NULL, @GateName = ?",
+            (plant_id, from_date or None, to_date or None, gate_name or None),
         )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": [], "total": 0}
 
         rows = result.get("data", []) or []
 
-        # Client-side container filter
+        for row in rows:
+            _normalize(row)
+
         cn = (container_no or "").strip().upper()
         if cn:
             rows = [r for r in rows if cn in (r.get("ContainerNo") or "").upper()]
+
+        if gate_type:
+            gt = gate_type.strip().upper()
+            rows = [r for r in rows if r.get("GateType") == gt]
+
+        gate_in_count  = sum(1 for r in rows if r["GateType"] == "GATE_IN")
+        gate_out_count = sum(1 for r in rows if r["GateType"] == "GATE_OUT")
+
+        rows.sort(key=lambda r: str(r.get("SurveyTime") or ""), reverse=True)
 
         total       = len(rows)
         total_pages = max(1, -(-total // page_size))
         start       = (page - 1) * page_size
         page_rows   = rows[start : start + page_size]
 
-        # Fetch ContainerType/Size from inventory for all page rows
-        all_containers = [r.get("ContainerNo", "").strip() for r in page_rows if r.get("ContainerNo")]
-        inv_map = {}
-        if all_containers:
-            placeholders = ",".join("?" * len(all_containers))
-            inv_result = db.execute_query(
-                f"""
-                SELECT ContNo AS ContainerNo, ContainerSize, ContainerType
-                FROM (
-                    SELECT ContNo, ContainerSize, ContainerType,
-                           ROW_NUMBER() OVER (PARTITION BY ContNo ORDER BY CreatedDate DESC) AS rn
-                    FROM IND_TRN_CONTAINER_INVENTORY
-                    WHERE ContNo IN ({placeholders})
-                ) t WHERE rn = 1
-                """,
-                tuple(all_containers),
-            )
-            for inv in (inv_result.get("data") or []):
-                c = (inv.get("ContainerNo") or "").strip()
-                if c:
-                    inv_map[c] = inv
-
-        for row in page_rows:
-            _normalize_gate_entry(row, inv_map)
-
-        logger.info("gate-entry-report page=%d/%d size=%d total=%d", page, total_pages, len(page_rows), total)
+        logger.info("pre-gate-survey page=%d/%d size=%d total=%d", page, total_pages, len(page_rows), total)
         return {
-            "status":      "success",
-            "total":       total,
-            "page":        page,
-            "page_size":   page_size,
-            "total_pages": total_pages,
-            "data":        page_rows,
+            "status":         "success",
+            "total":          total,
+            "gate_in_count":  gate_in_count,
+            "gate_out_count": gate_out_count,
+            "page":           page,
+            "page_size":      page_size,
+            "total_pages":    total_pages,
+            "data":           page_rows,
         }
 
     except Exception as e:
-        logger.exception("gate-entry-report error")
+        logger.exception("pre-gate-survey error")
         return {"status": "error", "message": f"Server Error: {str(e)}", "data": [], "total": 0}
     finally:
         db.close_connection()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
-def _normalize_gate_entry(row: dict, inv_map: dict = {}):
-    """Map GET_GATEENTRY_REPORT SP columns → frontend field names."""
-    cont_no = (row.get("ContainerNo") or "").strip()
-    row["ContainerNo"] = cont_no
-    row["InDate"]      = row.get("InDate") or None
-    row["CameraImg"]   = row.get("CameraImg") or None
-
-    # ContainerType/Size — inventory always wins (SP values are often blank)
-    inv = inv_map.get(cont_no, {})
-    row["ContainerType"] = inv.get("ContainerType") or row.get("ContainerType") or ""
-    row["ContainerSize"] = inv.get("ContainerSize") or row.get("ContainerSize") or ""
 
 def _img_url(gate: str, date_part: str, cont: str, side: str) -> Optional[str]:
     """Return API image URL only if the file exists on disk."""
@@ -134,35 +106,23 @@ def _img_url(gate: str, date_part: str, cont: str, side: str) -> Optional[str]:
 
 
 def _normalize(row: dict):
-    """Normalize SP column names → frontend-expected field names."""
-    # SP returns: ContainerNo, GateName, GateType, SurveyTime, DetectedTime, Left1, Right1, Top1
-    cont_no = (
-        row.get("ContainerNo") or row.get("CONTAINER_NO") or ""
-    ).strip()
+    """Map GET_ESURVEY_DETAIL SP columns → frontend-expected field names."""
+    cont_no = (row.get("ContNo") or "").strip()
     row["ContainerNo"] = cont_no
+    row["ContSize"]    = row.get("ContainerSize") or ""
+    row["ContType"]    = row.get("ContainerType") or ""
+    row["Status"]      = row.get("ContainerStatus") or ""
+    row["Location"]    = row.get("ContainerLocationName") or ""
+    row["VehicleNo"]   = row.get("TrailerNo") or row.get("ANPRVehicleNo") or ""
 
-    gate_name_raw  = (row.get("GateName") or "").strip()
+    gate_name_raw   = (row.get("GateName") or "").strip()
     row["GateName"] = gate_name_raw
 
-    survey_time = row.get("SurveyTime") or None
-    row["SurveyTime"] = survey_time
-    row["GateInDate"]  = row.get("GateInDate") or row.get("GATE_IN_DATE") or None
-    row["GateOutDate"] = row.get("GateOutDate") or row.get("GATE_OUT_DATE") or None
-
-    # GateType already set by SP; keep it, fallback via GateName
-    sp_gate_type = (row.get("GateType") or "").strip().upper()
-    if sp_gate_type in ("GATE_IN", "GATE_OUT"):
-        row["GateType"] = sp_gate_type
-    elif row["GateOutDate"] or "OUT" in gate_name_raw.upper():
-        row["GateType"] = "GATE_OUT"
-    else:
-        row["GateType"] = "GATE_IN"
-
-    row["Status"]    = row.get("INVENTORY_STATUS") or row.get("Status") or ""
-    row["ContSize"]  = row.get("Cont_Size")  or row.get("ContSize")  or ""
-    row["ContType"]  = row.get("Cont_Type")  or row.get("ContType")  or ""
-    row["Process"]   = row.get("ProcessCode") or row.get("Process")  or ""
-    row["DocumentNo"] = row.get("DOCUMENT_NO") or row.get("DocumentNo") or ""
+    survey_time = row.get("SurveyTime") or row.get("GateInDate") or None
+    row["SurveyTime"]  = survey_time
+    row["GateInDate"]  = row.get("GateInDate") or None
+    row["GateOutDate"] = row.get("GateOutDate") or None
+    row["GateType"]    = "GATE_OUT" if row["GateOutDate"] else "GATE_IN"
 
     date_src = survey_time
     if cont_no and date_src and gate_name_raw:
@@ -171,7 +131,8 @@ def _normalize(row: dict):
             row["IMG_LEFT"]  = _img_url(gate_name_raw, dp, cont_no, "left")
             row["IMG_RIGHT"] = _img_url(gate_name_raw, dp, cont_no, "right")
             row["IMG_TOP"]   = _img_url(gate_name_raw, dp, cont_no, "top")
+            row["IMG_BACK"]  = _img_url(gate_name_raw, dp, cont_no, "back")
         except Exception:
-            row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = None
+            row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = row["IMG_BACK"] = None
     else:
-        row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = None
+        row["IMG_LEFT"] = row["IMG_RIGHT"] = row["IMG_TOP"] = row["IMG_BACK"] = None
