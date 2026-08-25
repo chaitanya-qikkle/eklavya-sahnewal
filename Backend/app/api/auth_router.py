@@ -1,9 +1,5 @@
 """
-Auth API router — login, user management, roles.
-
-Menu and role-menu endpoints live in app/api/menu_router.py (mounted at
-/v1/menu, matching what the frontend already calls) rather than nested
-under /auth/menus/* here.
+Auth API router — login, user management, roles, menus.
 
 Each endpoint:
   1. Receives HTTP request
@@ -13,6 +9,8 @@ Each endpoint:
 
 No SQL, no business logic here.
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Request
 
 from app.core.database import SQLManager
@@ -21,12 +19,15 @@ from app.repositories.auth_repository import AuthRepository
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
     LoginRequest,
+    MenuCreateRequest,
+    MenuDeleteRequest,
+    MenuUpdateRequest,
     RoleCreateRequest,
     RoleDeleteRequest,
+    RoleMenuSetRequest,
     RoleUpdateRequest,
     UserCreateRequest,
     UserDeleteRequest,
-    UserUpdatePasswordRequest,
     UserUpdateRequest,
 )
 from middleware.rate_limiter import limiter, LOGIN_RATE_LIMIT_PER_MINUTE
@@ -72,10 +73,10 @@ def get_users(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/create-user-sp")
-def create_user(body: UserCreateRequest, current_user: dict = Depends(get_current_user)):
+def create_user(body: UserCreateRequest):
     svc = _service()
     try:
-        return svc.create_user(body, current_user)
+        return svc.create_user(body)
     finally:
         svc.repo.db.close()
 
@@ -84,16 +85,7 @@ def create_user(body: UserCreateRequest, current_user: dict = Depends(get_curren
 def update_user(body: UserUpdateRequest, current_user: dict = Depends(get_current_user)):
     svc = _service()
     try:
-        return svc.update_user(body, current_user)
-    finally:
-        svc.repo.db.close()
-
-
-@router.post("/update-user-password")
-def update_user_password(body: UserUpdatePasswordRequest, current_user: dict = Depends(get_current_user)):
-    svc = _service()
-    try:
-        return svc.update_user_password(body)
+        return svc.update_user(body)
     finally:
         svc.repo.db.close()
 
@@ -102,7 +94,7 @@ def update_user_password(body: UserUpdatePasswordRequest, current_user: dict = D
 def delete_user(body: UserDeleteRequest, current_user: dict = Depends(get_current_user)):
     svc = _service()
     try:
-        return svc.delete_user(body, current_user)
+        return svc.delete_user(body)
     finally:
         svc.repo.db.close()
 
@@ -122,7 +114,7 @@ def get_roles(current_user: dict = Depends(get_current_user)):
 def create_role(body: RoleCreateRequest, current_user: dict = Depends(get_current_user)):
     svc = _service()
     try:
-        return svc.create_role(body, current_user)
+        return svc.create_role(body)
     finally:
         svc.repo.db.close()
 
@@ -131,7 +123,7 @@ def create_role(body: RoleCreateRequest, current_user: dict = Depends(get_curren
 def update_role(body: RoleUpdateRequest, current_user: dict = Depends(get_current_user)):
     svc = _service()
     try:
-        return svc.update_role(body, current_user)
+        return svc.update_role(body, current_user["user_id"])
     finally:
         svc.repo.db.close()
 
@@ -140,6 +132,62 @@ def update_role(body: RoleUpdateRequest, current_user: dict = Depends(get_curren
 def delete_role(body: RoleDeleteRequest, current_user: dict = Depends(get_current_user)):
     svc = _service()
     try:
-        return svc.delete_role(body, current_user)
+        return svc.delete_role(body, current_user["user_id"])
+    finally:
+        svc.repo.db.close()
+
+
+# ── Menus ─────────────────────────────────────────────────────────────────────
+
+@router.get("/menus/get-menus")
+def get_menus():
+    svc = _service()
+    try:
+        return svc.get_menus()
+    finally:
+        svc.repo.db.close()
+
+
+@router.post("/menus/create-menu")
+def create_menu(body: MenuCreateRequest):
+    svc = _service()
+    try:
+        return svc.create_menu(body)
+    finally:
+        svc.repo.db.close()
+
+
+@router.post("/menus/update-menu")
+def update_menu(body: MenuUpdateRequest):
+    svc = _service()
+    try:
+        return svc.update_menu(body)
+    finally:
+        svc.repo.db.close()
+
+
+@router.post("/menus/delete-menu")
+def delete_menu(body: MenuDeleteRequest):
+    svc = _service()
+    try:
+        return svc.delete_menu(body)
+    finally:
+        svc.repo.db.close()
+
+
+@router.post("/menus/set-role-menus")
+def set_role_menus(body: RoleMenuSetRequest):
+    svc = _service()
+    try:
+        return svc.set_role_menus(body)
+    finally:
+        svc.repo.db.close()
+
+
+@router.get("/menus/get-role-menus")
+def get_role_menus(role_id: int):
+    svc = _service()
+    try:
+        return svc.get_role_menus(role_id)
     finally:
         svc.repo.db.close()
