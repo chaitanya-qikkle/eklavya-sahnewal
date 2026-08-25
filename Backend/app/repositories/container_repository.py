@@ -59,6 +59,13 @@ class ContainerRepository(BaseRepository):
             (plant_id, from_date, to_date, gate_name),
         )
 
+    def get_survey_gate_names(self) -> dict:
+        return self._exec(
+            "SELECT DISTINCT GateName FROM EKL_TRN_CONTAINER_ESURVEY "
+            "WHERE GateName IS NOT NULL AND LTRIM(RTRIM(GateName)) <> '' "
+            "ORDER BY GateName"
+        )
+
     def get_daily_utilisation(self, from_date: str, to_date: str, group_by: Optional[str]) -> dict:
         return self._exec(
             "EXEC dbo.SP_DAILY_UTILISATION ?, ?, ?",

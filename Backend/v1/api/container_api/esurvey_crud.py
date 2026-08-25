@@ -28,6 +28,28 @@ def serve_survey_image(p: str):
     return FileResponse(str(target), media_type=media, headers={"Cache-Control": "public, max-age=3600"})
 
 
+# ── Distinct gate names (for the gate filter dropdown) ────────────────────────
+@router.get("/gate-names")
+def get_gate_names():
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "SELECT DISTINCT GateName FROM EKL_TRN_CONTAINER_ESURVEY "
+            "WHERE GateName IS NOT NULL AND LTRIM(RTRIM(GateName)) <> '' "
+            "ORDER BY GateName"
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+
+        names = sorted({(r.get("GateName") or "").strip() for r in (result.get("data") or [])} - {""})
+        return {"status": "success", "data": names}
+    except Exception as e:
+        logger.exception("gate-names error")
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
 # ── Pre-Gate Survey (paginated) — uses GET_ESURVEY_DETAIL SP ──────────────────
 @router.get("/pre-gate-survey")
 def get_pre_gate_survey(

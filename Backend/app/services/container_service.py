@@ -94,6 +94,13 @@ class ContainerService:
             "location":     location,
         }
 
+    def get_survey_gate_names(self) -> dict:
+        result = self.repo.get_survey_gate_names()
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        names = sorted({(r.get("GateName") or "").strip() for r in (result.get("data") or [])} - {""})
+        return {"status": "success", "data": names}
+
     def get_pre_gate_survey(
         self,
         gate_type: Optional[str],

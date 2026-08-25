@@ -122,6 +122,17 @@ def update_physical_location(body: UpdateLocationRequest):
         svc.repo.db.close()
 
 
+# ── Gate names (for the gate filter dropdown) ─────────────────────────────────
+
+@router.get("/gate-names")
+def get_survey_gate_names():
+    svc = _service()
+    try:
+        return svc.get_survey_gate_names()
+    finally:
+        svc.repo.db.close()
+
+
 # ── Pre-gate e-survey (paginated) ─────────────────────────────────────────────
 
 @router.get("/pre-gate-survey")

@@ -1,15 +1,23 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
-  FiImage, FiX, FiCalendar, FiLogIn, FiLogOut,
+  FiImage, FiX, FiCalendar, FiLogIn, FiLogOut, FiFilter,
   FiChevronLeft, FiChevronRight, FiDownload, FiMapPin, FiTruck as FiTruckIcon,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaTruck } from 'react-icons/fa'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { useLazyGetPreGateSurveyQuery } from '../../../store/api/ymsApi'
+import { useLazyGetPreGateSurveyQuery, useGetGateNamesQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
+
+function prettyGateName(name) {
+  return String(name || '')
+    .split('_')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
 
 const PAGE_SIZE = 20
 
@@ -123,12 +131,15 @@ export default function PreGateInOut() {
   const [toDate,      setToDate]      = useState('')
   const [containerNo, setContainerNo] = useState('')
   const [gateFilter,  setGateFilter]  = useState('ALL')
+  const [gateName,    setGateName]    = useState('')
   const [page,        setPage]        = useState(1)
   const [sortCol,     setSortCol]     = useState('SurveyTime')
   const [sortDir,     setSortDir]     = useState('desc')
   const [lightbox,    setLightbox]    = useState(null)
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
+  const { data: gateNamesData } = useGetGateNamesQuery()
+  const gateOptions = Array.isArray(gateNamesData?.data) ? gateNamesData.data : []
 
   const buildArgs = useCallback((pg = 1) => {
     const args = { page: pg, page_size: PAGE_SIZE }
@@ -136,8 +147,9 @@ export default function PreGateInOut() {
     if (toDate)                 args.to_date      = toDate
     if (containerNo.trim())     args.container_no = containerNo.trim()
     if (gateFilter !== 'ALL')   args.gate_type    = gateFilter
+    if (gateName)                args.gate_name    = gateName
     return args
-  }, [fromDate, toDate, containerNo, gateFilter])
+  }, [fromDate, toDate, containerNo, gateFilter, gateName])
 
   useEffect(() => { fetchSurvey(buildArgs(1)) }, []) // eslint-disable-line
 
@@ -170,7 +182,7 @@ export default function PreGateInOut() {
 
   const handleClear = () => {
     setFromDate(''); setToDate('')
-    setContainerNo(''); setGateFilter('ALL'); setPage(1)
+    setContainerNo(''); setGateFilter('ALL'); setGateName(''); setPage(1)
     fetchSurvey({ page: 1, page_size: PAGE_SIZE })
   }
 
@@ -289,6 +301,22 @@ export default function PreGateInOut() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <FiFilter className="text-[#0e4a78]" size={11} /> Gate
+              </label>
+              <select
+                value={gateName}
+                onChange={e => setGateName(e.target.value)}
+                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all min-w-[160px]"
+              >
+                <option value="">All Gates</option>
+                {gateOptions.map(g => (
+                  <option key={g} value={g}>{prettyGateName(g)}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-col gap-1 flex-1 min-w-[180px]">

@@ -174,6 +174,7 @@ export const API_ENDPOINTS = {
     KIOSK_SEARCH: buildUrl('/v1/container/kiosk-search'),
     GET_LOCATION_SLOTS: buildUrl('/v1/container/location-slots'),
     GET_PRE_GATE_SURVEY: buildUrl('/v1/container/pre-gate-survey'),
+    GET_GATE_NAMES: buildUrl('/v1/container/gate-names'),
     GET_CONTAINER_STATUS_REPORT: buildUrl('/v1/container/container-status-report'),
     GET_CONTAINER_GATE_REPORT: buildUrl('/v1/container/container-gate-report'),
     GET_LIFECYCLE_DETAILS: buildUrl('/v1/container/lifecycle-details'),
