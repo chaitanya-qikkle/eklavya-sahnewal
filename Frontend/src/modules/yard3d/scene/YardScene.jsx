@@ -2,6 +2,7 @@
 // YardScene — realistic 3D yard with geofence slots + DXF buildings
 import React, { useMemo, useRef, useLayoutEffect, useEffect } from "react";
 import { RoadPainterCanvas } from "../tools/RoadPainter";
+import { YardBuilderCanvas } from "../tools/YardBuilder";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Sky } from "@react-three/drei";
 import * as THREE from "three";
@@ -25,7 +26,11 @@ const TMP = {
 };
 
 // ─── Procedural textures ──────────────────────────────────────────────────
-function makeAsphaltTex() {
+// makeAsphaltTex/makeBuildingWallTex/makeWallTex are exported so PropKit.jsx
+// (the yard-builder prop library, tools/PropKit.jsx) can reuse the exact same
+// procedural textures for its own building/wall props instead of duplicating
+// the canvas-drawing code.
+export function makeAsphaltTex() {
   const c = document.createElement("canvas"); c.width = c.height = 512;
   const ctx = c.getContext("2d");
   // Daylight asphalt — warm mid-grey base
@@ -138,7 +143,7 @@ function makeWarehouseRoofTex() {
   return tex;
 }
 
-function makeBuildingWallTex() {
+export function makeBuildingWallTex() {
   const c = document.createElement("canvas"); c.width = 256; c.height = 256;
   const ctx = c.getContext("2d");
   ctx.fillStyle = "#b0bcc8"; ctx.fillRect(0, 0, 256, 256);
@@ -161,7 +166,7 @@ function makeBuildingWallTex() {
   return tex;
 }
 
-function makeWallTex() {
+export function makeWallTex() {
   const c = document.createElement("canvas"); c.width = 256; c.height = 128;
   const ctx = c.getContext("2d");
   ctx.fillStyle = "#5a6678"; ctx.fillRect(0, 0, 256, 128);
@@ -645,34 +650,6 @@ function YardHullWall({ slots, projection }) {
   );
 }
 
-// ─── Yard ground glow line — neon border at ground level ─────────────────
-function YardGroundGlow({ slots, projection }) {
-  const geom = useMemo(() => {
-    if (!slots?.length || !projection) return new THREE.BufferGeometry();
-    const allPts = [];
-    for (const s of slots) {
-      for (const [la, lo] of s.polygon) {
-        const { x, z } = projection.toXZ(la, lo);
-        allPts.push([x, z]);
-      }
-    }
-    const hull = convexHullXZ(allPts);
-    if (hull.length < 3) return new THREE.BufferGeometry();
-    const pts3 = [];
-    for (let i = 0; i <= hull.length; i++) {
-      const p = hull[i % hull.length];
-      pts3.push(new THREE.Vector3(p[0], 0.1, p[1]));
-    }
-    return new THREE.BufferGeometry().setFromPoints(pts3);
-  }, [slots, projection]);
-
-  return (
-    <line geometry={geom} renderOrder={7}>
-      <lineBasicMaterial color="#fbbf24" opacity={0.50} transparent depthWrite={false} />
-    </line>
-  );
-}
-
 // ─── Block name labels — canvas sprites ───────────────────────────────────
 function makeNameTex(text) {
   const fs = 80, pad = 26;
@@ -1065,6 +1042,19 @@ export default function YardScene({
   roadPainterActive, roadPoints, onAddRoadPoint,
   // Road network for snap-to-road (scene-space segments)
   roadSegments,
+  // Yard Builder props (controlled from parent)
+  yardBuilderMode, yardBuilderWalls, yardBuilderBuildings,
+  yardBuilderDrawPoints, onYardBuilderAddDrawPoint,
+  yardBuilderDragStart, yardBuilderDragCurrent,
+  onYardBuilderDragStart, onYardBuilderDragMove, onYardBuilderDragEnd,
+  yardBuilderSelection, onYardBuilderSelect,
+  onSceneGeometryReady,
+  // Optional extra content rendered inside this Canvas, after everything
+  // else — lets a caller (e.g. YardBuilderPage) mount R3F layers such as
+  // WallEditor/PropsEditor that need to share this Canvas's camera/raycaster
+  // instead of standing up a second <Canvas>. Purely additive: omitting it
+  // changes nothing about the existing scene.
+  children,
 }) {
   const hoveredRef   = useRef(null);
   const controlsRef  = useRef(null);
@@ -1109,6 +1099,22 @@ export default function YardScene({
 
     return { warehouses, buildings, fences, trees, lines: dxfLayout.lines || [] };
   }, [dxfLayout, alignment, projection]);
+
+  // Fences/buildings converted into actual scene XZ (via the same alignment
+  // transform used to render them) so the Yard Builder tool — which works
+  // directly in scene coordinates, like Road Painter — can seed its editable
+  // state with what's already on screen instead of starting blank.
+  const sceneGeometry = useMemo(() => {
+    if (!alignment) return null;
+    const fences = sceneFeatures.fences.map(ls => ls.map(([x, y]) => { const p = dxfPointToScene(x, y, alignment); return [p.x, p.z]; }));
+    const buildings = sceneFeatures.buildings.map(ring => ring.map(([x, y]) => { const p = dxfPointToScene(x, y, alignment); return [p.x, p.z]; }));
+    return { fences, buildings };
+  }, [sceneFeatures, alignment]);
+
+  useEffect(() => {
+    if (sceneGeometry && onSceneGeometryReady) onSceneGeometryReady(sceneGeometry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneGeometry]);
 
   const items = useMemo(() => {
     const out = [];
@@ -1361,10 +1367,7 @@ export default function YardScene({
         </>
       )}
 
-      {/* Yard ground glow line */}
-      <YardGroundGlow slots={geofence.slots} projection={projection} />
-
-      {/* Block pads + outlines — same hull, pad fills exactly to yellow border */}
+      {/* Block pads + outlines */}
       <BlockPadsAndOutlines geofence={geofence} projection={projection} onPick={onPickBlock} />
 
       {/* Block name labels */}
@@ -1402,6 +1405,22 @@ export default function YardScene({
         projection={projection}
         points={roadPoints || []}
         onAddPoint={onAddRoadPoint}
+      />
+
+      {/* Yard Builder — wall/building placement and editing */}
+      <YardBuilderCanvas
+        mode={yardBuilderMode || "off"}
+        walls={yardBuilderWalls || []}
+        buildings={yardBuilderBuildings || []}
+        drawPoints={yardBuilderDrawPoints || []}
+        onAddDrawPoint={onYardBuilderAddDrawPoint}
+        dragStart={yardBuilderDragStart}
+        dragCurrent={yardBuilderDragCurrent}
+        onDragStart={onYardBuilderDragStart}
+        onDragMove={onYardBuilderDragMove}
+        onDragEnd={onYardBuilderDragEnd}
+        selection={yardBuilderSelection}
+        onSelect={onYardBuilderSelect}
       />
 
       {/* Live Me Avatar */}
@@ -1453,6 +1472,8 @@ export default function YardScene({
 
       {/* Adaptive post-processing — auto-disabled on low/mobile profiles */}
       <PostFX />
+
+      {children}
     </Canvas>
 
   );

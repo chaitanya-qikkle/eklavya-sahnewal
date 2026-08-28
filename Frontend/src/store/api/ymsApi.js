@@ -792,6 +792,7 @@ export const {
   useUpdateBreakdownMutation,
   useCloseBreakdownMutation,
   useDeleteBreakdownMutation,
+  useGetGateNamesQuery,
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
   useGetContainerStatusReportQuery,

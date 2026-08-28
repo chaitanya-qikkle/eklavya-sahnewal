@@ -79,32 +79,9 @@ const CUSTOMERS = Array.from({ length: 12 }, (_, i) => `Shipper ${String.fromCha
 
 const CANVAS_W = 920, CANVAS_H = 520;
 
-// Capacity/spec defaults (layout & zones come from yard-layout.json)
-const BLOCK_SPECS = {
-  A: { rows: 6, slots: 18, maxTiers: 4 },
-  B: { rows: 6, slots: 18, maxTiers: 4 },
-  C: { rows: 5, slots: 15, maxTiers: 3 },
-  D: { rows: 6, slots: 18, maxTiers: 4 },
-  E: { rows: 6, slots: 18, maxTiers: 4 },
-  F: { rows: 4, slots: 12, maxTiers: 3 },
-  G: { rows: 4, slots: 10, maxTiers: 2 },
-  H: { rows: 4, slots: 10, maxTiers: 2 },
-  I: { rows: 5, slots: 12, maxTiers: 3 },
-  J: { rows: 5, slots: 15, maxTiers: 4 },
-  K: { rows: 4, slots: 8, maxTiers: 2 },
-  L: { rows: 6, slots: 15, maxTiers: 4 },
-  M: { rows: 6, slots: 20, maxTiers: 4 },
-  N: { rows: 6, slots: 20, maxTiers: 4 },
-  O: { rows: 4, slots: 12, maxTiers: 3 },
-  P: { rows: 3, slots: 6, maxTiers: 2 },
-  Q: { rows: 3, slots: 6, maxTiers: 2 },
-  R: { rows: 6, slots: 18, maxTiers: 4 },
-  S: { rows: 5, slots: 15, maxTiers: 3 },
-  T: { rows: 6, slots: 14, maxTiers: 4 },
-  U: { rows: 6, slots: 16, maxTiers: 4 },
-  V: { rows: 6, slots: 15, maxTiers: 4 },
-  W: { rows: 4, slots: 12, maxTiers: 3 },
-};
+// Capacity/spec defaults (layout & zones come from yard-layout-sahnewal.json;
+// per-block rows/slots/tiers are derived dynamically from CAD dimensions).
+const BLOCK_SPECS = {};
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 function generateContainers(blocks) {
@@ -836,7 +813,7 @@ export default function YardVisualization3D() {
 
   useEffect(() => {
     setLayoutData(null);
-    fetch(`/yard-layout-mumbai.json?t=${Date.now()}`)
+    fetch(`/yard-layout-sahnewal.json?t=${Date.now()}`)
       .then(res => res.json())
       .then(data => setLayoutData(data))
       .catch(err => console.error("Failed to load CAD layout", err));
@@ -1261,7 +1238,7 @@ export default function YardVisualization3D() {
           <div style={{flex:1,overflow:"hidden",position:"relative"}}>
             <YardOverview3D
               layoutData={layoutData}
-              site="mumbai"
+              site="sahnewal"
               containers={filteredContainers}
               filterStatus={filterStatus}
               filterZone={filterZone}

@@ -53,6 +53,10 @@ const routeDefinitions = [
 
   { path: '/dashboard/3d-visualization', Component: YardLiveStatus3D },
 
+  // Dev-only: wall/building/prop editor for Sahnewal, not linked from any
+  // menu — reachable only by navigating here directly.
+  { path: '/dashboard/yard-builder', Component: lazyPage(() => import('./modules/yard3d/pages/YardBuilderPage')) },
+
   { path: '/container/assign-inventory-block', Component: lazyPage(() => import('./modules/container/pages/AssignInventoryBlock')) },
   { path: '/container/history-status', Component: lazyPage(() => import('./modules/container/pages/ContainerHistoryStatus')) },
   { path: '/container/lifecycle', Component: lazyPage(() => import('./modules/container/pages/ContainerLifecycle')) },

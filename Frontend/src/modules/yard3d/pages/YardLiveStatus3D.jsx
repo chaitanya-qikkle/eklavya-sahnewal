@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { RoadPainterUI } from "../tools/RoadPainter";
+import { YardBuilderUI, wallsFromFences, buildingsFromLayout, newId } from "../tools/YardBuilder";
 import { useSearchParams } from "react-router-dom";
 import Navbar from "../../../components/layout/Navbar";
 import YardScene from "../scene/YardScene";
@@ -326,7 +327,9 @@ const Sidebar = ({ side = "left", open, onToggle, tabs, activeTab, onTabChange, 
 };
 
 // ── main page ────────────────────────────────────────────────────────────
-const MUMBAI_SITE = { key: "mumbai", label: "Mumbai", geofence: "/slot-geofence-mumbai.json", layout: "/yard-layout-mumbai.json" };
+// NOTE: geofence lat/lng are synthetic (projected from the DXF's local
+// metre coordinates), not a real GPS survey — see parse-geofence-sahnewal.mjs.
+const SAHNEWAL_SITE = { key: "sahnewal", label: "Sahnewal", geofence: "/slot-geofence-sahnewal.json", layout: "/yard-layout-sahnewal.json" };
 
 export default function YardLiveStatus3D() {
   const [searchParams] = useSearchParams();
@@ -337,6 +340,45 @@ export default function YardLiveStatus3D() {
   const [roadPainterActive, setRoadPainterActive] = useState(false);
   const [roadPoints, setRoadPoints] = useState([]);
   const handleAddRoadPoint = useCallback((pt) => setRoadPoints((p) => [...p, pt]), []);
+
+  // Yard Builder — wall/building placement + editing (see tools/YardBuilder.jsx)
+  const [yardBuilderMode, setYardBuilderMode] = useState("off");
+  const [yardBuilderWalls, setYardBuilderWalls] = useState([]);
+  const [yardBuilderBuildings, setYardBuilderBuildings] = useState([]);
+  const [yardBuilderDrawPoints, setYardBuilderDrawPoints] = useState([]);
+  const [yardBuilderDragStart, setYardBuilderDragStart] = useState(null);
+  const [yardBuilderDragCurrent, setYardBuilderDragCurrent] = useState(null);
+  const [yardBuilderSelection, setYardBuilderSelection] = useState(null);
+  const yardBuilderSeededRef = useRef(false);
+
+  const handleSceneGeometryReady = useCallback((geom) => {
+    if (yardBuilderSeededRef.current) return; // seed once — further edits are user-driven
+    yardBuilderSeededRef.current = true;
+    setYardBuilderWalls(wallsFromFences(geom.fences));
+    setYardBuilderBuildings(buildingsFromLayout(geom.buildings));
+  }, []);
+
+  const handleYardBuilderAddDrawPoint = useCallback((pt) => setYardBuilderDrawPoints((p) => [...p, pt]), []);
+  const handleYardBuilderDragStart = useCallback((pt) => { setYardBuilderDragStart(pt); setYardBuilderDragCurrent(pt); }, []);
+  const handleYardBuilderDragMove = useCallback((pt) => setYardBuilderDragCurrent(pt), []);
+  const handleYardBuilderDragEnd = useCallback(() => {
+    setYardBuilderDragStart(start => {
+      setYardBuilderDragCurrent(current => {
+        if (start && current) {
+          const w = Math.abs(current.x - start.x), d = Math.abs(current.z - start.z);
+          if (w > 0.5 && d > 0.5) {
+            setYardBuilderBuildings(bs => [...bs, {
+              id: newId(),
+              x: (start.x + current.x) / 2, z: (start.z + current.z) / 2,
+              w, d, rotY: 0, label: "Building",
+            }]);
+          }
+        }
+        return null;
+      });
+      return null;
+    });
+  }, []);
 
   // Road Network state — loaded JSON stored here, converted after equipmentProjection is ready
   const [roadNetwork, setRoadNetwork] = useState(null);
@@ -451,7 +493,7 @@ export default function YardLiveStatus3D() {
 
   useEffect(() => {
     let cancelled = false;
-    const site = MUMBAI_SITE;
+    const site = SAHNEWAL_SITE;
     setGeofence(null);
     setDxfLayout(null);
     Promise.all([
@@ -694,6 +736,7 @@ export default function YardLiveStatus3D() {
             <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-700"><FiX size={12} /></button>
           </div>
           <div className="px-3 py-2 space-y-1.5 bg-white">
+            {selected.location && <DetailRow label="Location" value={selected.location} />}
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               {selected.block && <DetailRow label="Block" value={selected.block} />}
               {(selected.row || selected.col) && <DetailRow label="Row·Col·T" value={`${selected.row||"-"}·${selected.col||"-"}·T${selected.tier}`} />}
@@ -1059,6 +1102,11 @@ export default function YardLiveStatus3D() {
                   {STATUS_DEFS[hovered.container?.status]?.label}
                 </span>
               </div>
+              {hovered.container?.location && (
+                <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono truncate">
+                  {hovered.container.location}
+                </div>
+              )}
               <div className="text-[9.5px] text-slate-400 mt-0.5 font-mono">
                 {hovered.container?.block} · {hovered.container?.row}{hovered.container?.col} · T{hovered.container?.tier}
               </div>
@@ -1174,6 +1222,19 @@ export default function YardLiveStatus3D() {
               roadPoints={roadPoints}
               onAddRoadPoint={handleAddRoadPoint}
               roadSegments={roadSegments}
+              yardBuilderMode={yardBuilderMode}
+              yardBuilderWalls={yardBuilderWalls}
+              yardBuilderBuildings={yardBuilderBuildings}
+              yardBuilderDrawPoints={yardBuilderDrawPoints}
+              onYardBuilderAddDrawPoint={handleYardBuilderAddDrawPoint}
+              yardBuilderDragStart={yardBuilderDragStart}
+              yardBuilderDragCurrent={yardBuilderDragCurrent}
+              onYardBuilderDragStart={handleYardBuilderDragStart}
+              onYardBuilderDragMove={handleYardBuilderDragMove}
+              onYardBuilderDragEnd={handleYardBuilderDragEnd}
+              yardBuilderSelection={yardBuilderSelection}
+              onYardBuilderSelect={setYardBuilderSelection}
+              onSceneGeometryReady={handleSceneGeometryReady}
             />
           )}
 
@@ -1189,7 +1250,17 @@ export default function YardLiveStatus3D() {
             </div>
           )}
 
-          {/* Road Painter + Road Network loader hidden — tools kept for future use */}
+          {/* Road Painter UI hidden — tool kept for future use */}
+
+          {yardBuilderMode !== "off" && (
+            <YardBuilderUI
+              mode={yardBuilderMode} setMode={setYardBuilderMode}
+              walls={yardBuilderWalls} setWalls={setYardBuilderWalls}
+              buildings={yardBuilderBuildings} setBuildings={setYardBuilderBuildings}
+              drawPoints={yardBuilderDrawPoints} setDrawPoints={setYardBuilderDrawPoints}
+              selection={yardBuilderSelection} setSelection={setYardBuilderSelection}
+            />
+          )}
 
           {/* ── Bottom HUD bar ── */}
           <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-2 gap-3"
@@ -1260,6 +1331,19 @@ export default function YardLiveStatus3D() {
                 }}>
                 <FiZap size={11} />
                 <span className="text-[9px] font-bold uppercase tracking-wide">{lowPerfMode ? "Low Q" : "Hi-Q"}</span>
+              </button>
+
+              {/* Yard Builder toggle */}
+              <button onClick={() => setYardBuilderMode(m => m === "off" ? "edit" : "off")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all"
+                style={{
+                  background: yardBuilderMode !== "off" ? "rgba(56,189,248,0.2)" : "rgba(255,255,255,0.07)",
+                  borderColor: yardBuilderMode !== "off" ? "rgba(56,189,248,0.6)" : "rgba(255,255,255,0.15)",
+                  color: yardBuilderMode !== "off" ? "#7dd3fc" : "rgba(255,255,255,0.6)",
+                  boxShadow: yardBuilderMode !== "off" ? "0 0 8px rgba(56,189,248,0.3)" : "none",
+                }}>
+                <FiSliders size={11} />
+                <span className="text-[9px] font-bold uppercase tracking-wide">Yard Builder</span>
               </button>
 
               {/* Block label toggle */}
