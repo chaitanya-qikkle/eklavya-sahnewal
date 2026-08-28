@@ -3441,7 +3441,7 @@ begin
 
   LEFT JOIN ESS_MST_LOCATION L ON L.LocationID=CI.LastLocID  
 
-  where T.Isdelete=0  and CAST(t.GateInDate as Date)=Cast(getDate() as date)  and t.TrailerNo!='' and T.GateOutDate IS NULL
+  where T.Isdelete=0  and T.GateInDate >= DATEADD(hour,-24,GETDATE())  and ISNULL(t.TrailerNo,'')!='' and T.GateOutDate IS NULL
 
   order by GateInDate desc
 

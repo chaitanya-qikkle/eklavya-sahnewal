@@ -99,6 +99,12 @@ function mapLiveRow(row, idx) {
     lat: Number(grab(row, "OFFLOAD_LAT", "LAT", "LATITUDE")) || null,
     lng: Number(grab(row, "OFFLOAD_LON", "LON", "LONGITUDE")) || null,
     equipment: grab(row, "OFFLOAD_EQP", "EQUIPMENT"),
+    lineName: grab(row, "LINE_NAME") || "",
+    trailerNo: grab(row, "TRAILER_NO") || "",
+    commodity: grab(row, "COMMODITY") || "",
+    igmNo: grab(row, "IGM_NO") || "",
+    tat: grab(row, "TIME_IN_YARD") || "",
+    yardName: grab(row, "MASTERTABLE", "YARD_NAME") || "",
     raw: row,
   };
 }
@@ -123,10 +129,14 @@ const SectionLabel = ({ children, action }) => (
   </div>
 );
 
-// KPI card
-const KpiChip = ({ icon: Icon, value, label, color = "#0e4a78" }) => (
+// KPI card — `dark` renders it for a dark/navy container background
+const KpiChip = ({ icon: Icon, value, label, color = "#0e4a78", dark = false }) => (
   <div className="group flex items-center gap-2.5 rounded-xl px-3 py-2.5 border relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5"
-    style={{
+    style={dark ? {
+      background: "rgba(255,255,255,0.06)",
+      borderColor: "rgba(255,255,255,0.12)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+    } : {
       background: `linear-gradient(135deg, ${color}12 0%, ${color}05 60%, transparent 100%)`,
       borderColor: `${color}2e`,
       boxShadow: `0 1px 2px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.5)`,
@@ -140,7 +150,7 @@ const KpiChip = ({ icon: Icon, value, label, color = "#0e4a78" }) => (
     </div>
     <div className="min-w-0 flex-1">
       <div className="text-[20px] font-black font-mono leading-none tabular-nums" style={{ color }}>{value}</div>
-      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{label}</div>
+      <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${dark ? "text-white/50" : "text-slate-400"}`}>{label}</div>
     </div>
   </div>
 );
@@ -701,57 +711,131 @@ export default function YardLiveStatus3D() {
   // Left panel content by tab
   const leftContent = leftTab === "yard" ? (
     <>
-
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] font-extrabold text-[#0e4a78] uppercase tracking-[0.12em]">Yard Status</div>
-          <Dot color="#10b981" pulse />
+      {/* ── KPI Strip ── */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg,#0b3a60 0%,#0e4a78 60%,#1565a0 100%)", boxShadow: "0 4px 20px rgba(11,58,96,0.35)" }}>
+        <div className="px-3 pt-3 pb-1 flex items-center justify-between">
+          <span className="text-[9px] font-black text-white/50 uppercase tracking-[0.25em]">Yard Status</span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping absolute" style={{ opacity: 0.6 }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 relative" />
+            <span className="text-[8px] text-emerald-400 font-bold">LIVE</span>
+          </span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <KpiChip icon={FiPackage}    value={stats.total}           label="Containers" color="#0e4a78" />
-          <KpiChip icon={FiActivity}   value={`${stats.occupancy}%`} label="Occupancy"  color="#10b981" />
-          <KpiChip icon={FiClock}      value={stats.overdwell}       label=">7d Dwell"  color="#f59e0b" />
-          <KpiChip icon={FiLayers}     value={stats.capacity}        label="Capacity"   color="#64748b" />
-        </div>
-      </div>
-
-      <div>
-        <SectionLabel>By Status</SectionLabel>
-        <StatusPill color="#0e4a78" label="All" count={stats.total} active={filterStatus === "All"} onClick={() => setFilterStatus("All")} />
-        {Object.entries(STATUS_DEFS).map(([k, d]) => (
-          <StatusPill key={k} color={d.color} label={d.label}
-            count={stats.byStatus[k] || 0}
-            active={filterStatus === k}
-            onClick={() => setFilterStatus(p => p === k ? "All" : k)}
-          />
-        ))}
-      </div>
-
-      {selected && (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-3 py-2 flex items-center gap-2"
-            style={{ background: `${STATUS_DEFS[selected.status]?.color}15`, borderBottom: `1.5px solid ${STATUS_DEFS[selected.status]?.color}` }}>
-            <FiPackage size={12} style={{ color: STATUS_DEFS[selected.status]?.color }} />
-            <div className="font-mono text-[11px] font-extrabold text-slate-900 flex-1 truncate">{selected.containerNo}</div>
-            <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-700"><FiX size={12} /></button>
-          </div>
-          <div className="px-3 py-2 space-y-1.5 bg-white">
-            {selected.location && <DetailRow label="Location" value={selected.location} />}
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-              {selected.block && <DetailRow label="Block" value={selected.block} />}
-              {(selected.row || selected.col) && <DetailRow label="Row·Col·T" value={`${selected.row||"-"}·${selected.col||"-"}·T${selected.tier}`} />}
-              <DetailRow label="Size/Type" value={`${selected.size} ${selected.type}`} mono={false} />
-              <DetailRow label="Dwell"     value={`${selected.dwellDays}d`} />
-              <DetailRow label="Process"   value={selected.process} mono={false} />
-              <DetailRow label="Status"    value={STATUS_DEFS[selected.status]?.label} mono={false} />
-            </div>
-            {selected.equipment && <DetailRow label="Equipment" value={selected.equipment} mono={false} />}
-            {selected.lat ? (
-              <div className="text-[9.5px] text-slate-400 font-mono flex items-center gap-1 pt-0.5">
-                <FiMapPin size={9} className="text-[#0e4a78]" />
-                {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
+        <div className="grid grid-cols-2 gap-px p-px bg-white/10 rounded-b-2xl overflow-hidden">
+          {[
+            { icon: FiPackage,  val: stats.total,           label: "Containers",  bg: "#0e4a78" },
+            { icon: FiActivity, val: `${stats.occupancy}%`, label: "Occupancy",   bg: stats.occupancy > 85 ? "#ef4444" : stats.occupancy > 65 ? "#f59e0b" : "#10b981" },
+            { icon: FiClock,    val: stats.overdwell,        label: ">7d Overdwell",bg: stats.overdwell > 0 ? "#f59e0b" : "#64748b" },
+            { icon: FiLayers,   val: stats.capacity || "—", label: "Capacity",    bg: "#64748b" },
+          ].map(({ icon: Icon, val, label, bg }) => (
+            <div key={label} className="flex items-center gap-2 px-3 py-2.5" style={{ background: "rgba(8,18,38,0.55)" }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${bg}30` }}>
+                <Icon size={13} style={{ color: bg }} />
               </div>
-            ) : null}
+              <div>
+                <div className="text-[15px] font-black text-white leading-none font-mono tabular-nums">{val}</div>
+                <div className="text-[8px] text-white/40 font-bold uppercase tracking-widest mt-0.5">{label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Selected Container Detail ── */}
+      {selected && (() => {
+        const sd = STATUS_DEFS[selected.status] || { color: "#64748b", label: selected.status };
+        const fmt = (raw) => {
+          if (!raw) return "—";
+          try { const d = new Date(String(raw).replace(" ","T")); if (isNaN(d)) return String(raw); const p = n => String(n).padStart(2,"0"); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; } catch { return String(raw); }
+        };
+        return (
+          <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${sd.color}44`, boxShadow: `0 4px 16px ${sd.color}18` }}>
+            {/* Header */}
+            <div className="px-3 py-2.5 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${sd.color}22, ${sd.color}08)` }}>
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(80% 60% at 0% 0%, ${sd.color}18, transparent)` }} />
+              <div className="relative flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${sd.color}20`, border: `1px solid ${sd.color}40` }}>
+                  <FiPackage size={14} style={{ color: sd.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-[13px] font-black leading-tight truncate" style={{ color: "#0f172a" }}>{selected.containerNo}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase" style={{ background: `${sd.color}18`, color: sd.color }}>
+                      <span className="w-1 h-1 rounded-full inline-block" style={{ background: sd.color }} />{sd.label}
+                    </span>
+                    {selected.trailerNo && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold font-mono bg-amber-50 text-amber-700 border border-amber-200">{selected.trailerNo}</span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setSelected(null)} className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-black/5 transition-all shrink-0">
+                  <FiX size={12} />
+                </button>
+              </div>
+            </div>
+
+            {/* Location bar */}
+            <div className="px-3 py-2 flex items-center gap-2" style={{ background: "#0e4a780a", borderBottom: "1px solid #0e4a7818" }}>
+              <FiMapPin size={10} style={{ color: "#0e4a78" }} className="shrink-0" />
+              <span className="text-[10px] font-bold font-mono text-[#0e4a78]">{selected.block || "—"}</span>
+              <span className="text-slate-300 text-[10px]">·</span>
+              <span className="text-[10px] font-mono text-slate-600">R{selected.row||"—"} · C{selected.col||"—"} · T{selected.tier}</span>
+              {selected.tat && <span className="ml-auto text-[9px] font-bold text-slate-400 font-mono">{selected.tat}</span>}
+            </div>
+
+            {/* Data grid */}
+            <div className="px-3 py-2.5 bg-white space-y-2">
+              {/* Row 1: Size/Type + Dwell */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  ["Size / Type", `${selected.size || "—"} ${selected.type || ""}`.trim() || "—"],
+                  ["Dwell", selected.dwellDays ? `${selected.dwellDays}d` : "—"],
+                ].map(([lbl, val]) => (
+                  <div key={lbl} className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{lbl}</div>
+                    <div className="text-[10.5px] font-bold text-slate-800 truncate">{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Row 2: Process + Gate In */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  ["Process", selected.process || "—"],
+                  ["Gate In", fmt(selected.gateInDate)],
+                ].map(([lbl, val]) => (
+                  <div key={lbl} className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                    <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{lbl}</div>
+                    <div className="text-[10.5px] font-bold text-slate-800 truncate">{val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Shipping Line — always shown */}
+              <div className="rounded-xl bg-blue-50 border border-blue-100 px-2.5 py-2">
+                <div className="text-[8px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Shipping Line</div>
+                <div className="text-[10px] font-bold text-blue-800 leading-snug whitespace-normal">{selected.lineName || "—"}</div>
+              </div>
+
+              {/* Commodity + IGM No — always shown */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                  <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Commodity</div>
+                  <div className="text-[10px] font-bold text-slate-800 truncate">{selected.commodity || "—"}</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                  <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">IGM No</div>
+                  <div className="text-[10px] font-bold text-slate-800 font-mono truncate">{selected.igmNo || "—"}</div>
+                </div>
+              </div>
+
+              {/* Equipment — always shown */}
+              <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl" style={{ background: "#0e4a7808", border: "1px solid #0e4a7818" }}>
+                <FiTruck size={10} style={{ color: "#0e4a78" }} className="shrink-0" />
+                <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Equipment</span>
+                <span className="text-[10px] font-bold font-mono ml-auto" style={{ color: selected.equipment ? "#0e4a78" : "#94a3b8" }}>{selected.equipment || "—"}</span>
+              </div>
+            </div>
             {/* ── Get Direction — only when GPS is active ── */}
             {myGpsPos ? (
               <>
@@ -846,34 +930,57 @@ export default function YardLiveStatus3D() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   ) : (
     <>
+      {/* ── By Status ── */}
+      <div>
+        <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.22em] mb-2 flex items-center gap-2">
+          <div className="flex-1 h-px bg-slate-200" />By Status<div className="flex-1 h-px bg-slate-200" />
+        </div>
+        <div className="space-y-1">
+          <button onClick={() => setFilterStatus("All")}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all border text-left"
+            style={{ background: filterStatus==="All" ? "#0e4a7818" : "transparent", borderColor: filterStatus==="All" ? "#0e4a7855" : "transparent" }}>
+            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: filterStatus==="All" ? "#0e4a78" : "#cbd5e1" }} />
+            <span className="text-[11px] font-semibold flex-1" style={{ color: filterStatus==="All" ? "#0e4a78" : "#64748b" }}>All Containers</span>
+            <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg" style={{ color: filterStatus==="All"?"#0e4a78":"#94a3b8", background: filterStatus==="All"?"#0e4a7812":"transparent" }}>{stats.total}</span>
+          </button>
+          {Object.entries(STATUS_DEFS).map(([k, d]) => {
+            const cnt = stats.byStatus[k] || 0;
+            const active = filterStatus === k;
+            return (
+              <button key={k} onClick={() => setFilterStatus(p => p === k ? "All" : k)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all border text-left"
+                style={{ background: active ? `${d.color}14` : "transparent", borderColor: active ? `${d.color}44` : "transparent" }}>
+                <span className="relative flex w-2 h-2 shrink-0">
+                  {active && <span className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping" style={{ background: d.color }} />}
+                  <span className="relative inline-flex rounded-full w-2 h-2" style={{ background: d.color }} />
+                </span>
+                <span className="text-[11px] font-semibold flex-1" style={{ color: active ? d.color : "#64748b" }}>{d.label}</span>
+                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg" style={{ color: active ? d.color : "#94a3b8", background: active ? `${d.color}12` : "transparent" }}>{cnt}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Max Tier ── */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <div className="text-[11px] font-extrabold text-[#0e4a78] uppercase tracking-[0.12em]">Max Tier</div>
           <span className="text-[9px] font-bold text-slate-400">peak stack T{stats.maxStack}</span>
         </div>
-        <div className="grid grid-cols-6 gap-1">
-          {Array.from({ length: tierCeiling }, (_, i) => i + 1).map(t => (
+        <div className="grid grid-cols-4 gap-1">
+          {[1, 2, 3, 4].map(t => (
             <button key={t} onClick={() => { tierTouchedRef.current = true; setMaxTier(t); }}
               className="h-8 rounded-md text-[11px] font-bold border transition-all"
               style={{ background: maxTier===t?"#0e4a78":"#f8fafc", color: maxTier===t?"#fff":"#64748b", borderColor: maxTier===t?"#0e4a78":"#e2e8f0" }}
             >T{t}</button>
           ))}
         </div>
-      </div>
-      <div>
-        <div className="text-[11px] font-extrabold text-[#0e4a78] uppercase tracking-[0.12em] mb-2">Container Status</div>
-        <StatusPill color="#0e4a78" label="All" count={stats.total} active={filterStatus === "All"} onClick={() => setFilterStatus("All")} />
-        {Object.entries(STATUS_DEFS).map(([k, d]) => (
-          <StatusPill key={k} color={d.color} label={d.label}
-            count={stats.byStatus[k] || 0} active={filterStatus === k}
-            onClick={() => setFilterStatus(p => p === k ? "All" : k)}
-          />
-        ))}
       </div>
     </>
   );
