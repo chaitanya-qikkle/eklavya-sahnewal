@@ -41,7 +41,7 @@ const COLUMNS = [
 
 // All known packet IDs
 const ALL_PACKET_IDS = [1, 7, 8]
-const DEFAULT_PACKET_IDS = [7, 8]
+const DEFAULT_PACKET_IDS = [1, 7, 8]
 
 const LabeledField = ({ label, children }) => (
   <div className="flex flex-col gap-1.5">
