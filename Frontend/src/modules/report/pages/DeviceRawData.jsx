@@ -8,6 +8,7 @@ import { MdDevices } from 'react-icons/md'
 import * as XLSX from 'xlsx'
 import {
   useGetEquipmentQuery,
+  useGetDeviceRawDataKalmarListQuery,
   useLazyGetDeviceRawDataQuery,
 } from '../../../store/api/ymsApi'
 
@@ -40,7 +41,7 @@ const COLUMNS = [
 
 // All known packet IDs
 const ALL_PACKET_IDS = [1, 7, 8]
-const DEFAULT_PACKET_IDS = [1, 7, 8]
+const DEFAULT_PACKET_IDS = [7, 8]
 
 const LabeledField = ({ label, children }) => (
   <div className="flex flex-col gap-1.5">
@@ -56,29 +57,28 @@ const inputCls =
 
 const DeviceRawData = () => {
   const { data: equipmentApi } = useGetEquipmentQuery()
+  const { data: kalmarListApi } = useGetDeviceRawDataKalmarListQuery()
   const [fetchDeviceRawData, { isFetching }] = useLazyGetDeviceRawDataQuery()
 
-  const { imeiList, deviceNameMap } = useMemo(() => {
+  // Machine name lookup (best-effort — KalmarNo values in the raw device feed don't
+  // always match ESS_MST_EQUIPMENT.Equipment_Name/Equipment_Code exactly)
+  const deviceNameMap = useMemo(() => {
     const rows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : []
-    const seen = new Set()
     const nameMap = new Map()
-    const list = rows
-      .map((item) => {
-        // KalmarNo in the device-data table matches ESS_MST_EQUIPMENT.Equipment_Name (not Equipment_Code/Device_ID)
-        const eqpName = String(item?.Equipment_Name ?? item?.equipment_name ?? item?.EQUIPMENT_NAME ?? '').trim()
-        const eqpCode = String(item?.Equipment_Code ?? item?.equipment_code ?? item?.EQUIPMENT_CODE ?? '').trim()
-        if (eqpName) nameMap.set(eqpName, eqpCode || eqpName)
-        const label = eqpCode && eqpCode !== eqpName ? `${eqpCode} (${eqpName})` : eqpName
-        return { label, value: eqpName }
-      })
-      .filter(({ value }) => {
-        if (!value || seen.has(value)) return false
-        seen.add(value)
-        return true
-      })
-      .sort((a, b) => a.label.localeCompare(b.label))
-    return { imeiList: list, deviceNameMap: nameMap }
+    rows.forEach((item) => {
+      const eqpName = String(item?.Equipment_Name ?? item?.equipment_name ?? item?.EQUIPMENT_NAME ?? '').trim()
+      const eqpCode = String(item?.Equipment_Code ?? item?.equipment_code ?? item?.EQUIPMENT_CODE ?? '').trim()
+      if (eqpName) nameMap.set(eqpName, eqpCode || eqpName)
+    })
+    return nameMap
   }, [equipmentApi])
+
+  // Machine dropdown — sourced directly from distinct KalmarNo values in the raw device table,
+  // since that's the field the SP filters on and it doesn't reliably match the equipment master.
+  const imeiList = useMemo(() => {
+    const names = Array.isArray(kalmarListApi?.data) ? kalmarListApi.data : []
+    return names.map((name) => ({ label: name, value: name }))
+  }, [kalmarListApi])
 
   const [selectedImei, setSelectedImei]     = useState('')
   const [fromDate, setFromDate]             = useState('')

@@ -675,6 +675,10 @@ export const ymsApi = createApi({
       },
     }),
 
+    getDeviceRawDataKalmarList: builder.query({
+      query: () => ({ url: API_ENDPOINTS.REPORTS.DEVICE_RAW_DATA_KALMAR_LIST, method: 'GET' }),
+    }),
+
     updateDeviceDataContainer: builder.mutation({
       query: (body) => ({
         url: API_ENDPOINTS.REPORTS.UPDATE_DEVICE_DATA_CONTAINER,
@@ -826,6 +830,7 @@ export const {
   useLazyGetDeviceLockReportQuery,
   useGetDeviceRawDataQuery,
   useLazyGetDeviceRawDataQuery,
+  useGetDeviceRawDataKalmarListQuery,
   useUpdateDeviceDataContainerMutation,
   useGetTrailerReportQuery,
   useLazyGetTrailerReportQuery,

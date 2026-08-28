@@ -193,6 +193,7 @@ export const API_ENDPOINTS = {
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),
     DEVICE_RAW_DATA: buildUrl('/v1/reports/device-raw-data'),
+    DEVICE_RAW_DATA_KALMAR_LIST: buildUrl('/v1/reports/device-raw-data/kalmar-list'),
     TRAILER_REPORT:  buildUrl('/v1/reports/trailer-report'),
   },
 };

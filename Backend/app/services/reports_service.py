@@ -128,6 +128,13 @@ class ReportsService:
         data = [_map_raw_device_row(row) for row in (result.get("data") or [])]
         return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
 
+    def get_device_raw_data_kalmar_list(self) -> dict:
+        result = self.repo.get_device_raw_data_kalmar_list()
+        if result.get("status") != "success":
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message", "DB error"))
+        names = [row.get("KalmarNo") for row in (result.get("data") or []) if row.get("KalmarNo")]
+        return {"status": "success", "data": names}
+
     def update_device_container(self, eqp_trans_id: int, cont_no: str, plant_id: int, user_id: int) -> dict:
         result = self.repo.update_device_container(plant_id, eqp_trans_id, cont_no, user_id)
         if result.get("status") != "success":
