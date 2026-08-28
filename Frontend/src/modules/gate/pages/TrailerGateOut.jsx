@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, FiMapPin, FiX } from "react-icons/fi";
+import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, FiMapPin, FiX, FiUpload, FiDownload } from "react-icons/fi";
 import { FaFileExcel } from "react-icons/fa";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
@@ -190,24 +190,8 @@ const TrailerGateOut = () => {
         <main className="flex-1 px-4 sm:px-6 pb-10">
           <div className="w-full">
 
-            {/* Statistics Cards */}
-            <header className="pt-6 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-transform duration-200">
-                <p className="text-xs uppercase tracking-wider text-blue-100 font-semibold">Total Entries</p>
-                <p className="text-3xl font-bold mt-2">{stats.total}</p>
-              </div>
-              <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-transform duration-200">
-                <p className="text-xs uppercase tracking-wider text-emerald-100 font-semibold">Export</p>
-                <p className="text-3xl font-bold mt-2">{stats.exportCount}</p>
-              </div>
-              <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-transform duration-200">
-                <p className="text-xs uppercase tracking-wider text-amber-100 font-semibold">Import</p>
-                <p className="text-3xl font-bold mt-2">{stats.importCount}</p>
-              </div>
-            </header>
-
-            {/* Trailer Gate Out Form */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden mb-6">
+            {/* Trailer Gate Out Form + Stats */}
+            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden mt-6 mb-6">
               <header className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-4 flex items-center gap-3">
                 <FiTruck className="text-2xl" />
                 <div>
@@ -215,26 +199,26 @@ const TrailerGateOut = () => {
                   <p className="text-xs sm:text-sm text-white/80">Enter trailer number and trigger gate-out workflow</p>
                 </div>
               </header>
-              <div className="p-6 space-y-4">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <div className="p-6">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
                   <FiTruck className="text-[#0e4a78]" />
                   Trailer No
                 </label>
-                <div className="flex flex-col lg:flex-row items-stretch gap-3">
-                  <div className="flex flex-1 rounded-xl border-2 border-slate-300 overflow-hidden bg-white focus-within:border-[#0e4a78] focus-within:ring-2 focus-within:ring-[#0e4a78]/20 transition-all">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex w-full sm:w-64 rounded-xl border-2 border-slate-300 overflow-hidden bg-white focus-within:border-[#0e4a78] focus-within:ring-2 focus-within:ring-[#0e4a78]/20 transition-all">
                     <input
                       value={trailerNo}
                       onChange={(event) => setTrailerNo(event.target.value.toUpperCase())}
                       placeholder="Enter trailer number"
-                      className="flex-1 px-4 py-3 text-base text-slate-800 focus:outline-none"
+                      className="flex-1 min-w-0 px-3 py-2.5 text-sm text-slate-800 focus:outline-none"
                     />
                     {trailerNo && (
                       <button
                         type="button"
                         onClick={() => setTrailerNo("")}
-                        className="px-4 border-l border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition"
+                        className="px-3 border-l border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition"
                       >
-                        <FiX />
+                        <FiX size={14} />
                       </button>
                     )}
                   </div>
@@ -242,12 +226,10 @@ const TrailerGateOut = () => {
                     type="button"
                     onClick={handleTrailerSubmit}
                     disabled={isSubmitting}
-                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white font-semibold hover:from-[#0b3e66] hover:to-[#072c4a] transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white font-semibold hover:from-[#0b3e66] hover:to-[#072c4a] transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     {isSubmitting ? "Submitting..." : "Submit"}
                   </button>
-                </div>
-                <div className="flex items-center justify-between pt-2">
                   <button
                     type="button"
                     onClick={() => setTrailerNo("")}
@@ -311,19 +293,51 @@ const TrailerGateOut = () => {
                 </div>
               </header>
 
-              <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50/80">
-                {filterOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setFilter(option.value)}
-                    className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
-                      ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
-                      : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className="px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-200 bg-slate-50/80">
+                <div className="flex flex-wrap gap-3">
+                  {filterOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setFilter(option.value)}
+                      className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
+                        ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
+                        : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
+                        }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[420px] shrink-0">
+                  <StatTile
+                    label="Total Entries"
+                    value={stats.total}
+                    icon={FiPackage}
+                    tone="slate"
+                    isActive={filter === "all"}
+                    onClick={() => setFilter("all")}
+                    total={stats.total}
+                  />
+                  <StatTile
+                    label="Export"
+                    value={stats.exportCount}
+                    icon={FiUpload}
+                    tone="amber"
+                    isActive={filter === "EXPORT"}
+                    onClick={() => setFilter("EXPORT")}
+                    total={stats.total}
+                  />
+                  <StatTile
+                    label="Import"
+                    value={stats.importCount}
+                    icon={FiDownload}
+                    tone="emerald"
+                    isActive={filter === "IMPORT"}
+                    onClick={() => setFilter("IMPORT")}
+                    total={stats.total}
+                  />
+                </div>
               </div>
 
               <div className="overflow-auto max-h-[500px] custom-scrollbar">
@@ -488,6 +502,68 @@ const TrailerGateOut = () => {
         }
       `}</style>
     </div>
+  );
+};
+
+const TONE_MAP = {
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+};
+
+const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
+  const t = TONE_MAP[tone] || TONE_MAP.slate;
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative text-left transition-all duration-150 overflow-hidden border-r border-slate-200 last:border-r-0
+        ${isActive ? "bg-slate-50" : "bg-white hover:bg-slate-50/70"}`}
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150"
+        style={{ background: isActive ? t.accent : "transparent" }}
+      />
+      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
+        <span
+          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${
+            isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
+          } transition-all duration-150`}
+        >
+          {Icon && <Icon className="text-[15px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-none mb-1.5 truncate">
+            {label}
+          </p>
+          <p
+            className={`text-2xl font-black leading-none tracking-tight transition-colors ${
+              isActive ? t.valueColor : "text-slate-700"
+            }`}
+          >
+            {value}
+          </p>
+        </div>
+        {total > 0 && tone !== "slate" && (
+          <span
+            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg} transition-colors`}
+            style={{ color: t.accent }}
+          >
+            {pct}%
+          </span>
+        )}
+      </div>
+      {total > 0 && tone !== "slate" && (
+        <div className="h-[2px] bg-slate-100">
+          <div
+            className="h-full transition-all duration-700 rounded-full"
+            style={{ width: `${pct}%`, background: t.accent }}
+          />
+        </div>
+      )}
+    </button>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, FiMapPin } from "react-icons/fi";
+import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, FiMapPin, FiUpload, FiDownload } from "react-icons/fi";
 import { FaFileExcel } from "react-icons/fa";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
@@ -155,34 +155,17 @@ const TrailerGateIn = () => {
 
         <main className="flex-1 px-4 sm:px-6 pb-10">
           <div className="w-full">
-            <header className="pt-6 pb-8 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
-                  Gate Management
-                </p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-3">
-                  <FiTruck className="text-3xl" />
-                  24hr Trailer Gate In Detail
-                </h1>
-                <p className="text-slate-600 mt-1 text-sm sm:text-base">
-                  Monitor live trailer gate-in activity with unified search and reporting.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 lg:mt-0 lg:gap-4">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-4 text-white transform hover:scale-105 transition-transform duration-200">
-                  <p className="text-xs uppercase tracking-wider text-blue-100 font-semibold">Total Entries</p>
-                  <p className="text-2xl md:text-3xl font-bold mt-2">{stats.total}</p>
-                </div>
-                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg p-4 text-white transform hover:scale-105 transition-transform duration-200">
-                  <p className="text-xs uppercase tracking-wider text-emerald-100 font-semibold">Export</p>
-                  <p className="text-2xl md:text-3xl font-bold mt-2">{stats.exportCount}</p>
-                </div>
-                <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-lg p-4 text-white transform hover:scale-105 transition-transform duration-200">
-                  <p className="text-xs uppercase tracking-wider text-amber-100 font-semibold">Import</p>
-                  <p className="text-2xl md:text-3xl font-bold mt-2">{stats.importCount}</p>
-                </div>
-              </div>
+            <header className="pt-6 pb-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                Gate Management
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-3">
+                <FiTruck className="text-3xl" />
+                24hr Trailer Gate In Detail
+              </h1>
+              <p className="text-slate-600 mt-1 text-sm sm:text-base">
+                Monitor live trailer gate-in activity with unified search and reporting.
+              </p>
             </header>
 
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
@@ -227,19 +210,51 @@ const TrailerGateIn = () => {
                 </div>
               </header>
 
-              <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-3 border-b border-slate-200 bg-slate-50/80">
-                {filterOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setFilter(option.value)}
-                    className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
-                      ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
-                      : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className="px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-200 bg-slate-50/80">
+                <div className="flex flex-wrap gap-3">
+                  {filterOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setFilter(option.value)}
+                      className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
+                        ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
+                        : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
+                        }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[420px] shrink-0">
+                  <StatTile
+                    label="Total Entries"
+                    value={stats.total}
+                    icon={FiPackage}
+                    tone="slate"
+                    isActive={filter === "all"}
+                    onClick={() => setFilter("all")}
+                    total={stats.total}
+                  />
+                  <StatTile
+                    label="Export"
+                    value={stats.exportCount}
+                    icon={FiUpload}
+                    tone="amber"
+                    isActive={filter === "EXPORT"}
+                    onClick={() => setFilter("EXPORT")}
+                    total={stats.total}
+                  />
+                  <StatTile
+                    label="Import"
+                    value={stats.importCount}
+                    icon={FiDownload}
+                    tone="emerald"
+                    isActive={filter === "IMPORT"}
+                    onClick={() => setFilter("IMPORT")}
+                    total={stats.total}
+                  />
+                </div>
               </div>
 
               {/* Sorting Table */}
@@ -391,6 +406,68 @@ const TrailerGateIn = () => {
         }
       `}</style>
     </div>
+  );
+};
+
+const TONE_MAP = {
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+};
+
+const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
+  const t = TONE_MAP[tone] || TONE_MAP.slate;
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group relative text-left transition-all duration-150 overflow-hidden border-r border-slate-200 last:border-r-0
+        ${isActive ? "bg-slate-50" : "bg-white hover:bg-slate-50/70"}`}
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150"
+        style={{ background: isActive ? t.accent : "transparent" }}
+      />
+      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
+        <span
+          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${
+            isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
+          } transition-all duration-150`}
+        >
+          {Icon && <Icon className="text-[15px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-none mb-1.5 truncate">
+            {label}
+          </p>
+          <p
+            className={`text-2xl font-black leading-none tracking-tight transition-colors ${
+              isActive ? t.valueColor : "text-slate-700"
+            }`}
+          >
+            {value}
+          </p>
+        </div>
+        {total > 0 && tone !== "slate" && (
+          <span
+            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg} transition-colors`}
+            style={{ color: t.accent }}
+          >
+            {pct}%
+          </span>
+        )}
+      </div>
+      {total > 0 && tone !== "slate" && (
+        <div className="h-[2px] bg-slate-100">
+          <div
+            className="h-full transition-all duration-700 rounded-full"
+            style={{ width: `${pct}%`, background: t.accent }}
+          />
+        </div>
+      )}
+    </button>
   );
 };
 
