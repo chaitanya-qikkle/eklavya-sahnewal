@@ -527,6 +527,31 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    getTrailerGateInList: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.CONTAINER.GET_TRAILER_GATE_IN_LIST,
+        method: 'GET',
+      }),
+      providesTags: ['ContainerInventory'],
+    }),
+
+    getTrailerGateOutList: builder.query({
+      query: (gate_type = 0) => ({
+        url: `${API_ENDPOINTS.CONTAINER.GET_TRAILER_GATE_OUT_LIST}?gate_type=${gate_type}`,
+        method: 'GET',
+      }),
+      providesTags: ['ContainerInventory'],
+    }),
+
+    gateOutTrailer: builder.mutation({
+      query: (trailer_no) => ({
+        url: API_ENDPOINTS.CONTAINER.TRAILER_GATE_OUT,
+        method: 'POST',
+        body: { trailer_no },
+      }),
+      invalidatesTags: ['ContainerInventory'],
+    }),
+
     kioskSearch: builder.query({
       query: ({ term, top = 20 } = {}) => ({
         url: `${API_ENDPOINTS.CONTAINER.KIOSK_SEARCH}?term=${encodeURIComponent(term)}&top=${top}`,
@@ -774,6 +799,9 @@ export const {
   useGetYard3dSlotListQuery,
   useGetContainerLiveStatusQuery,
   useLazyGetContainerLiveStatusQuery,
+  useGetTrailerGateInListQuery,
+  useGetTrailerGateOutListQuery,
+  useGateOutTrailerMutation,
   useLazyKioskSearchQuery,
   useGetLocationSlotsQuery,
   useLazyGetLocationSlotsQuery,

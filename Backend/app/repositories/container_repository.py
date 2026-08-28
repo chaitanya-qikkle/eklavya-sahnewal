@@ -74,3 +74,35 @@ class ContainerRepository(BaseRepository):
 
     def get_inventory_list(self) -> dict:
         return self._exec("EXEC dbo.SP_INVENTORY_LIST")
+
+    def get_trailer_gate_in_list(self) -> dict:
+        return self._exec("EXEC dbo.GET_EKL_TRN_TRAILER_LIST")
+
+    def get_trailer_gate_out_list(self, plant_id: int, gate_type: int, user_id: str) -> dict:
+        return self._exec(
+            "EXEC dbo.GET_24HR_TRAILER_OUT_DETAIL @PlantID = ?, @GateType = ?, @UserID = ?",
+            (plant_id, gate_type, user_id),
+        )
+
+    def find_trailer_containers(self, trailer_no: str) -> dict:
+        return self._exec(
+            "SELECT InContNo, OutContNo, ContainerNo FROM EKL_TRN_TRAILER "
+            "WHERE TrailerNo = ? AND Isdelete = 0 AND GateOutDate IS NULL",
+            (trailer_no,),
+        )
+
+    def gate_out_trailer(
+        self,
+        trailer_no: str,
+        container_no: str,
+        gate_out_by: str,
+        plant_id: int,
+    ) -> dict:
+        # @IsSuccess is an OUTPUT param but the proc also does
+        # SELECT @IsSuccess AS result, so the result set alone is enough.
+        return self._exec(
+            "SET NOCOUNT ON; DECLARE @Success int; "
+            "EXEC dbo.UPD_TRAILER_OUT_DETAIL @TrailerNo = ?, @ContainerNo = ?, @GateOutBy = ?, @PlantID = ?, @IsSuccess = @Success OUTPUT",
+            (trailer_no, container_no, gate_out_by, plant_id),
+            commit=True,
+        )

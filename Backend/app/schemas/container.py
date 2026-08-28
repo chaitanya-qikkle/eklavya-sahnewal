@@ -25,3 +25,17 @@ class UpdateLocationRequest(BaseModel):
         if len(parts) < 4 or any(p == "" for p in parts):
             raise ValueError("location must be Block:Row:Column:Stack  e.g. B2:C:8:2")
         return v
+
+
+class TrailerGateOutRequest(BaseModel):
+    """Gate-out a trailer. The container(s) currently on the trailer are
+    resolved server-side from EKL_TRN_TRAILER."""
+    trailer_no: str
+
+    @field_validator("trailer_no")
+    @classmethod
+    def clean_trailer_no(cls, v: str) -> str:
+        v = v.strip().upper()
+        if not v:
+            raise ValueError("trailer_no cannot be empty")
+        return v

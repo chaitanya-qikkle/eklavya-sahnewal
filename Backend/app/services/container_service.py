@@ -150,6 +150,62 @@ class ContainerService:
             "data":           page_rows,
         }
 
+    def get_trailer_gate_in_list(self) -> dict:
+        result = self.repo.get_trailer_gate_in_list()
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+
+    def get_trailer_gate_out_list(self, plant_id: int, gate_type: int, user_id: str) -> dict:
+        result = self.repo.get_trailer_gate_out_list(plant_id, gate_type, user_id)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+
+    def gate_out_trailer(
+        self,
+        trailer_no: str,
+        gate_out_by: str,
+        plant_id: int,
+    ) -> dict:
+        lookup = self.repo.find_trailer_containers(trailer_no)
+        if not lookup or lookup.get("status") != "success":
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=(lookup or {}).get("message", "Trailer lookup failed"))
+
+        lookup_rows = lookup.get("data") or []
+        if not lookup_rows:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Trailer {trailer_no} not found or already gated out")
+
+        row = lookup_rows[0]
+        container_nos = sorted({
+            (row.get(field) or "").strip()
+            for field in ("InContNo", "OutContNo", "ContainerNo")
+        } - {""})
+
+        if not container_nos:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"Trailer {trailer_no} has no associated container")
+
+        container_no = ",".join(container_nos)
+
+        result = self.repo.gate_out_trailer(trailer_no, container_no, gate_out_by, plant_id)
+        if not result or result.get("status") != "success":
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=(result or {}).get("message", "SP failed"))
+
+        rows      = result.get("data") or []
+        sp_result = rows[0].get("result") if rows else None
+
+        if sp_result != 1:
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gate-out failed (SP result: {sp_result})")
+
+        return {
+            "status":       "success",
+            "message":      f"Trailer {trailer_no} gated out successfully",
+            "trailer_no":   trailer_no,
+            "container_no": container_no,
+        }
+
     def get_daily_utilisation(
         self,
         from_date: Optional[str],

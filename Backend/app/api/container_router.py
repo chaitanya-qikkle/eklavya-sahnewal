@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from app.core.database import SQLManager
 from app.core.security import get_current_user
 from app.repositories.container_repository import ContainerRepository
-from app.schemas.container import UpdateLocationRequest
+from app.schemas.container import TrailerGateOutRequest, UpdateLocationRequest
 from app.services.container_service import ContainerService
 
 router = APIRouter(prefix="/container", tags=["Container"])
@@ -80,6 +80,50 @@ def get_yard_3d_slot_list():
     svc = _service()
     try:
         return svc.get_yard_3d_slot_list()
+    finally:
+        svc.repo.db.close()
+
+
+# ── Trailer gate-in register (24hr rolling) ───────────────────────────────────
+
+@router.get("/trailer-gate-in-list")
+def get_trailer_gate_in_list():
+    svc = _service()
+    try:
+        return svc.get_trailer_gate_in_list()
+    finally:
+        svc.repo.db.close()
+
+
+# ── Trailer gate-out register (24hr rolling) ──────────────────────────────────
+
+@router.get("/trailer-gate-out-list")
+def get_trailer_gate_out_list(
+    gate_type: int = Query(0),
+    current_user: dict = Depends(get_current_user),
+):
+    svc = _service()
+    try:
+        return svc.get_trailer_gate_out_list(
+            current_user["plant_id"], gate_type, current_user["user_id"],
+        )
+    finally:
+        svc.repo.db.close()
+
+
+# ── Trailer gate-out action ───────────────────────────────────────────────────
+
+@router.post("/trailer-gate-out")
+def gate_out_trailer(
+    body: TrailerGateOutRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    svc = _service()
+    try:
+        return svc.gate_out_trailer(
+            body.trailer_no,
+            current_user["user_id"], current_user["plant_id"],
+        )
     finally:
         svc.repo.db.close()
 

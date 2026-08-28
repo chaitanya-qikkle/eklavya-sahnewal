@@ -5,126 +5,21 @@ import { FaFileExcel } from "react-icons/fa";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
+import { useGetTrailerGateOutListQuery, useGateOutTrailerMutation } from "../../../store/api/ymsApi";
 
-const gateOutRecords = [
-  {
-    trailerNo: "CG04MF2250",
-    activityName: "PICKUP",
-    inContainerNo: "TTNU4107607",
-    outContainerNo: "TTNU4107607",
-    size: "40",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-A",
-    gateInDate: "28-11-2025 10:05:12",
-    gateOutDate: "28-11-2025 10:07:37",
-    location: "BLOCK-W-12A:2",
-  },
-  {
-    trailerNo: "MP09HH6439",
-    activityName: "PICKUP",
-    inContainerNo: "HZKU2801610",
-    outContainerNo: "HZKU2801610",
-    size: "20",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-B",
-    gateInDate: "19-11-2025 16:02:05",
-    gateOutDate: "19-11-2025 16:05:52",
-    location: "BLOCK-A-10C:3",
-  },
-  {
-    trailerNo: "GJ05JD9759",
-    activityName: "PICKUP",
-    inContainerNo: "TLNU9101464",
-    outContainerNo: "TLNU9101464",
-    size: "20",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-C",
-    gateInDate: "19-11-2025 15:28:54",
-    gateOutDate: "19-11-2025 15:31:45",
-    location: "BLOCK-A-09A:3",
-  },
-  {
-    trailerNo: "22BH6517A",
-    activityName: "PICKUP",
-    inContainerNo: "HZKU7082761",
-    outContainerNo: "HZKU7082761",
-    size: "45",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-D",
-    gateInDate: "19-11-2025 13:03:04",
-    gateOutDate: "19-11-2025 13:03:59",
-    location: "BLOCK-O-25D:4",
-  },
-  {
-    trailerNo: "22BH6517A",
-    activityName: "OFFLOAD",
-    inContainerNo: "GLDU0479276",
-    outContainerNo: "GLDU0479276",
-    size: "40",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    lineName: "LINE-D",
-    gateInDate: "19-11-2025 10:00:27",
-    gateOutDate: "19-11-2025 10:02:23",
-    location: "BLOCK-B-05B:1",
-  },
-  {
-    trailerNo: "KL43E2225",
-    activityName: "OFFLOAD",
-    inContainerNo: "ONEU1639707",
-    outContainerNo: "ONEU1639707",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-E",
-    gateInDate: "18-11-2025 11:15:26",
-    gateOutDate: "18-11-2025 11:32:39",
-    location: "BLOCK-W-31A:4",
-  },
-  {
-    trailerNo: "KL43E3402",
-    activityName: "OFFLOAD",
-    inContainerNo: "ONEU1639707",
-    outContainerNo: "ONEU1639707",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-F",
-    gateInDate: "06-10-2025 16:43:41",
-    gateOutDate: "07-10-2025 11:16:20",
-    location: "BLOCK-A-27G:4",
-  },
-  {
-    trailerNo: "KL43E2225",
-    activityName: "OFFLOAD",
-    inContainerNo: "ONEU1639707",
-    outContainerNo: "ONEU1639707",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-E",
-    gateInDate: "06-10-2025 16:32:41",
-    gateOutDate: "18-11-2025 11:32:03",
-    location: "BLOCK-B-05E:4",
-  },
-  {
-    trailerNo: "KL43E3402",
-    activityName: "OFFLOAD",
-    inContainerNo: "ONEU1639707",
-    outContainerNo: "ONEU1639707",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    lineName: "LINE-F",
-    gateInDate: "06-10-2025 15:35:36",
-    gateOutDate: "07-10-2025 11:15:53",
-    location: "BLOCK-B-09G:4",
-  },
-];
+const mapRecord = (row) => ({
+  trailerNo: row.TrailerNo || "",
+  activityName: row.ActivityName || "",
+  inContainerNo: row.InContainerNo || "",
+  outContainerNo: row.OutContainerNo || "",
+  size: row.ContainerSize || "N/A",
+  type: row.ContainerType || "N/A",
+  transactionType: (row.Process || "").toUpperCase() || "N/A",
+  lineName: row.ShippingLine || "",
+  gateInDate: row.GateInDate || "",
+  gateOutDate: row.GateOutDate || "",
+  location: row.ContainerLocation || "",
+});
 
 const filterOptions = [
   { label: "All Entries", value: "all" },
@@ -150,15 +45,8 @@ const parseDateTime = (value) => {
   if (!value) {
     return 0;
   }
-  const [datePart, timePart] = value.split(" ");
-  if (!datePart || !timePart) {
-    return 0;
-  }
-  const [day, month, year] = datePart.split("-");
-  if (!day || !month || !year) {
-    return 0;
-  }
-  return new Date(`${year}-${month}-${day}T${timePart}`).getTime();
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 };
 
 const getRecordId = (record) =>
@@ -172,6 +60,16 @@ const TrailerGateOut = () => {
     direction: "desc",
   });
   const [trailerNo, setTrailerNo] = useState("");
+
+  const { data, isLoading, isError, refetch } = useGetTrailerGateOutListQuery(undefined, {
+    pollingInterval: 60000,
+  });
+  const [gateOutTrailer, { isLoading: isSubmitting }] = useGateOutTrailerMutation();
+
+  const gateOutRecords = useMemo(() => {
+    const rows = data?.data || [];
+    return rows.map(mapRecord);
+  }, [data]);
 
   const handleSort = (key) => {
     let direction = "asc";
@@ -238,7 +136,7 @@ const TrailerGateOut = () => {
     }
 
     return result;
-  }, [search, filter, sortConfig]);
+  }, [search, filter, sortConfig, gateOutRecords]);
 
   const stats = useMemo(() => {
     const total = gateOutRecords.length;
@@ -249,7 +147,7 @@ const TrailerGateOut = () => {
       (record) => record.transactionType === "IMPORT"
     ).length;
     return { total, exportCount, importCount };
-  }, []);
+  }, [gateOutRecords]);
 
   const handleExport = () => {
     const worksheet = XLSX.utils.json_to_sheet(sortedAndFilteredRecords);
@@ -262,14 +160,21 @@ const TrailerGateOut = () => {
     setSearch("");
     setFilter("all");
     setSortConfig({ key: "gateOutDate", direction: "desc" });
+    refetch();
   };
 
-  const handleTrailerSubmit = () => {
-    if (!trailerNo.trim()) {
+  const handleTrailerSubmit = async () => {
+    const trimmed = trailerNo.trim();
+    if (!trimmed) {
       return;
     }
-    notify.success("Submitted", `Trailer ${trailerNo} submitted for gate-out workflow.`);
-    setTrailerNo("");
+    try {
+      await gateOutTrailer(trimmed).unwrap();
+      notify.success("Gated Out", `Trailer ${trimmed} gated out successfully.`);
+      setTrailerNo("");
+    } catch (err) {
+      notify.error("Gate-Out Failed", err?.data?.detail || "Could not gate out trailer.");
+    }
   };
 
   return (
@@ -336,25 +241,28 @@ const TrailerGateOut = () => {
                   <button
                     type="button"
                     onClick={handleTrailerSubmit}
-                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white font-semibold hover:from-[#0b3e66] hover:to-[#072c4a] transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    disabled={isSubmitting}
+                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white font-semibold hover:from-[#0b3e66] hover:to-[#072c4a] transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                   >
-                    Submit
+                    {isSubmitting ? "Submitting..." : "Submit"}
                   </button>
                 </div>
                 <div className="flex items-center justify-between pt-2">
                   <button
                     type="button"
                     onClick={() => setTrailerNo("")}
-                    className="px-6 py-2.5 rounded-xl border-2 border-slate-300 text-slate-600 font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm"
+                    disabled={isSubmitting}
+                    className="px-6 py-2.5 rounded-xl border-2 border-slate-300 text-slate-600 font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleTrailerSubmit}
-                    className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+                    disabled={isSubmitting}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                   >
-                    Trailer Out
+                    {isSubmitting ? "Processing..." : "Trailer Out"}
                   </button>
                 </div>
               </div>
@@ -508,7 +416,20 @@ const TrailerGateOut = () => {
                 </table>
               </div>
 
-              {sortedAndFilteredRecords.length === 0 && (
+              {isLoading && (
+                <div className="py-12 text-center">
+                  <p className="text-slate-500 text-lg font-medium">Loading trailer gate-out data...</p>
+                </div>
+              )}
+
+              {isError && !isLoading && (
+                <div className="py-12 text-center">
+                  <p className="text-red-500 text-lg font-medium">Failed to load data from server</p>
+                  <p className="text-slate-400 mt-1">Please check the backend connection and try again</p>
+                </div>
+              )}
+
+              {!isLoading && !isError && sortedAndFilteredRecords.length === 0 && (
                 <div className="py-12 text-center">
                   <div className="w-16 h-16 mx-auto rounded-full bg-slate-100 flex items-center justify-center mb-4">
                     <FiSearch className="text-2xl text-slate-400" />

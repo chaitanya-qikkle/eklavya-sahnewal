@@ -4,109 +4,18 @@ import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, 
 import { FaFileExcel } from "react-icons/fa";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
+import { useGetTrailerGateInListQuery } from "../../../store/api/ymsApi";
 
-const gateInRecords = [
-  {
-    trailerNo: "MH43H5994",
-    containerNo: "PCIU0169752",
-    activityName: "OFFLOAD",
-    size: "20",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 10:26:18",
-    location: "BLOCK-O-25D:4",
-  },
-  {
-    trailerNo: "MH43E1924",
-    containerNo: "FFAU5176090",
-    activityName: "OFFLOAD",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 10:23:37",
-    location: "BLOCK-I-19C:2",
-  },
-  {
-    trailerNo: "MH46H2450",
-    containerNo: "PCIU1798338",
-    activityName: "OFFLOAD",
-    size: "20",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 10:17:21",
-    location: "BLOCK-W-15A:4",
-  },
-  {
-    trailerNo: "MH46H5395",
-    containerNo: "CAIU8841145",
-    activityName: "OFFLOAD",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 09:51:30",
-    location: "BLOCK-B-05F:2",
-  },
-  {
-    trailerNo: "MH46AR3065",
-    containerNo: "CMAU9495986",
-    activityName: "OFFLOAD",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    gateInDate: "11-12-2025 09:10:48",
-    location: "BLOCK-O-25D:4",
-  },
-  {
-    trailerNo: "MH43U9071",
-    containerNo: "MSDU8847049",
-    activityName: "OFFLOAD",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 08:21:46",
-    location: "BLOCK-B-05B:1",
-  },
-  {
-    trailerNo: "MH47AR8870",
-    containerNo: "MSMU1593648",
-    activityName: "OFFLOAD",
-    size: "N/A",
-    type: "N/A",
-    transactionType: "IMPORT",
-    gateInDate: "11-12-2025 08:05:33",
-    location: "BLOCK-I-19C:2",
-  },
-  {
-    trailerNo: "MH04DK1356",
-    containerNo: "HLBU3008381",
-    activityName: "OFFLOAD",
-    size: "20",
-    type: "N/A",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 08:01:23",
-    location: "BLOCK-B-15D:4",
-  },
-  {
-    trailerNo: "MH46BF1800",
-    containerNo: "UETU5886470",
-    activityName: "OFFLOAD",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "IMPORT",
-    gateInDate: "11-12-2025 07:45:04",
-    location: "BLOCK-A-27G:4",
-  },
-  {
-    trailerNo: "MH06AQ7367",
-    containerNo: "TIIU4044059",
-    activityName: "OFFLOAD",
-    size: "40HQ",
-    type: "General (Dry)",
-    transactionType: "EXPORT",
-    gateInDate: "11-12-2025 07:25:15",
-    location: "BLOCK-W-15A:4",
-  },
-];
+const mapRecord = (row) => ({
+  trailerNo: row.TrailerNo || "",
+  containerNo: row.InContainerNo || row.OutContainerNo || "",
+  activityName: row.ActivityName || "",
+  size: row.ContainerSize || "N/A",
+  type: row.ContainerType || "N/A",
+  transactionType: (row.Process || "").toUpperCase() || "N/A",
+  gateInDate: row.GateInDate || "",
+  location: row.ContainerLocation || "",
+});
 
 const filterOptions = [
   { label: "All Entries", value: "all" },
@@ -129,6 +38,15 @@ const TrailerGateIn = () => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState({ key: "gateInDate", direction: "desc" });
+
+  const { data, isLoading, isError, refetch } = useGetTrailerGateInListQuery(undefined, {
+    pollingInterval: 60000,
+  });
+
+  const gateInRecords = useMemo(() => {
+    const rows = data?.data || [];
+    return rows.map(mapRecord);
+  }, [data]);
 
   const handleSort = (key) => {
     let direction = "asc";
@@ -170,8 +88,8 @@ const TrailerGateIn = () => {
 
         // Handle date sorting
         if (sortConfig.key === "gateInDate") {
-          const dateA = new Date(aValue.split(" ").reverse().join("-"));
-          const dateB = new Date(bValue.split(" ").reverse().join("-"));
+          const dateA = new Date(aValue);
+          const dateB = new Date(bValue);
           return sortConfig.direction === "asc"
             ? dateA - dateB
             : dateB - dateA;
@@ -198,7 +116,7 @@ const TrailerGateIn = () => {
     }
 
     return result;
-  }, [search, filter, sortConfig]);
+  }, [search, filter, sortConfig, gateInRecords]);
 
   const stats = useMemo(() => {
     const total = gateInRecords.length;
@@ -209,7 +127,7 @@ const TrailerGateIn = () => {
       (record) => record.transactionType === "IMPORT"
     ).length;
     return { total, exportCount, importCount };
-  }, []);
+  }, [gateInRecords]);
 
   const handleExport = () => {
     const worksheet = XLSX.utils.json_to_sheet(sortedAndFilteredRecords);
@@ -222,6 +140,7 @@ const TrailerGateIn = () => {
     setSearch("");
     setFilter("all");
     setSortConfig({ key: "gateInDate", direction: "desc" });
+    refetch();
   };
 
   return (
@@ -400,7 +319,20 @@ const TrailerGateIn = () => {
                 </table>
               </div>
 
-              {sortedAndFilteredRecords.length === 0 && (
+              {isLoading && (
+                <div className="py-12 text-center">
+                  <p className="text-slate-500 text-lg font-medium">Loading trailer gate-in data...</p>
+                </div>
+              )}
+
+              {isError && !isLoading && (
+                <div className="py-12 text-center">
+                  <p className="text-red-500 text-lg font-medium">Failed to load data from server</p>
+                  <p className="text-slate-400 mt-1">Please check the backend connection and try again</p>
+                </div>
+              )}
+
+              {!isLoading && !isError && sortedAndFilteredRecords.length === 0 && (
                 <div className="py-12 text-center">
                   <div className="w-16 h-16 mx-auto rounded-full bg-slate-100 flex items-center justify-center mb-4">
                     <FiSearch className="text-2xl text-slate-400" />

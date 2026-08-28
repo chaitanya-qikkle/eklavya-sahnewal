@@ -180,6 +180,9 @@ export const API_ENDPOINTS = {
     GET_LIFECYCLE_DETAILS: buildUrl('/v1/container/lifecycle-details'),
     GET_LIFECYCLE_OFFLOAD_TIMELINE: buildUrl('/v1/container/lifecycle-offload-timeline'),
     GET_LIFECYCLE_GATEINOUT: buildUrl('/v1/container/lifecycle-gateinout'),
+    GET_TRAILER_GATE_IN_LIST: buildUrl('/v1/container/trailer-gate-in-list'),
+    GET_TRAILER_GATE_OUT_LIST: buildUrl('/v1/container/trailer-gate-out-list'),
+    TRAILER_GATE_OUT: buildUrl('/v1/container/trailer-gate-out'),
   },
 
   // Reports
