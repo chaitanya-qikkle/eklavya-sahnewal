@@ -350,18 +350,26 @@ def get_device_raw_data(
         to_dt   = _to_dt(to_date)   or datetime(2099, 12, 31, 23, 59, 59)
         plant_id = current_user.get("plant_id", 1)
 
+        # `machine` is sourced from the raw KalmarNo dropdown (EKL_TRN_EKDEVICEDATA.KalmarNo),
+        # which doesn't reliably match ESS_MST_EQUIPMENT.Equipment_Name/DeviceID — resolving it
+        # through the equipment master rewrites a valid KalmarNo into a name the raw table
+        # doesn't recognize, silently zeroing out the SP results. Use it as-is.
         kalmar_no = (machine or "").strip()
-        if kalmar_no:
+
+        if not kalmar_no:
+            # The SP filters via `KalmarNo IN (SELECT VALUE FROM Split_String(@KalmarNo, ','))`.
+            # Split_String('') yields a single empty-string row, so an empty filter matches
+            # nothing — "All Machines" must be expanded to the full known KalmarNo list.
             try:
-                eq_res = db.execute_query(
-                    "SELECT Equipment_Name FROM ESS_MST_EQUIPMENT WHERE ISNULL(IsDelete,0)=0 AND (Equipment_Name=? OR DeviceID=?)",
-                    params=(kalmar_no, kalmar_no), fetch_all=True,
+                list_res = db.execute_query(
+                    "SELECT DISTINCT KalmarNo FROM EKL_TRN_EKDEVICEDATA "
+                    "WHERE KalmarNo IS NOT NULL AND LTRIM(RTRIM(KalmarNo)) <> ''",
+                    fetch_all=True,
                 )
-                eq_data = eq_res.get("data") or []
-                if isinstance(eq_data, list) and eq_data and isinstance(eq_data[0], list):
-                    eq_data = eq_data[0]
-                if eq_data:
-                    kalmar_no = eq_data[0].get("Equipment_Name", kalmar_no)
+                list_data = list_res.get("data") or []
+                if isinstance(list_data, list) and list_data and isinstance(list_data[0], list):
+                    list_data = list_data[0]
+                kalmar_no = ",".join(row.get("KalmarNo") for row in list_data if row.get("KalmarNo"))
             except Exception:
                 pass
 
@@ -376,6 +384,26 @@ def get_device_raw_data(
         data = result.get("data") or []
         if isinstance(data, list) and data and isinstance(data[0], list):
             data = data[0]
+
+        # Frontend table expects UPPER_SNAKE keys; the SP returns raw column names
+        # (PacketID, GPSFix, KalmarNo, Date_Time, Latitude, ...) which don't match by
+        # case/spelling, so every field except RFIDDATA rendered blank and the packet-ID
+        # filter (Number(row.PACKET_ID)) always produced NaN, hiding all rows.
+        data = [
+            {
+                "PACKET_ID":      row.get("PacketID"),
+                "GPS_FIX":        row.get("GPSFix"),
+                "DEVICE_IMEI":    row.get("DeviceIMEI"),
+                "Equipment_Name": row.get("KalmarNo"),
+                "KALMAR_NO":      row.get("KalmarNo"),
+                "DATE_TIME":      row.get("Date_Time"),
+                "LATITUDE":       row.get("Latitude"),
+                "LONGITUDE":      row.get("Longitude"),
+                "ANALOG1":        row.get("Analog1"),
+                "RFIDDATA":       row.get("RFIDDATA"),
+            }
+            for row in data
+        ]
         try:
             _log_raw_data.info(json.dumps({
                 "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
