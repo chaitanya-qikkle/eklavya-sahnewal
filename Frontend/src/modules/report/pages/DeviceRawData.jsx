@@ -26,8 +26,6 @@ const formatDateTime = (value) => {
 }
 
 const COLUMNS = [
-  { key: 'PACKET_ID',      label: 'Packet ID' },
-  { key: 'GPS_FIX',       label: 'GPS Fix' },
   { key: 'DEVICE_IMEI',   label: 'Device IMEI' },
   { key: 'Equipment_Name', label: 'Machine' },
   { key: 'KALMAR_NO',     label: 'Device ID' },
@@ -35,13 +33,8 @@ const COLUMNS = [
   { key: 'LATITUDE',      label: 'Latitude' },
   { key: 'LONGITUDE',     label: 'Longitude' },
   { key: 'ANALOG1',       label: 'Analog 1' },
-  { key: 'ANALOG2',       label: 'Analog 2' },
   { key: 'RFIDDATA',      label: 'OCR / RFID' },
 ]
-
-// All known packet IDs
-const ALL_PACKET_IDS = [1, 7, 8]
-const DEFAULT_PACKET_IDS = [7, 8]
 
 const LabeledField = ({ label, children }) => (
   <div className="flex flex-col gap-1.5">
@@ -91,15 +84,6 @@ const DeviceRawData = () => {
   const [totalCount, setTotalCount]         = useState(null)
   const [error, setError]                   = useState(null)
   const [hasQueried, setHasQueried]         = useState(false)
-  const [selectedPacketIds, setSelectedPacketIds] = useState(new Set(DEFAULT_PACKET_IDS))
-
-  const togglePacketId = (id) => {
-    setSelectedPacketIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
 
   const handleFilter = async () => {
     setError(null)
@@ -129,7 +113,6 @@ const DeviceRawData = () => {
     setTotalCount(null)
     setError(null)
     setHasQueried(false)
-    setSelectedPacketIds(new Set(DEFAULT_PACKET_IDS))
   }
 
   const handleExport = () => {
@@ -150,11 +133,6 @@ const DeviceRawData = () => {
   const filtered = useMemo(() => {
     let result = rows
 
-    // Packet ID filter
-    if (selectedPacketIds.size > 0 && selectedPacketIds.size < ALL_PACKET_IDS.length + 1) {
-      result = result.filter((row) => selectedPacketIds.has(Number(row.PACKET_ID)))
-    }
-
     // Text search
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -164,7 +142,7 @@ const DeviceRawData = () => {
     }
 
     return result
-  }, [rows, search, selectedPacketIds])
+  }, [rows, search])
 
   return (
     <div
@@ -198,7 +176,7 @@ const DeviceRawData = () => {
               </div>
 
               <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
                   {/* Machine selector */}
                   <LabeledField label="Machine">
@@ -237,29 +215,6 @@ const DeviceRawData = () => {
                         className={inputCls + ' pl-10'}
                       />
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    </div>
-                  </LabeledField>
-
-                  {/* Packet ID filter */}
-                  <LabeledField label="Packet ID">
-                    <div className="flex items-center gap-2 h-[42px]">
-                      {ALL_PACKET_IDS.map((id) => {
-                        const active = selectedPacketIds.has(id)
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => togglePacketId(id)}
-                            className={`flex-1 h-full rounded-lg border text-sm font-bold transition-colors shadow-sm
-                              ${active
-                                ? 'bg-[#0e4a78] border-[#0e4a78] text-white'
-                                : 'bg-white border-slate-300 text-slate-500 hover:border-[#0e4a78] hover:text-[#0e4a78]'
-                              }`}
-                          >
-                            {id}
-                          </button>
-                        )
-                      })}
                     </div>
                   </LabeledField>
 

@@ -35,13 +35,14 @@ class ReportsRepository(BaseRepository):
 
     def get_device_raw_data(
         self,
-        machine: str,
+        plant_id: int,
         from_date: str,
         to_date: str,
+        machine: str,
     ) -> dict:
-        return self._exec_all(
-            "EXEC [dbo].[REPORT_PROC_DEVICE_DATA] @from_date=?, @to_date=?, @machine=?",
-            (from_date, to_date, machine),
+        return self._exec(
+            "EXEC dbo.GET_RPT_RAW_DEVICE_DATA @PlantId = ?, @FromDate = ?, @Todate = ?, @KalmarNo = ?",
+            (plant_id, from_date, to_date, machine),
         )
 
     def update_device_container(

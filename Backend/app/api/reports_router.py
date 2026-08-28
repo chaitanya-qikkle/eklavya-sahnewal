@@ -67,7 +67,7 @@ def get_device_raw_data(
 ):
     svc = _service()
     try:
-        return svc.get_device_raw_data(machine, from_date, to_date)
+        return svc.get_device_raw_data(machine, from_date, to_date, current_user.get("plant_id", 0))
     finally:
         svc.repo.db.close()
 

@@ -26,6 +26,36 @@ def _parse_datetime(val: Optional[str]) -> Optional[str]:
         return raw
 
 
+def _parse_iso_datetime(val: Optional[str]) -> Optional[str]:
+    """Parse datetime-local / ISO inputs → YYYY-MM-DD HH:MM:SS for plain DATETIME params."""
+    if not val:
+        return None
+    raw = str(val).strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return raw
+
+
+def _map_raw_device_row(row: dict) -> dict:
+    """Map GET_RPT_RAW_DEVICE_DATA columns to the UPPER_SNAKE keys the frontend expects."""
+    return {
+        "DEVICE_IMEI":   row.get("DeviceIMEI"),
+        "Equipment_Name": row.get("KalmarNo"),
+        "KALMAR_NO":     row.get("KalmarNo"),
+        "DATE_TIME":     row.get("Date_Time"),
+        "LATITUDE":      row.get("Latitude"),
+        "LONGITUDE":     row.get("Longitude"),
+        "ANALOG1":       row.get("Analog1"),
+        "RFIDDATA":      row.get("RFIDDATA"),
+    }
+
+
 class ReportsService:
     def __init__(self, repo: ReportsRepository):
         self.repo = repo
@@ -82,17 +112,18 @@ class ReportsService:
         machine: Optional[str],
         from_date: Optional[str],
         to_date: Optional[str],
+        plant_id: int = 0,
     ) -> dict:
         result = self.repo.get_device_raw_data(
+            plant_id,
+            _parse_iso_datetime(from_date) or "1900-01-01 00:00:00",
+            _parse_iso_datetime(to_date)   or "2099-12-31 23:59:59",
             (machine or "").strip(),
-            _parse_datetime(from_date) or "01/01/1900 00:00",
-            _parse_datetime(to_date)   or "31/12/2099 23:59",
         )
         if result.get("status") != "success":
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message", "DB error"))
 
-        all_sets = result.get("data") or []
-        data = next((s for s in reversed(all_sets) if s), [])
+        data = [_map_raw_device_row(row) for row in (result.get("data") or [])]
         return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
 
     def update_device_container(self, eqp_trans_id: int, cont_no: str, plant_id: int, user_id: int) -> dict:
