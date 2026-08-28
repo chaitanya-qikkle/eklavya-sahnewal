@@ -45,6 +45,8 @@ def _parse_iso_datetime(val: Optional[str]) -> Optional[str]:
 def _map_raw_device_row(row: dict) -> dict:
     """Map GET_RPT_RAW_DEVICE_DATA columns to the UPPER_SNAKE keys the frontend expects."""
     return {
+        "PACKET_ID":     row.get("PacketID"),
+        "GPS_FIX":       row.get("GPSFix"),
         "DEVICE_IMEI":   row.get("DeviceIMEI"),
         "Equipment_Name": row.get("KalmarNo"),
         "KALMAR_NO":     row.get("KalmarNo"),
