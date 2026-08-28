@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiCalendar } from 'react-icons/fi'
+import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiCalendar, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import { FaFileExcel, FaFilePdf } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
@@ -289,33 +289,46 @@ const ContainerHistoryStatus = () => {
                 </table>
               </div>
 
-              <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-                <div>
-                  Showing {Math.min((currentPage - 1) * pageSize + 1, filteredData.length)} to {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} entries
-                </div>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1.5 rounded border border-slate-300 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white"
-                  >
-                    Previous
+              <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <span className="text-xs text-slate-500">
+                  Showing{' '}
+                  <strong className="text-[#0e4a78]">{Math.min((currentPage - 1) * pageSize + 1, filteredData.length)}</strong>–<strong className="text-[#0e4a78]">{Math.min(currentPage * pageSize, filteredData.length)}</strong>
+                  {' '}of{' '}
+                  <strong className="text-[#0e4a78]">{filteredData.length.toLocaleString()}</strong> records
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
+                    className="px-2 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 hover:border-[#0e4a78] bg-white transition-all">
+                    «
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 rounded border ${currentPage === page ? 'bg-[#0e4a78] text-white border-[#0e4a78]' : 'border-slate-300 hover:bg-white bg-white'}`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 rounded border border-slate-300 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed bg-white"
-                  >
-                    Next
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                    className="px-3 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 hover:border-[#0e4a78] bg-white flex items-center gap-1 transition-all">
+                    <FiChevronLeft size={12} /> Prev
+                  </button>
+
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
+                    const pg = start + i
+                    if (pg > totalPages) return null
+                    return (
+                      <button key={pg} onClick={() => setCurrentPage(pg)}
+                        className={`w-9 h-8 rounded-lg border-2 text-xs font-bold transition-all ${
+                          pg === currentPage
+                            ? 'bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white border-[#0e4a78] shadow-md'
+                            : 'border-slate-300 text-[#0e4a78] hover:bg-blue-50 hover:border-[#0e4a78] bg-white'
+                        }`}>
+                        {pg}
+                      </button>
+                    )
+                  })}
+
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 hover:border-[#0e4a78] bg-white flex items-center gap-1 transition-all">
+                    Next <FiChevronRight size={12} />
+                  </button>
+                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}
+                    className="px-2 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 hover:border-[#0e4a78] bg-white transition-all">
+                    »
                   </button>
                 </div>
               </div>
