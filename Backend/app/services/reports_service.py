@@ -116,11 +116,20 @@ class ReportsService:
         to_date: Optional[str],
         plant_id: int = 0,
     ) -> dict:
+        # The SP filters via `KalmarNo IN (SELECT VALUE FROM Split_String(@KalmarNo, ','))`.
+        # Split_String('') yields a single empty-string row, so an empty filter matches
+        # nothing — "All Machines" must be expanded to the full known KalmarNo list.
+        machine = (machine or "").strip()
+        if not machine:
+            kalmar_result = self.repo.get_device_raw_data_kalmar_list()
+            names = [row.get("KalmarNo") for row in (kalmar_result.get("data") or []) if row.get("KalmarNo")]
+            machine = ",".join(names)
+
         result = self.repo.get_device_raw_data(
             plant_id,
             _parse_iso_datetime(from_date) or "1900-01-01 00:00:00",
             _parse_iso_datetime(to_date)   or "2099-12-31 23:59:59",
-            (machine or "").strip(),
+            machine,
         )
         if result.get("status") != "success":
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message", "DB error"))
