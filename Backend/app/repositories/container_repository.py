@@ -66,7 +66,7 @@ class ContainerRepository(BaseRepository):
         container_no: Optional[str],
         plant_id: int,
     ) -> dict:
-        return self._exec_all(
+        return self._exec(
             "EXEC dbo.GET_CONT_HISTORY_REPORT @fromDate = ?, @toDate = ?, @ContNo = ?, @PlantID = ?",
             (from_date, to_date, container_no or "", plant_id),
         )
