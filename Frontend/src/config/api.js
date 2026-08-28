@@ -177,6 +177,7 @@ export const API_ENDPOINTS = {
     GET_GATE_NAMES: buildUrl('/v1/container/gate-names'),
     GET_CONTAINER_STATUS_REPORT: buildUrl('/v1/container/container-status-report'),
     GET_CONTAINER_GATE_REPORT: buildUrl('/v1/container/container-gate-report'),
+    GET_CONTAINER_HISTORY_REPORT: buildUrl('/v1/container/container-history-report'),
     GET_LIFECYCLE_DETAILS: buildUrl('/v1/container/lifecycle-details'),
     GET_LIFECYCLE_OFFLOAD_TIMELINE: buildUrl('/v1/container/lifecycle-offload-timeline'),
     GET_LIFECYCLE_GATEINOUT: buildUrl('/v1/container/lifecycle-gateinout'),

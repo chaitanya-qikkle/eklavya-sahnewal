@@ -59,6 +59,18 @@ class ContainerRepository(BaseRepository):
             (plant_id, from_date, to_date, gate_name),
         )
 
+    def get_container_history_report(
+        self,
+        from_date: Optional[str],
+        to_date: Optional[str],
+        container_no: Optional[str],
+        plant_id: int,
+    ) -> dict:
+        return self._exec_all(
+            "EXEC dbo.GET_CONT_HISTORY_REPORT @fromDate = ?, @toDate = ?, @ContNo = ?, @PlantID = ?",
+            (from_date, to_date, container_no or "", plant_id),
+        )
+
     def get_survey_gate_names(self) -> dict:
         return self._exec(
             "SELECT DISTINCT GateName FROM EKL_TRN_CONTAINER_ESURVEY "

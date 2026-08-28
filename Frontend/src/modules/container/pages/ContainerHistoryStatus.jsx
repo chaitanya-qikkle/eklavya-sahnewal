@@ -1,21 +1,30 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiCalendar } from 'react-icons/fi'
 import { FaFileExcel, FaFilePdf } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
+import { useLazyGetContainerHistoryReportQuery } from '../../../store/api/ymsApi'
 
-const mockHistoryData = [
-  { containerNo: "ONEU2964933", size: "20", type: "DRY", transactionType: "Import", documentNo: "PPS/RJ/I/25-26/00256", bookingNo: "PPS/I/BK/25-26/01720", mode: "Rail", gateInDate: "07-12-2025 07:21", gateOutDate: "12-12-2025 12:40", tat: "00125:18" },
-  { containerNo: "UACU3982906", size: "20", type: "DRY", transactionType: "", documentNo: "MDP/RJ/I/25-26/00704", bookingNo: "MDP/I/BK/25-26/05857", mode: "Rail", gateInDate: "06-12-2025 12:32", gateOutDate: "12-12-2025 12:38", tat: "00144:05" },
-  { containerNo: "NYKU0826096", size: "40", type: "DRY", transactionType: "", documentNo: "PPS/RJ/I/25-26/00257", bookingNo: "PPS/I/BK/25-26/01757", mode: "Rail", gateInDate: "09-12-2025 10:51", gateOutDate: "12-12-2025 12:32", tat: "0073:40" },
-  { containerNo: "BMOU3044827", size: "40", type: "DRY", transactionType: "Import", documentNo: "MDP/RJ/I/25-26/00707", bookingNo: "MDP/I/BK/25-26/05921", mode: "Rail", gateInDate: "05-12-2025 18:02", gateOutDate: "12-12-2025 12:26", tat: "00162:23" },
-  { containerNo: "EGSU9257830", size: "40", type: "DRY", transactionType: "", documentNo: "MDP/RJ/I/25-26/00716", bookingNo: "MDP/I/BK/26-26/06008", mode: "Rail", gateInDate: "09-12-2025 00:16", gateOutDate: "12-12-2025 12:24", tat: "0084:07" },
-  { containerNo: "TCLU8824735", size: "40", type: "DRY", transactionType: "Empty", documentNo: "GHH/E/GI/25-26/37160", bookingNo: "", mode: "Road", gateInDate: "02-12-2025 06:47", gateOutDate: "12-12-2025 12:08", tat: "00245:21" },
-  { containerNo: "BEAU4118452", size: "40", type: "DRY", transactionType: "", documentNo: "MDP/RJ/I/25-26/00698", bookingNo: "MDP/I/BK/25-26/05903", mode: "Rail", gateInDate: "02-12-2025 19:30", gateOutDate: "12-12-2025 11:56", tat: "00232:25" },
-  { containerNo: "CORU2427513", size: "20", type: "DRY", transactionType: "", documentNo: "MDP/RJ/I/25-26/00700", bookingNo: "MDP/I/BK/25-26/05826", mode: "Rail", gateInDate: "03-12-2025 03:45", gateOutDate: "12-12-2025 11:54", tat: "00224:08" },
-  { containerNo: "TRHU3000575", size: "20", type: "DRY", transactionType: "", documentNo: "MDP/RJ/I/25-26/00700", bookingNo: "MDP/I/BK/25-26/05826", mode: "Rail", gateInDate: "03-12-2025 03:45", gateOutDate: "12-12-2025 11:52", tat: "00224:06" },
-]
+function toDateTimeLocalParam(v) {
+  // datetime-local gives "YYYY-MM-DDTHH:mm" — SP wants a value SQL Server can cast to DATETIME
+  return v ? v.replace('T', ' ') : undefined
+}
+
+function mapRow(r) {
+  return {
+    containerNo: r.ContainerNo || '',
+    size: r.ContainerSize || '',
+    type: r.ContainerType || '',
+    transactionType: r.Process || '',
+    documentNo: r.DocumentNo || '',
+    bookingNo: r.BookingNo || '',
+    mode: r.Mode || '',
+    gateInDate: r.GateInDate || '',
+    gateOutDate: r.GateOutDate || '',
+    tat: r.TAT || '',
+  }
+}
 
 const ContainerHistoryStatus = () => {
   const [containerSearch, setContainerSearch] = useState('')
@@ -26,40 +35,49 @@ const ContainerHistoryStatus = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 10
 
+  const [trigger, { data, isFetching, isError }] = useLazyGetContainerHistoryReportQuery()
+
+  const runSearch = () => {
+    setCurrentPage(1)
+    trigger({
+      from_date: toDateTimeLocalParam(gateInFrom),
+      to_date: toDateTimeLocalParam(gateInTo),
+      container_no: containerSearch.trim() || undefined,
+    })
+  }
+
+  useEffect(() => {
+    runSearch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const historyData = useMemo(() => (data?.data || []).map(mapRow), [data])
+
   // Filter logic
   const filteredData = useMemo(() => {
-    let data = [...mockHistoryData]
+    let rows = [...historyData]
 
-    // 1. Specific Filters
-    if (containerSearch) {
-      data = data.filter(item => item.containerNo.toLowerCase().includes(containerSearch.toLowerCase()))
-    }
-    // Note: Simple string range check for demo. Real apps should accept Date objects or timestamps.
-    if (gateInFrom) {
-      // logic to filter by date would go here
-    }
-
-    // 2. Global Search (Table search)
+    // Global Search (Table search)
     if (globalSearch) {
       const lowerSearch = globalSearch.toLowerCase()
-      data = data.filter(item =>
+      rows = rows.filter(item =>
         Object.values(item).some(val =>
           val.toString().toLowerCase().includes(lowerSearch)
         )
       )
     }
 
-    // 3. Sorting
+    // Sorting
     if (sortConfig.key) {
-      data.sort((a, b) => {
+      rows.sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1
         if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1
         return 0
       })
     }
 
-    return data
-  }, [containerSearch, gateInFrom, gateInTo, globalSearch, sortConfig])
+    return rows
+  }, [historyData, globalSearch, sortConfig])
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / pageSize)
@@ -78,6 +96,8 @@ const ContainerHistoryStatus = () => {
     setGateInFrom('')
     setGateInTo('')
     setGlobalSearch('')
+    setCurrentPage(1)
+    trigger({})
   }
 
   const handleExportExcel = () => {
@@ -151,9 +171,11 @@ const ContainerHistoryStatus = () => {
                       Clear
                     </button>
                     <button
-                      className="px-6 py-2.5 rounded-lg bg-[#0e4a78] text-white font-semibold hover:bg-[#0b3e66] transition shadow-md uppercase text-sm tracking-wide"
+                      onClick={runSearch}
+                      disabled={isFetching}
+                      className="px-6 py-2.5 rounded-lg bg-[#0e4a78] text-white font-semibold hover:bg-[#0b3e66] transition shadow-md uppercase text-sm tracking-wide disabled:opacity-60"
                     >
-                      Filter
+                      {isFetching ? 'Loading…' : 'Filter'}
                     </button>
                   </div>
                 </div>
@@ -225,7 +247,7 @@ const ContainerHistoryStatus = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {paginatedData.map((row, idx) => (
+                    {!isFetching && !isError && paginatedData.map((row, idx) => (
                       <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.containerNo}</td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.size}</td>
@@ -239,7 +261,21 @@ const ContainerHistoryStatus = () => {
                         <td className="px-4 sm:px-5 py-3 text-slate-700 font-medium whitespace-nowrap">{row.tat}</td>
                       </tr>
                     ))}
-                    {paginatedData.length === 0 && (
+                    {isFetching && (
+                      <tr>
+                        <td colSpan="10" className="px-6 py-8 text-center text-slate-500 bg-white">
+                          Loading…
+                        </td>
+                      </tr>
+                    )}
+                    {!isFetching && isError && (
+                      <tr>
+                        <td colSpan="10" className="px-6 py-8 text-center text-red-500 bg-white">
+                          Failed to load container history. Check backend connection.
+                        </td>
+                      </tr>
+                    )}
+                    {!isFetching && !isError && paginatedData.length === 0 && (
                       <tr>
                         <td colSpan="10" className="px-6 py-8 text-center text-slate-500 bg-white">
                           <div className="flex flex-col items-center gap-2">

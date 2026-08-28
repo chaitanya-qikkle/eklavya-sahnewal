@@ -609,6 +609,21 @@ export const ymsApi = createApi({
       },
     }),
 
+    // ─── Container History Report ───────────────────────────────────────────
+    getContainerHistoryReport: builder.query({
+      query: ({ from_date, to_date, container_no, plant_id } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date)    params.set('from_date',    from_date)
+        if (to_date)      params.set('to_date',      to_date)
+        if (container_no) params.set('container_no', container_no)
+        if (plant_id !== undefined && plant_id !== null) params.set('plant_id', String(plant_id))
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_CONTAINER_HISTORY_REPORT}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+    }),
+
     // ─── Reports ───────────────────────────────────────────────────────────
 
     getServiceDashboard: builder.query({
@@ -827,4 +842,6 @@ export const {
   useLazyGetContainerStatusReportQuery,
   useGetContainerGateReportQuery,
   useLazyGetContainerGateReportQuery,
+  useGetContainerHistoryReportQuery,
+  useLazyGetContainerHistoryReportQuery,
 } = ymsApi

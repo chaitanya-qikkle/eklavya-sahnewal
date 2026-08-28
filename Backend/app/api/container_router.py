@@ -200,6 +200,23 @@ def get_pre_gate_survey(
         svc.repo.db.close()
 
 
+# ── Container history report ──────────────────────────────────────────────────
+
+@router.get("/container-history-report")
+def get_container_history_report(
+    from_date:    Optional[str] = None,
+    to_date:      Optional[str] = None,
+    container_no: Optional[str] = None,
+    plant_id:     int = Query(0),
+    current_user: dict = Depends(get_current_user),
+):
+    svc = _service()
+    try:
+        return svc.get_container_history_report(from_date, to_date, container_no, plant_id)
+    finally:
+        svc.repo.db.close()
+
+
 # ── Survey image (served from stitching dir) ──────────────────────────────────
 
 @router.get("/img", include_in_schema=False)

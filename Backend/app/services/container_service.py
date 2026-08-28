@@ -3,6 +3,7 @@ Container service — business logic for container inventory, live status, e-sur
 All queries go through stored procedures via ContainerRepository.
 """
 import pathlib
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -93,6 +94,24 @@ class ContainerService:
             "container_no": container_no,
             "location":     location,
         }
+
+    def get_container_history_report(
+        self,
+        from_date: Optional[str],
+        to_date: Optional[str],
+        container_no: Optional[str],
+        plant_id: int = 0,
+    ) -> dict:
+        if not container_no and not from_date and not to_date:
+            # SP requires a date range when no container is given — default to last 30 days
+            to_dt = datetime.now()
+            from_dt = to_dt - timedelta(days=30)
+            from_date, to_date = from_dt.strftime("%Y-%m-%d %H:%M:%S"), to_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        result = self.repo.get_container_history_report(from_date or None, to_date or None, container_no, plant_id)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}
+        return {"status": "success", "data": result.get("data", []) or []}
 
     def get_survey_gate_names(self) -> dict:
         result = self.repo.get_survey_gate_names()
