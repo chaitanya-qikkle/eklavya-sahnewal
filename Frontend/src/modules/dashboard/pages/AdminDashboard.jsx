@@ -961,7 +961,6 @@ const AdminDashboard = () => {
   const [chartView, setChartView] = useState("area");
   const [eqpView, setEqpView] = useState("table");
   const [yardView, setYardView] = useState("bars");
-  const [ocrView, setOcrView] = useState("gauge");
   const [processView, setProcessView] = useState("donut");
   const [sizeView, setSizeView] = useState("chart");
   const [ageingView, setAgeingView] = useState("chart");
@@ -2081,7 +2080,7 @@ const AdminDashboard = () => {
               subtitle={filterRange.toMs - filterRange.fromMs > 25 * 3600 * 1000 ? "Daily in/out — driven by current filters" : "Hourly in/out — driven by current filters"}
               icon={FiActivity}
               accent={T.cyan}
-              className="xl:col-span-8 h-[380px]"
+              className="xl:col-span-12 h-[380px]"
               right={
                 <ViewSwitch
                   value={chartView}
@@ -2181,67 +2180,6 @@ const AdminDashboard = () => {
                 </ResponsiveContainer>
                 )}
               </div>
-            </Panel>
-
-            {/* OCR Radial Gauge */}
-            <Panel title="OCR Accuracy · 24h" subtitle="9AM → 9AM rolling window" icon={FiPercent}
-              accent={ocrStats.pct >= 80 ? T.emerald : ocrStats.pct >= 60 ? T.amber : T.red}
-              className="xl:col-span-4 h-[380px]"
-              right={
-                <ViewSwitch
-                  value={ocrView}
-                  onChange={setOcrView}
-                  options={[
-                    { value: "gauge", label: "Gauge", icon: FiPercent },
-                    { value: "table", label: "Table", icon: FiList },
-                  ]}
-                />
-              }
-            >
-              {ocrView === "table" ? (
-                <DataTable
-                  cols={[
-                    { label: "Machine", key: "name", bold: true },
-                    { label: "Total", key: "total", align: "right" },
-                    { label: "OK", key: "captured", align: "right",
-                      render: (v) => <span style={{ color: T.emerald }}>{fmtNumber(v)}</span> },
-                    { label: "Miss", key: "missing", align: "right",
-                      render: (v) => <span style={{ color: T.red }}>{fmtNumber(v)}</span> },
-                    { label: "Acc %", key: "pct", align: "right",
-                      render: (v) => {
-                        const col = v >= 80 ? T.emerald : v >= 60 ? T.amber : T.red;
-                        return <span style={{ color: col, fontWeight: 900 }}>{v.toFixed(1)}%</span>;
-                      },
-                    },
-                  ]}
-                  rows={ocrStats.machineRows}
-                  footerRow={["All Machines", fmtNumber(ocrStats.total), fmtNumber(ocrStats.captured), fmtNumber(ocrStats.missing), `${ocrStats.pct.toFixed(1)}%`]}
-                  emptyMsg="Loading OCR report…"
-                />
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                  <RadialGauge
-                    value={ocrStats.pct}
-                    color={ocrStats.pct >= 80 ? T.emerald : ocrStats.pct >= 60 ? T.amber : T.red}
-                    size={210}
-                    subtitle="Accuracy"
-                  />
-                  <div className="grid grid-cols-3 gap-2 w-full mt-2">
-                    <div className="text-center rounded-xl px-2 py-2.5" style={{ background: "#ecfdf5", border: "1px solid #a7f3d0" }}>
-                      <div className="text-[9px] uppercase tracking-wider font-black" style={{ color: T.emerald }}>Captured</div>
-                      <div className="text-lg font-black tabular-nums" style={{ color: T.text }}>{fmtCompact(ocrStats.captured)}</div>
-                    </div>
-                    <div className="text-center rounded-xl px-2 py-2.5" style={{ background: "#fef2f2", border: "1px solid #fecaca" }}>
-                      <div className="text-[9px] uppercase tracking-wider font-black" style={{ color: T.red }}>Missed</div>
-                      <div className="text-lg font-black tabular-nums" style={{ color: T.text }}>{fmtCompact(ocrStats.missing)}</div>
-                    </div>
-                    <div className="text-center rounded-xl px-2 py-2.5" style={{ background: "#e0f2fe", border: "1px solid #bae6fd" }}>
-                      <div className="text-[9px] uppercase tracking-wider font-black" style={{ color: T.cyan }}>Total</div>
-                      <div className="text-lg font-black tabular-nums" style={{ color: T.text }}>{fmtCompact(ocrStats.total)}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </Panel>
           </div>
 

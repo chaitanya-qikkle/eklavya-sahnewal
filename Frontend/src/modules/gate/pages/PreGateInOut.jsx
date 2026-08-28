@@ -24,7 +24,6 @@ const PAGE_SIZE = 20
 const IMAGE_SIDES = [
   { key: 'IMG_LEFT',  label: 'L', side: 'left'  },
   { key: 'IMG_RIGHT', label: 'R', side: 'right' },
-  { key: 'IMG_BACK',  label: 'B', side: 'back'  },
   { key: 'IMG_TOP',   label: 'T', side: 'top'   },
 ]
 
@@ -97,7 +96,7 @@ function DateCell({ raw, highlight }) {
   )
 }
 
-/* ─── Image Cell (4 thumbnails: left/right/back/top) ───────────────────────── */
+/* ─── Image Cell (3 thumbnails: left/right/top) ───────────────────────── */
 function ImagesCell({ row, onOpen }) {
   return (
     <div className="flex items-center gap-1 justify-center">
