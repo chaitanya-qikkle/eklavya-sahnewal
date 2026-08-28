@@ -14,6 +14,8 @@ const EquipmentUtilization = () => {
   const [fromDate, setFromDate] = useState('2025-12-09T11:15')
   const [toDate, setToDate] = useState('2025-12-08T11:15')
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   const handleExport = () => {
     const ws = XLSX.utils.json_to_sheet(equipmentRecords)
@@ -42,6 +44,9 @@ const EquipmentUtilization = () => {
     { key: 'laden', label: 'LADEN' },
     { key: 'empty', label: 'EMPTY' },
   ]
+
+  const totalPages = Math.ceil(equipmentRecords.length / itemsPerPage) || 1
+  const paginatedRecords = equipmentRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   return (
     <div
@@ -184,8 +189,8 @@ const EquipmentUtilization = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {equipmentRecords.length > 0 ? (
-                        equipmentRecords.map((row, index) => (
+                      {paginatedRecords.length > 0 ? (
+                        paginatedRecords.map((row, index) => (
                           <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             {columns.map((column) => (
                               <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
@@ -204,13 +209,55 @@ const EquipmentUtilization = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="text-xs text-slate-500 mt-2">
-                  Showing 0 to 0 of 0 entries
-                </div>
+                <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
+                  <div>
+                    Showing <strong className="text-[#0e4a78]">{paginatedRecords.length}</strong> of{' '}
+                    <strong className="text-[#0e4a78]">{equipmentRecords.length}</strong> total records (Page{' '}
+                    <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Previous
+                    </button>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50" disabled>Previous</button>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50" disabled>Next</button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">Page</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages || 1}
+                        value={currentPage}
+                        onChange={(e) => {
+                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
+                          setCurrentPage(p)
+                        }}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      />
+                      <span className="text-slate-600">of {totalPages || 1}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               </div>
 

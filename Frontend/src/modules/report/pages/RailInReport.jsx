@@ -286,41 +286,6 @@ const RailInReport = () => {
     { key: 'terminal', label: 'Terminal' }
   ]
 
-  const renderPagination = () => {
-    const pages = []
-    const maxVisiblePages = 5
-    
-    if (totalPages <= maxVisiblePages + 2) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i)
-      }
-    } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= maxVisiblePages; i++) {
-          pages.push(i)
-        }
-        pages.push('...')
-        pages.push(totalPages)
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1)
-        pages.push('...')
-        for (let i = totalPages - maxVisiblePages + 1; i <= totalPages; i++) {
-          pages.push(i)
-        }
-      } else {
-        pages.push(1)
-        pages.push('...')
-        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
-          pages.push(i)
-        }
-        pages.push('...')
-        pages.push(totalPages)
-      }
-    }
-    
-    return pages
-  }
-
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="flex flex-col min-h-screen">
@@ -500,38 +465,46 @@ const RailInReport = () => {
                     <div className="text-sm text-slate-600">
                       Showing {startIndex + 1} to {Math.min(endIndex, sortedData.length)} of {sortedData.length} entries
                     </div>
-                    
-                    <div className="flex items-center gap-1">
+
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        type="button"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="px-3 py-1 border border-slate-300 rounded text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                          currentPage === 1
+                            ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                            : 'text-[#0e4a78] hover:bg-blue-50'
+                        }`}
                       >
                         Previous
                       </button>
-                      
-                      {renderPagination().map((page, index) => (
-                        page === '...' ? (
-                          <span key={`ellipsis-${index}`} className="px-3 py-1">...</span>
-                        ) : (
-                          <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            className={`px-3 py-1 border border-slate-300 rounded text-sm transition-colors ${
-                              currentPage === page
-                                ? 'bg-[#0e4a78] text-black border-[#0e4a78]'
-                                : 'hover:bg-slate-50'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        )
-                      ))}
-                      
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-600">Page</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalPages || 1}
+                          value={currentPage}
+                          onChange={(e) => {
+                            const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
+                            setCurrentPage(p)
+                          }}
+                          className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                        />
+                        <span className="text-slate-600">of {totalPages || 1}</span>
+                      </div>
+
                       <button
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                        className="px-3 py-1 border border-slate-300 rounded text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        type="button"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                          currentPage === totalPages || totalPages === 0
+                            ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                            : 'text-[#0e4a78] hover:bg-blue-50'
+                        }`}
                       >
                         Next
                       </button>

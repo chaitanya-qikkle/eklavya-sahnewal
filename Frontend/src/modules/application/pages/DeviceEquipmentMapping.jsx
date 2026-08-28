@@ -19,6 +19,10 @@ const DeviceEquipmentMapping = () => {
   // Search State
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
+
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
@@ -57,6 +61,12 @@ const DeviceEquipmentMapping = () => {
   const filteredMappings = mappings.filter(m =>
     m.deviceId.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.equipmentName.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const totalPages = Math.ceil(filteredMappings.length / pageSize)
+  const paginatedMappings = filteredMappings.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   )
 
   return (
@@ -224,7 +234,7 @@ const DeviceEquipmentMapping = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredMappings.map((m) => (
+                      {paginatedMappings.map((m) => (
                         <tr key={m.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-700">{m.deviceId}</td>
                           <td className="px-4 py-3 text-slate-700">{m.equipmentName}</td>
@@ -254,14 +264,54 @@ const DeviceEquipmentMapping = () => {
                   </table>
                 </div>
 
-                <div className="flex items-center justify-between mt-4 text-xs text-slate-500">
+                <div className="px-0 py-3 mt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
                   <div>
-                    Showing {filteredMappings.length > 0 ? 1 : 0} to {filteredMappings.length} of {filteredMappings.length} entries
+                    Showing <strong className="text-[#0e4a78]">{Math.min((currentPage - 1) * pageSize + 1, filteredMappings.length)} to {Math.min(currentPage * pageSize, filteredMappings.length)}</strong> of{' '}
+                    <strong className="text-[#0e4a78]">{filteredMappings.length}</strong> total records (Page{' '}
+                    <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
                   </div>
-                  <div className="flex border border-slate-300 rounded overflow-hidden">
-                    <button className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border-r border-slate-300 disabled:opacity-50">Previous</button>
-                    <button className="px-3 py-1 bg-[#0e4a78] text-white">1</button>
-                    <button className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border-l border-slate-300 disabled:opacity-50">Next</button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Previous
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">Page</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages || 1}
+                        value={currentPage}
+                        onChange={(e) => {
+                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
+                          setCurrentPage(p)
+                        }}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      />
+                      <span className="text-slate-600">of {totalPages || 1}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
 

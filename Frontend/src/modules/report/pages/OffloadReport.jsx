@@ -25,6 +25,8 @@ const OffloadReport = () => {
   const [fromDate, setFromDate] = useState('2025-12-01T12:20')
   const [toDate, setToDate] = useState('2025-12-16T12:20')
   const [tableSearch, setTableSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Export to Excel function
   const handleExport = () => {
@@ -68,6 +70,9 @@ const OffloadReport = () => {
     }
     return true
   })
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1
+  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   return (
     <div
@@ -213,8 +218,8 @@ const OffloadReport = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {filteredData.length > 0 ? (
-                        filteredData.map((row, index) => (
+                      {paginatedData.length > 0 ? (
+                        paginatedData.map((row, index) => (
                           <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             {columns.map((column) => (
                               <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0 font-medium">
@@ -234,20 +239,55 @@ const OffloadReport = () => {
                   </table>
                 </div>
 
-                <div className="text-xs text-slate-500 mt-2">
-                  Showing 1 to {filteredData.length} of {filteredData.length} entries
-                </div>
+                <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
+                  <div>
+                    Showing <strong className="text-[#0e4a78]">{paginatedData.length}</strong> of{' '}
+                    <strong className="text-[#0e4a78]">{filteredData.length}</strong> total records (Page{' '}
+                    <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Previous
+                    </button>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50" disabled>Previous</button>
-                  <button className="px-2 py-1 bg-[#0e4a78] text-white rounded text-sm hover:bg-[#0a3b61]">1</button>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50">2</button>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50">3</button>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50">4</button>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50">5</button>
-                  <span className="px-2 py-1 text-slate-500">...</span>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50">371</button>
-                  <button className="px-3 py-1 border border-slate-300 rounded text-slate-500 text-sm hover:bg-slate-50 disabled:opacity-50">Next</button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">Page</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages || 1}
+                        value={currentPage}
+                        onChange={(e) => {
+                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
+                          setCurrentPage(p)
+                        }}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      />
+                      <span className="text-slate-600">of {totalPages || 1}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
 
               </div>

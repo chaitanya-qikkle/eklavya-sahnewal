@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FaFileExcel, FaSearch, FaFilter } from 'react-icons/fa'
-import { FiCalendar, FiRefreshCw, FiChevronLeft, FiChevronRight, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi'
+import { FiCalendar, FiRefreshCw } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 
 // Mock Data for Physical Inventory Log
@@ -24,6 +24,8 @@ const PhysicalInventoryLog = () => {
   const [fromDate, setFromDate] = useState('2026-02-16')
   const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Export to Excel function for "Log Details"
   const handleExport = () => {
@@ -60,6 +62,9 @@ const PhysicalInventoryLog = () => {
     }
     return true
   })
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1
+  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   return (
     <div
@@ -192,8 +197,8 @@ const PhysicalInventoryLog = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {filteredData.length > 0 ? (
-                        filteredData.map((row, index) => (
+                      {paginatedData.length > 0 ? (
+                        paginatedData.map((row, index) => (
                           <tr key={index} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100 group">
                             {columns.map((column) => (
                               <td key={column.key} className="px-6 py-4 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0 group-hover:text-blue-900 transition-colors font-medium">
@@ -214,31 +219,56 @@ const PhysicalInventoryLog = () => {
                   </table>
                 </div>
 
-                {/* Pagination Mockup */}
-                <div className="flex flex-col sm:flex-row items-center justify-between text-sm text-slate-600 pt-2 border-t border-slate-100">
+                {/* Pagination */}
+                <div className="flex flex-col sm:flex-row items-center justify-between text-sm text-slate-600 pt-2 border-t border-slate-100 gap-3">
                   <div className="font-medium">
-                    Showing <span className="font-bold text-slate-800">1</span> to <span className="font-bold text-slate-800">{filteredData.length}</span> of <span className="font-bold text-slate-800">{filteredData.length}</span> entries
+                    Showing <span className="font-bold text-slate-800">{paginatedData.length}</span> of{' '}
+                    <span className="font-bold text-slate-800">{filteredData.length}</span> total records (Page{' '}
+                    <span className="font-bold text-slate-800">{currentPage}</span> of{' '}
+                    <span className="font-bold text-slate-800">{totalPages || 1}</span>)
                   </div>
 
-                  <div className="flex items-center gap-1 mt-4 sm:mt-0">
-                    <button className="p-2 rounded-md hover:bg-slate-100 text-slate-400 disabled:opacity-50 transition-colors" disabled>
-                      <FiChevronsLeft />
-                    </button>
-                    <button className="p-2 rounded-md hover:bg-slate-100 text-slate-400 disabled:opacity-50 transition-colors" disabled>
-                      <FiChevronLeft />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Previous
                     </button>
 
-                    <div className="flex gap-1 mx-2">
-                      <button className="w-8 h-8 flex items-center justify-center rounded-md bg-[#0e4a78] text-white font-bold shadow-sm">1</button>
-                      <button className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 transition-colors">2</button>
-                      <button className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 transition-colors">3</button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">Page</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages || 1}
+                        value={currentPage}
+                        onChange={(e) => {
+                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
+                          setCurrentPage(p)
+                        }}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      />
+                      <span className="text-slate-600">of {totalPages || 1}</span>
                     </div>
 
-                    <button className="p-2 rounded-md hover:bg-slate-100 text-slate-600 transition-colors">
-                      <FiChevronRight />
-                    </button>
-                    <button className="p-2 rounded-md hover:bg-slate-100 text-slate-600 transition-colors">
-                      <FiChevronsRight />
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Next
                     </button>
                   </div>
                 </div>

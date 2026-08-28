@@ -870,26 +870,48 @@ export default function ESurvey() {
                 <span className="text-xs text-slate-500">
                   Showing <strong className="text-[#0e4a78]">{(page - 1) * PAGE_SIZE + 1}</strong>–<strong className="text-[#0e4a78]">{Math.min(page * PAGE_SIZE, stats.total)}</strong> of <strong className="text-[#0e4a78]">{stats.total.toLocaleString()}</strong> records
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => goToPage(1)} disabled={page === 1}
-                    className="px-2 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 bg-white transition-all">«</button>
-                  <button onClick={() => goToPage(page - 1)} disabled={page === 1}
-                    className="px-3 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 bg-white transition-all">Prev</button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const start = Math.max(1, Math.min(page - 2, totalPages - 4))
-                    const pg = start + i
-                    if (pg > totalPages) return null
-                    return (
-                      <button key={pg} onClick={() => goToPage(pg)}
-                        className={`w-9 h-8 rounded-lg border-2 text-xs font-bold transition-all ${pg === page ? 'bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white border-[#0e4a78] shadow-md' : 'border-slate-300 text-[#0e4a78] hover:bg-blue-50 bg-white'}`}>
-                        {pg}
-                      </button>
-                    )
-                  })}
-                  <button onClick={() => goToPage(page + 1)} disabled={page === totalPages}
-                    className="px-3 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 bg-white transition-all">Next</button>
-                  <button onClick={() => goToPage(totalPages)} disabled={page === totalPages}
-                    className="px-2 py-1.5 rounded-lg border-2 border-slate-300 font-bold text-xs disabled:opacity-40 text-[#0e4a78] hover:bg-blue-50 bg-white transition-all">»</button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page === 1}
+                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                      page === 1
+                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                        : 'text-[#0e4a78] hover:bg-blue-50'
+                    }`}
+                  >
+                    Previous
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-600">Page</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={page}
+                      onChange={(e) => {
+                        const pg = Math.max(1, Math.min(totalPages, Number(e.target.value) || 1))
+                        goToPage(pg)
+                      }}
+                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                    />
+                    <span className="text-slate-600">of {totalPages}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => goToPage(page + 1)}
+                    disabled={page === totalPages}
+                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                      page === totalPages
+                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                        : 'text-[#0e4a78] hover:bg-blue-50'
+                    }`}
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             )}

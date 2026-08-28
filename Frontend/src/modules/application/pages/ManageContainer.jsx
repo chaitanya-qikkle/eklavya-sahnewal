@@ -585,31 +585,55 @@ const ManageContainer = () => {
                     </table>
                   </div>
 
-                  <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-600 font-medium">
+                  <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
                     <div>
-                      Showing <span className="text-[#0e4a78] font-bold">{Math.min((sizeCurrentPage - 1) * pageSize + 1, filteredSizes.length)}</span> to <span className="text-[#0e4a78] font-bold">{Math.min(sizeCurrentPage * pageSize, filteredSizes.length)}</span> of <span className="text-[#0e4a78] font-bold">{filteredSizes.length}</span> entries
+                      Showing <strong className="text-[#0e4a78]">{Math.min((sizeCurrentPage - 1) * pageSize + 1, filteredSizes.length)} to {Math.min(sizeCurrentPage * pageSize, filteredSizes.length)}</strong> of{' '}
+                      <strong className="text-[#0e4a78]">{filteredSizes.length}</strong> total records (Page{' '}
+                      <strong>{sizeCurrentPage}</strong> of <strong>{sizeTotalPages || 1}</strong>)
                     </div>
-                    {sizeTotalPages > 1 && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSizeCurrentPage(p => Math.max(1, p - 1))}
-                          disabled={sizeCurrentPage === 1}
-                          className="px-3 py-1.5 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[#0e4a78] font-semibold text-xs transition-all"
-                        >
-                          Previous
-                        </button>
-                        <button className="px-3 py-1.5 rounded-lg border-2 bg-[#0e4a78] text-white border-[#0e4a78] text-xs font-bold">
-                          {sizeCurrentPage}
-                        </button>
-                        <button
-                          onClick={() => setSizeCurrentPage(p => Math.min(sizeTotalPages, p + 1))}
-                          disabled={sizeCurrentPage === sizeTotalPages}
-                          className="px-3 py-1.5 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[#0e4a78] font-semibold text-xs transition-all"
-                        >
-                          Next
-                        </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSizeCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={sizeCurrentPage === 1}
+                        className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                          sizeCurrentPage === 1
+                            ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                            : 'text-[#0e4a78] hover:bg-blue-50'
+                        }`}
+                      >
+                        Previous
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-600">Page</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={sizeTotalPages || 1}
+                          value={sizeCurrentPage}
+                          onChange={(e) => {
+                            const p = Math.max(1, Math.min(sizeTotalPages || 1, Number(e.target.value) || 1))
+                            setSizeCurrentPage(p)
+                          }}
+                          className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                        />
+                        <span className="text-slate-600">of {sizeTotalPages || 1}</span>
                       </div>
-                    )}
+
+                      <button
+                        type="button"
+                        onClick={() => setSizeCurrentPage(p => Math.min(sizeTotalPages || 1, p + 1))}
+                        disabled={sizeCurrentPage === sizeTotalPages || sizeTotalPages === 0}
+                        className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                          sizeCurrentPage === sizeTotalPages || sizeTotalPages === 0
+                            ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                            : 'text-[#0e4a78] hover:bg-blue-50'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 </section>
               </div>
@@ -769,31 +793,55 @@ const ManageContainer = () => {
                     </table>
                   </div>
 
-                  <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-600 font-medium">
+                  <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
                     <div>
-                      Showing <span className="text-[#0e4a78] font-bold">{Math.min((typeCurrentPage - 1) * pageSize + 1, filteredTypes.length)}</span> to <span className="text-[#0e4a78] font-bold">{Math.min(typeCurrentPage * pageSize, filteredTypes.length)}</span> of <span className="text-[#0e4a78] font-bold">{filteredTypes.length}</span> entries
+                      Showing <strong className="text-[#0e4a78]">{Math.min((typeCurrentPage - 1) * pageSize + 1, filteredTypes.length)} to {Math.min(typeCurrentPage * pageSize, filteredTypes.length)}</strong> of{' '}
+                      <strong className="text-[#0e4a78]">{filteredTypes.length}</strong> total records (Page{' '}
+                      <strong>{typeCurrentPage}</strong> of <strong>{typeTotalPages || 1}</strong>)
                     </div>
-                    {typeTotalPages > 1 && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setTypeCurrentPage(p => Math.max(1, p - 1))}
-                          disabled={typeCurrentPage === 1}
-                          className="px-3 py-1.5 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[#0e4a78] font-semibold text-xs transition-all"
-                        >
-                          Previous
-                        </button>
-                        <button className="px-3 py-1.5 rounded-lg border-2 bg-[#0e4a78] text-white border-[#0e4a78] text-xs font-bold">
-                          {typeCurrentPage}
-                        </button>
-                        <button
-                          onClick={() => setTypeCurrentPage(p => Math.min(typeTotalPages, p + 1))}
-                          disabled={typeCurrentPage === typeTotalPages}
-                          className="px-3 py-1.5 rounded-lg border-2 border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[#0e4a78] font-semibold text-xs transition-all"
-                        >
-                          Next
-                        </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTypeCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={typeCurrentPage === 1}
+                        className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                          typeCurrentPage === 1
+                            ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                            : 'text-[#0e4a78] hover:bg-blue-50'
+                        }`}
+                      >
+                        Previous
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-600">Page</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={typeTotalPages || 1}
+                          value={typeCurrentPage}
+                          onChange={(e) => {
+                            const p = Math.max(1, Math.min(typeTotalPages || 1, Number(e.target.value) || 1))
+                            setTypeCurrentPage(p)
+                          }}
+                          className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                        />
+                        <span className="text-slate-600">of {typeTotalPages || 1}</span>
                       </div>
-                    )}
+
+                      <button
+                        type="button"
+                        onClick={() => setTypeCurrentPage(p => Math.min(typeTotalPages || 1, p + 1))}
+                        disabled={typeCurrentPage === typeTotalPages || typeTotalPages === 0}
+                        className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                          typeCurrentPage === typeTotalPages || typeTotalPages === 0
+                            ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                            : 'text-[#0e4a78] hover:bg-blue-50'
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 </section>
               </div>
