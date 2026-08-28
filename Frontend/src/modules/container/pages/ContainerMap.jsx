@@ -574,9 +574,13 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
             const isSel       = selectedSlotId === s.id;
             const color = isSel ? "#86efac" : isContainer ? "#fde68a" : "#fff";
 
-            // Short name: "B01:A:337:1" → "A:337" (drop block prefix and tier suffix)
-            const nameParts = s.name.replace(/^BLOCK-/i, "").split(":");
-            const shortName = nameParts.length > 2 ? nameParts.slice(1, -1).join(":") : (nameParts[0] || s.name);
+            // Row:Col, e.g. "A:337" — falls back to parsing the name if row/col are missing
+            const shortName = (s.row && s.col)
+              ? `${s.row}:${s.col}`
+              : (() => {
+                  const parts = s.name.replace(/^BLOCK-/i, "").split(":");
+                  return parts.length > 2 ? parts.slice(1, -1).join(":") : (parts[0] || s.name);
+                })();
 
             // Angle from longest edge
             let maxLen = 0, angleDeg = 0;
