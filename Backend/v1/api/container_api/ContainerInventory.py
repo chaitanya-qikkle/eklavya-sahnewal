@@ -752,3 +752,31 @@ def post_rail_plan_upload(
         return {"status": "error", "message": f"Server Error: {str(e)}"}
     finally:
         db.close_connection()
+
+
+@router.get("/rail-movement-tat")
+def get_rail_movement_tat(
+    from_date: Optional[str] = None,
+    to_date:   Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    from datetime import datetime
+
+    today  = datetime.today().strftime("%Y-%m-%d")
+    f_date = (from_date or today).strip().replace("T", " ")
+    t_date = (to_date or today).strip().replace("T", " ")
+
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_RAIL_SHIFTED_COUNT_WITH_TAT ?, ?, ?",
+            (current_user.get("plant_id", 1), f_date, t_date),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data), "from_date": f_date, "to_date": t_date}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()

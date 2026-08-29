@@ -1,50 +1,87 @@
 import React, { useState, useMemo } from 'react'
-import { FiSearch, FiChevronUp, FiChevronDown, FiCalendar } from 'react-icons/fi'
+import { FiSearch, FiChevronUp, FiChevronDown, FiCalendar, FiRefreshCw } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
+import { useLazyGetRailMovementTatQuery } from '../../../store/api/ymsApi'
 
-const mockRailData = [
-  { documentNo: "KSP/RJ/X/25-26/00205", railInDate: "12-12-2025", total: 22, import: 0, export: 22, empty: 0, shifted: 22, firstOffload: "12-12-2025 00:41:30", lastOffload: "12-12-2025 12:49:29", tat: "0012:07" },
-  { documentNo: "GRV/RJ/I/25-26/00202", railInDate: "12-12-2025", total: 109, import: 107, export: 0, empty: 0, shifted: 109, firstOffload: "12-12-2025 04:29:26", lastOffload: "12-12-2025 11:43:24", tat: "007:13" },
-  { documentNo: "MDP/RJ/I/25-26/00723", railInDate: "12-12-2025", total: 135, import: 130, export: 0, empty: 5, shifted: 135, firstOffload: "12-12-2025 08:12:44", lastOffload: "12-12-2025 12:43:49", tat: "004:31" },
-  { documentNo: "MDP/RJ/I/25-26/00724", railInDate: "12-12-2025", total: 105, import: 105, export: 0, empty: 0, shifted: 105, firstOffload: "12-12-2025 13:15:44", lastOffload: "12-12-2025 13:31:08", tat: "000:15" },
-  { documentNo: "SNL/RJ/X/25-26/00389", railInDate: "12-12-2025", total: 28, import: 0, export: 26, empty: 2, shifted: 28, firstOffload: "12-12-2025 02:35:15", lastOffload: "12-12-2025 12:44:00", tat: "0010:08" },
+const todayStr = () => new Date().toISOString().split('T')[0]
+
+const COLUMNS = [
+  { key: 'DocumentNo',    label: 'DOCUMENT NO' },
+  { key: 'RailInDate',    label: 'RAILINDATE' },
+  { key: 'ContainerCount',label: 'TOTAL' },
+  { key: 'ImportCount',   label: 'IMPORT' },
+  { key: 'ExportCount',   label: 'EXPORT' },
+  { key: 'EmptyCount',    label: 'EMPTY' },
+  { key: 'DomesticCount', label: 'DOMESTIC' },
+  { key: 'OnRackCount',   label: 'ON RACK' },
+  { key: 'ShiftedCount',  label: 'SHIFTED' },
+  { key: 'FirstOffload',  label: 'FIRST OFFLOAD' },
+  { key: 'LastOffload',   label: 'LAST OFFLOAD' },
+  { key: 'ShiftingTAT',   label: 'TAT' },
 ]
 
+const fmtDate = (v) => {
+  if (!v) return '—'
+  const d = new Date(String(v).replace(' ', 'T'))
+  if (isNaN(d.getTime())) return String(v)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
 const RailMovementTAT = () => {
-  const [fromDate, setFromDate] = useState('2025-12-09')
-  const [toDate, setToDate] = useState('2025-12-16')
+  const [fromDate, setFromDate] = useState(todayStr())
+  const [toDate, setToDate]     = useState(todayStr())
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null })
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 10
 
+  const [fetchTat, { data, isFetching, error: apiError }] = useLazyGetRailMovementTatQuery()
+  const [hasQueried, setHasQueried] = useState(false)
+
+  const rows = Array.isArray(data?.data) ? data.data : []
+
+  const handleSubmit = () => {
+    setCurrentPage(1)
+    setHasQueried(true)
+    fetchTat({ from_date: fromDate, to_date: toDate })
+    notify.info('Fetching', `Fetching data from ${fromDate} to ${toDate}`)
+  }
+
+  const handleCancel = () => {
+    setFromDate(todayStr())
+    setToDate(todayStr())
+    setGlobalSearch('')
+    setSortConfig({ key: null, direction: null })
+    setCurrentPage(1)
+  }
+
   // Filtering Logic
   const filteredData = useMemo(() => {
-    let data = [...mockRailData]
+    let d = [...rows]
 
     if (globalSearch) {
       const lowerSearch = globalSearch.toLowerCase()
-      data = data.filter(item =>
-        Object.values(item).some(val =>
-          val.toString().toLowerCase().includes(lowerSearch)
-        )
+      d = d.filter((item) =>
+        Object.values(item).some((val) => String(val ?? '').toLowerCase().includes(lowerSearch))
       )
     }
 
     if (sortConfig.key) {
-      data.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1
+      d.sort((a, b) => {
+        const av = a[sortConfig.key], bv = b[sortConfig.key]
+        if (av < bv) return sortConfig.direction === 'asc' ? -1 : 1
+        if (av > bv) return sortConfig.direction === 'asc' ? 1 : -1
         return 0
       })
     }
 
-    return data
-  }, [globalSearch, sortConfig])
+    return d
+  }, [rows, globalSearch, sortConfig])
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredData.length / pageSize)
@@ -59,7 +96,12 @@ const RailMovementTAT = () => {
   }
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredData)
+    const exportRows = filteredData.map((r) => {
+      const out = {}
+      COLUMNS.forEach(({ key, label }) => { out[label] = r[key] ?? '' })
+      return out
+    })
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Rail Movement TAT")
     XLSX.writeFile(workbook, "rail-movement-tat.xlsx")
@@ -109,14 +151,18 @@ const RailMovementTAT = () => {
                   </div>
 
                   <div className="flex gap-3">
-                    <button className="px-6 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-bold hover:bg-slate-50 transition">
+                    <button
+                      onClick={handleCancel}
+                      className="px-6 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-bold hover:bg-slate-50 transition"
+                    >
                       Cancel
                     </button>
                     <button
-                      className="px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white font-bold hover:bg-[#0b3e66] transition uppercase tracking-wide shadow-md"
-                      onClick={() => notify.info('Fetching', `Fetching data from ${fromDate} to ${toDate}`)}
+                      disabled={isFetching}
+                      className="px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white font-bold hover:bg-[#0b3e66] transition uppercase tracking-wide shadow-md disabled:opacity-60"
+                      onClick={handleSubmit}
                     >
-                      SUBMIT
+                      {isFetching ? 'Loading…' : 'Submit'}
                     </button>
                   </div>
                 </div>
@@ -154,18 +200,7 @@ const RailMovementTAT = () => {
                 <table className="min-w-full text-xs md:text-sm text-left">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white">
-                      {[
-                        { key: 'documentNo', label: 'DOCUMENT NO' },
-                        { key: 'railInDate', label: 'RAILINDATE' },
-                        { key: 'total', label: 'TOTAL' },
-                        { key: 'import', label: 'IMPORT' },
-                        { key: 'export', label: 'EXPORT' },
-                        { key: 'empty', label: 'EMPTY' },
-                        { key: 'shifted', label: 'SHIFTED' },
-                        { key: 'firstOffload', label: 'FIRST OFFLOAD' },
-                        { key: 'lastOffload', label: 'LAST OFFLOAD' },
-                        { key: 'tat', label: 'TAT' },
-                      ].map(col => (
+                      {COLUMNS.map(col => (
                         <th
                           key={col.key}
                           onClick={() => handleSort(col.key)}
@@ -183,20 +218,46 @@ const RailMovementTAT = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {paginatedData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.documentNo}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.railInDate}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.total}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.import}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.export}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.empty}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.shifted}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.firstOffload}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.lastOffload}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 font-medium">{row.tat}</td>
+                    {isFetching ? (
+                      <tr>
+                        <td colSpan={COLUMNS.length} className="px-6 py-12 text-center text-slate-400">
+                          <FiRefreshCw className="inline animate-spin mr-2" /> Loading rail movement data…
+                        </td>
                       </tr>
-                    ))}
+                    ) : apiError ? (
+                      <tr>
+                        <td colSpan={COLUMNS.length} className="px-6 py-12 text-center text-red-500 font-semibold">
+                          {apiError?.data?.detail || apiError?.data?.message || apiError?.error || 'Failed to fetch data.'}
+                        </td>
+                      </tr>
+                    ) : !hasQueried ? (
+                      <tr>
+                        <td colSpan={COLUMNS.length} className="px-6 py-12 text-center text-slate-400 italic">
+                          Select a date range and click <strong className="text-slate-600 not-italic">Submit</strong> to load data.
+                        </td>
+                      </tr>
+                    ) : paginatedData.length === 0 ? (
+                      <tr>
+                        <td colSpan={COLUMNS.length} className="px-6 py-12 text-center text-slate-400 italic">
+                          No records found for the selected range.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedData.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                          {COLUMNS.map((col) => {
+                            const raw = row[col.key]
+                            const isDate = col.key === 'FirstOffload' || col.key === 'LastOffload'
+                            const display = isDate ? fmtDate(raw) : (raw != null && raw !== '' ? raw : '—')
+                            return (
+                              <td key={col.key} className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 last:border-r-0 whitespace-nowrap">
+                                {display}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -204,7 +265,7 @@ const RailMovementTAT = () => {
               {/* Pagination Footer */}
               <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-600">
                 <div>
-                  Showing {Math.min((currentPage - 1) * pageSize + 1, filteredData.length)} to {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} entries
+                  Showing {filteredData.length === 0 ? 0 : Math.min((currentPage - 1) * pageSize + 1, filteredData.length)} to {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} entries
                 </div>
                 <div className="flex items-center gap-2">
                   <button

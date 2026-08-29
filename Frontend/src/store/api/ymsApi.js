@@ -536,6 +536,19 @@ export const ymsApi = createApi({
       invalidatesTags: ['RailPlan'],
     }),
 
+    getRailMovementTat: builder.query({
+      query: ({ from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.CONTAINER.GET_RAIL_MOVEMENT_TAT}?${qs}` : API_ENDPOINTS.CONTAINER.GET_RAIL_MOVEMENT_TAT,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -895,6 +908,8 @@ export const {
   useRailPlanAddTaskMutation,
   useRailPlanDeleteTaskMutation,
   useRailPlanUploadMutation,
+  useGetRailMovementTatQuery,
+  useLazyGetRailMovementTatQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

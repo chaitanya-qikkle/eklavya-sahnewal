@@ -193,6 +193,7 @@ export const API_ENDPOINTS = {
     RAIL_PLAN_ADD_TASK: buildUrl('/v1/container/rail-plan-add-task'),
     RAIL_PLAN_DELETE_TASK: buildUrl('/v1/container/rail-plan-delete-task'),
     RAIL_PLAN_UPLOAD: buildUrl('/v1/container/rail-plan-upload'),
+    GET_RAIL_MOVEMENT_TAT: buildUrl('/v1/container/rail-movement-tat'),
   },
 
   // Reports
