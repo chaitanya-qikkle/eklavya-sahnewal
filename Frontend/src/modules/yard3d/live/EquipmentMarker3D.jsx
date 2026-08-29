@@ -360,10 +360,10 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
 
   return (
     <group ref={ref} onClick={onClick}>
-      {/* Ground shadow disc — Kalmar RS radius ~7m */}
+      {/* Ground shadow disc — Kalmar RS radius ~7m (7x for reach_stacker's much bigger GLB) */}
       {!lowPerfMode && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-          <circleGeometry args={[7, 24]} />
+          <circleGeometry args={[typeKey === "reach_stacker" ? 49 : 7, 24]} />
           <meshStandardMaterial color="#0b1220" transparent opacity={0.35} />
         </mesh>
       )}
@@ -372,7 +372,7 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
       {/* Selection ring */}
       {selected && !lowPerfMode && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-          <ringGeometry args={[7.5, 8.2, 32]} />
+          <ringGeometry args={typeKey === "reach_stacker" ? [52.5, 57.4, 32] : [7.5, 8.2, 32]} />
           <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={1} transparent opacity={0.7} />
         </mesh>
       )}
@@ -405,104 +405,6 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
       ) : (
         <ProceduralChassis material={material} glowMat={glowMat} />
       )}
-
-      {/* ── BOOM SYSTEM ──
-          Pivot at rear-top of chassis (Z=-3, Y=2.0).
-          Boom extends along its LOCAL Z axis.
-          rotation.X = -0.55 rad ≈ 32° upward from horizontal → boom goes forward+up.
-          Boom length ~13m.
-          At boom tip: spreader hangs down, container below spreader.
-      */}
-      {typeKey === "reach_stacker" && (() => {
-        // Boom pivot at rear-top. Angle = -0.55 rad (~31°) upward.
-        // Boom extends along local Z+, so tip goes forward AND up.
-        const boomAngle = -0.55;
-        const boomLen   = 16.0;
-        const pivotY    = 3.5;
-        const pivotZ    = -3.5;
-
-        return (
-          <>
-            {/* Pivot bracket */}
-            <mesh position={[0, pivotY + 0.3, pivotZ]}>
-              <boxGeometry args={[1.0, 0.8, 1.0]} />
-              <meshStandardMaterial color="#444" roughness={0.5} metalness={0.7} />
-            </mesh>
-
-            {/* Hydraulic ram under boom */}
-            <group position={[0, 3.0, -1.0]} rotation={[-0.75, 0, 0]}>
-              <mesh>
-                <cylinderGeometry args={[0.16, 0.20, 5.0, 10]} />
-                <meshStandardMaterial color="#bbb" roughness={0.3} metalness={0.9} />
-              </mesh>
-            </group>
-
-            {/* BOOM GROUP — everything inside inherits boom angle */}
-            <group position={[0, pivotY, pivotZ]} rotation={[boomAngle, 0, 0]}>
-              {/* Outer boom */}
-              <mesh position={[0, 0, boomLen / 2]}>
-                <boxGeometry args={[1.1, 1.1, boomLen]} />
-                <primitive object={glowMat} attach="material" />
-              </mesh>
-              {/* Inner telescoping section */}
-              <mesh position={[0, 0, boomLen * 0.78]}>
-                <boxGeometry args={[0.75, 0.75, boomLen * 0.48]} />
-                <primitive object={glowMat} attach="material" />
-              </mesh>
-
-              {/* SPREADER + CONTAINER — directly at boom tip, inside boom group */}
-              <group position={[0, 0, boomLen]}>
-                {/* Vertical hangers from boom tip down to spreader */}
-                <mesh position={[-1.5, -1.2, 0]}>
-                  <boxGeometry args={[0.1, 2.5, 0.1]} />
-                  <meshStandardMaterial color="#555" roughness={0.5} metalness={0.7} />
-                </mesh>
-                <mesh position={[1.5, -1.2, 0]}>
-                  <boxGeometry args={[0.1, 2.5, 0.1]} />
-                  <meshStandardMaterial color="#555" roughness={0.5} metalness={0.7} />
-                </mesh>
-
-                {/* SPREADER — 45° down + aada */}
-                <group position={[0, -2.5, 0]} rotation={[Math.PI / 4 - 0.26, Math.PI / 2, 0]}>
-                  {/* Main spreader body */}
-                  <mesh>
-                    <boxGeometry args={[3.6, 0.45, 6.6]} />
-                    <primitive object={material} attach="material" />
-                  </mesh>
-                  {/* Side rails */}
-                  <mesh position={[-1.75, 0, 0]}>
-                    <boxGeometry args={[0.22, 0.55, 6.6]} />
-                    <meshStandardMaterial color="#333" roughness={0.5} metalness={0.7} />
-                  </mesh>
-                  <mesh position={[1.75, 0, 0]}>
-                    <boxGeometry args={[0.22, 0.55, 6.6]} />
-                    <meshStandardMaterial color="#333" roughness={0.5} metalness={0.7} />
-                  </mesh>
-                  {/* Twist locks */}
-                  {[[-1.5, -3.1], [1.5, -3.1], [-1.5, 3.1], [1.5, 3.1]].map(([sx, sz], i) => (
-                    <mesh key={i} position={[sx, -0.4, sz]}>
-                      <cylinderGeometry args={[0.15, 0.15, 0.28, 8]} />
-                      <meshStandardMaterial
-                        color={isCarrying ? "#f59e0b" : "#222"}
-                        emissive={isCarrying ? "#f59e0b" : "#000"}
-                        emissiveIntensity={isCarrying ? 1.4 : 0}
-                        roughness={0.2} metalness={0.95}
-                      />
-                    </mesh>
-                  ))}
-
-                  {/* Container below spreader */}
-                  {isCarrying && (
-                    <group position={[0, -0.6, 0]}>
-                      <CarriedContainerInBoom color={containerColor} />
-                    </group>
-                  )}
-                </group>
-              </group>
-            </group>
-          </>
-        );
-      })()}
 
       {/* RTG / Crane — tall gantry */}
       {typeKey === "crane" && (
