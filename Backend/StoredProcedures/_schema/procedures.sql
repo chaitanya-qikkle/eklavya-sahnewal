@@ -4745,13 +4745,13 @@ BEGIN
 
   
 
-SELECT TransDate,Equipment_Name as EquipmentName,cast(GpsLocLat as nvarchar(20)) as GpsLocLat,cast(GpsLocLon as nvarchar(20)) as GpsLocLon,
+SELECT TransDate,isnull(Equipment_Name,'APP') as EquipmentName,cast(GpsLocLat as nvarchar(20)) as GpsLocLat,cast(GpsLocLon as nvarchar(20)) as GpsLocLon,
 
-(case when g.ContainerSize like '40%' then l.ContainerLocationName1  
+(case when g.ContainerSize like '40%' then ISNULL(l.ContainerLocationName1,'-')
 
-else L.ContainerLocationName end)  as Area ,0 as ContTagId , L.LocationID as LocTagId FROM EKL_TRN_EQUIPMENT_TRANSACTION t 
+else ISNULL(L.ContainerLocationName,'-') end)  as Area ,0 as ContTagId , L.LocationID as LocTagId FROM EKL_TRN_EQUIPMENT_TRANSACTION t
 
-left join EKL_TRN_INVENTORY g on t.ContMasterID=g.ContMasterID  
+left join EKL_TRN_INVENTORY g on t.ContMasterID=g.ContMasterID
 
 left join ESS_MST_LOCATION L ON t.AreaID=L.LocationID
 
@@ -4759,11 +4759,11 @@ left join ESS_MST_LOCATION L ON t.AreaID=L.LocationID
 
 left join ESS_MST_EQUIPMENT E ON E.DeviceId=t.DeviceId
 
-WHERE t.ContMasterID=@MasterId  and  PacketType='UK' and l.ContainerLocationName IS NOT NULL
+WHERE t.ContMasterID=@MasterId  and  PacketType='UK' and (t.IsActive is null or t.IsActive=0)
 
-order by TransDate desc  
+and l.ContainerLocationName IS NOT NULL
 
-  
+order by TransDate desc
 
 END
 
