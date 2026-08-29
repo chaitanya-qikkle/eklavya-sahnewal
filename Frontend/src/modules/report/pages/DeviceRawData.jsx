@@ -29,13 +29,11 @@ const formatDateTime = (value) => {
 const COLUMNS = [
   { key: 'PACKET_ID',      label: 'Packet ID' },
   { key: 'GPS_FIX',       label: 'GPS Fix' },
-  { key: 'DEVICE_IMEI',   label: 'Device IMEI' },
   { key: 'Equipment_Name', label: 'Machine' },
-  { key: 'KALMAR_NO',     label: 'Device ID' },
+  { key: 'ANALOG1',       label: 'Analog 1' },
   { key: 'DATE_TIME',     label: 'Date Time', format: formatDateTime },
   { key: 'LATITUDE',      label: 'Latitude' },
   { key: 'LONGITUDE',     label: 'Longitude' },
-  { key: 'ANALOG1',       label: 'Analog 1' },
   { key: 'RFIDDATA',      label: 'OCR / RFID' },
 ]
 
