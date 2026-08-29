@@ -233,6 +233,23 @@ def get_count_with_moves(
         if isinstance(data, list) and data and isinstance(data[0], list):
             data = data[0]
 
+        # GET_COUNT_WITH_MOVES doesn't return ContainerSize — fetch it separately from the
+        # same table/filter so the frontend can bucket 20ft vs 40ft in the moves histogram.
+        size_result = db.execute_query(
+            """
+            SELECT ContNo, LEFT(ContainerSize, 2) AS SizeCode
+            FROM EKL_TRN_INVENTORY
+            WHERE GateOutDate IS NULL AND ContainerStatus <> 'EMPTY' AND Process <> 'EMPTY' AND LEN(ContNo) = 11
+            """,
+            fetch_all=True,
+        )
+        size_rows = size_result.get("data") or []
+        if isinstance(size_rows, list) and size_rows and isinstance(size_rows[0], list):
+            size_rows = size_rows[0]
+        size_map = {r.get("ContNo"): r.get("SizeCode") for r in size_rows}
+        for row in data:
+            row["ContSize"] = size_map.get(row.get("ContNo"))
+
         logger.info(f"Count with moves report success: {len(data)} records")
         return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
 

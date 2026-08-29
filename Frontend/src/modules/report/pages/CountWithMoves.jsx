@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { FiSearch, FiRefreshCw, FiX, FiLayers, FiChevronUp, FiChevronDown } from 'react-icons/fi'
+import { FiSearch, FiRefreshCw, FiX, FiLayers, FiChevronUp, FiChevronDown, FiTrendingUp, FiPackage, FiAward } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import * as XLSX from 'xlsx'
@@ -21,6 +21,19 @@ const COLUMNS = [
   { key: 'LastShiftDate', label: 'Last Shift Date', format: fmtDate },
   { key: 'cnt',           label: 'Moves' },
 ]
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null
+  const { count, size20, size40 } = payload[0].payload
+  return (
+    <div className="bg-white/97 rounded-lg border border-slate-200 shadow-lg px-3 py-2 text-xs">
+      <p className="font-bold text-slate-800 mb-1">{label}</p>
+      <p className="text-slate-600">Containers: <strong className="text-[#0e4a78]">{count}</strong></p>
+      <p className="text-slate-600">Size 20: <strong className="text-slate-800">{size20}</strong></p>
+      <p className="text-slate-600">Size 40: <strong className="text-slate-800">{size40}</strong></p>
+    </div>
+  )
+}
 
 const BUCKETS = [
   { label: '>=01 & <03', test: (n) => n >= 1  && n < 3  },
@@ -64,17 +77,27 @@ const CountWithMoves = () => {
   }
 
   const chartData = useMemo(() => {
-    return BUCKETS.map((b) => ({
-      name: b.label,
-      count: rows.filter((r) => b.test(Number(r.cnt) || 0)).length,
-    }))
+    return BUCKETS.map((b) => {
+      const bucketRows = rows.filter((r) => b.test(Number(r.cnt) || 0))
+      const size20 = bucketRows.filter((r) => String(r.ContSize ?? '').trim() === '20').length
+      const size40 = bucketRows.filter((r) => String(r.ContSize ?? '').trim() === '40').length
+      return { name: b.label, count: bucketRows.length, size20, size40 }
+    })
   }, [rows])
 
-  const avgMoves = useMemo(() => {
-    if (!rows.length) return 0
+  const stats = useMemo(() => {
+    if (!rows.length) return { avg: 0, max: 0, total: 0, topContainer: null, topBucket: null }
     const total = rows.reduce((s, r) => s + (Number(r.cnt) || 0), 0)
-    return total / rows.length
-  }, [rows])
+    const topContainer = rows.reduce((top, r) => (Number(r.cnt) || 0) > (Number(top?.cnt) || 0) ? r : top, rows[0])
+    const busiest = chartData.reduce((top, b) => (b.count > (top?.count ?? -1) ? b : top), null)
+    return {
+      avg: total / rows.length,
+      max: Number(topContainer?.cnt) || 0,
+      total: rows.length,
+      topContainer: topContainer?.ContNo,
+      topBucket: busiest,
+    }
+  }, [rows, chartData])
 
   const handleExport = () => {
     if (!filteredRows.length) return
@@ -165,7 +188,7 @@ const CountWithMoves = () => {
                   </div>
                 </div>
 
-                <div className="overflow-auto max-h-[480px] custom-scrollbar">
+                <div className="overflow-auto h-[560px] custom-scrollbar">
                   {isError ? (
                     <div className="px-6 py-10 text-center">
                       <div className="text-red-500 font-semibold text-sm">Failed to load data.</div>
@@ -243,12 +266,18 @@ const CountWithMoves = () => {
                 </div>
 
                 <div className="p-6 flex flex-col lg:flex-row items-stretch gap-6">
-                  <div className="flex-1 h-[340px]">
+                  <div className="flex-1 h-[560px]">
                     {isFetching ? (
                       <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading…</div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} margin={{ top: 24, right: 16, left: 0, bottom: 24 }} barSize={56}>
+                          <defs>
+                            <linearGradient id="movesBarFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%"   stopColor="#38bdf8" />
+                              <stop offset="100%" stopColor="#0e4a78" />
+                            </linearGradient>
+                          </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis
                             dataKey="name"
@@ -259,11 +288,8 @@ const CountWithMoves = () => {
                             tick={{ fontSize: 11, fill: '#475569' }}
                             label={{ value: 'No. Of Containers', angle: -90, position: 'insideLeft', fontSize: 12, fill: '#0e4a78' }}
                           />
-                          <RechartsTooltip
-                            contentStyle={{ backgroundColor: 'rgba(255,255,255,0.97)', borderRadius: 8, border: '1px solid #e2e8f0' }}
-                            cursor={{ fill: 'rgba(14,74,120,0.08)' }}
-                          />
-                          <Bar dataKey="count" fill="#38bdf8" radius={[4, 4, 0, 0]} name="No. Of Containers">
+                          <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(14,74,120,0.08)' }} />
+                          <Bar dataKey="count" fill="url(#movesBarFill)" radius={[6, 6, 0, 0]} name="No. Of Containers">
                             <LabelList dataKey="count" position="top" style={{ fontWeight: 700, fill: '#1e293b', fontSize: 13 }} />
                           </Bar>
                         </BarChart>
@@ -271,9 +297,50 @@ const CountWithMoves = () => {
                     )}
                   </div>
 
-                  <div className="lg:w-52 shrink-0 rounded-2xl bg-gradient-to-br from-sky-500 to-sky-600 shadow-lg flex flex-col items-center justify-center text-white py-8">
-                    <p className="text-4xl font-black leading-none">{avgMoves.toFixed(1)}</p>
-                    <p className="text-xs font-semibold uppercase tracking-wider mt-3 text-center px-4">Avg Moves / Container</p>
+                  <div className="lg:w-56 shrink-0 flex flex-col gap-4">
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0e4a78] via-[#12588e] to-sky-500 shadow-lg flex flex-col items-center justify-center text-white py-8 px-4">
+                      <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
+                      <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-white/5" />
+                      <FiTrendingUp className="text-2xl text-sky-200 mb-2 relative" />
+                      <p className="text-4xl font-black leading-none relative">{stats.avg.toFixed(1)}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider mt-3 text-center text-sky-100 relative">Avg Moves / Container</p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#0e4a78]/10 text-[#0e4a78] flex items-center justify-center">
+                          <FiPackage size={14} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Total Containers</p>
+                          <p className="text-lg font-black text-slate-800 leading-tight">{stats.total.toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                          <FiAward size={14} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Highest Moves</p>
+                          <p className="text-lg font-black text-slate-800 leading-tight">
+                            {stats.max} <span className="text-xs font-semibold text-slate-400">({stats.topContainer || '—'})</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {stats.topBucket && (
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <FiLayers size={14} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Busiest Bucket</p>
+                            <p className="text-sm font-black text-slate-800 leading-tight">{stats.topBucket.name}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
