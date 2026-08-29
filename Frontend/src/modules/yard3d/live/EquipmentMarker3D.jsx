@@ -360,19 +360,19 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
 
   return (
     <group ref={ref} onClick={onClick}>
-      {/* Ground shadow disc — Kalmar RS radius ~7m (7x for reach_stacker's much bigger GLB) */}
-      {!lowPerfMode && (
+      {/* Ground shadow disc — skipped for reach_stacker (GLB casts its own shadow) */}
+      {!lowPerfMode && typeKey !== "reach_stacker" && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-          <circleGeometry args={[typeKey === "reach_stacker" ? 49 : 7, 24]} />
+          <circleGeometry args={[7, 24]} />
           <meshStandardMaterial color="#0b1220" transparent opacity={0.35} />
         </mesh>
       )}
 
 
-      {/* Selection ring */}
-      {selected && !lowPerfMode && (
+      {/* Selection ring — skipped for reach_stacker, kept for other types */}
+      {selected && !lowPerfMode && typeKey !== "reach_stacker" && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-          <ringGeometry args={typeKey === "reach_stacker" ? [52.5, 57.4, 32] : [7.5, 8.2, 32]} />
+          <ringGeometry args={[7.5, 8.2, 32]} />
           <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={1} transparent opacity={0.7} />
         </mesh>
       )}
