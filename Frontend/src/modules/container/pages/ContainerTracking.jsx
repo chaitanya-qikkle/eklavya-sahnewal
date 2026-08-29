@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiX, FiSearch, FiRefreshCw, FiUploadCloud, FiDownload } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import { MdGpsFixed } from 'react-icons/md'
 import * as XLSX from 'xlsx'
-import { useLazyGetContainerTrackingDataQuery } from '../../../store/api/ymsApi'
+import { useLazyGetContainerTrackingDataQuery, useGetContainerListQuery } from '../../../store/api/ymsApi'
 
 const COLUMNS = [
   { key: 'ContNo',        label: 'Container No' },
@@ -24,27 +24,63 @@ const PROCESS_COLORS = {
 
 const ContainerTracking = () => {
   const [fetchTracking, { data, isFetching }] = useLazyGetContainerTrackingDataQuery()
+  const { data: containerListApi } = useGetContainerListQuery()
 
   const [containers, setContainers]   = useState([])
   const [inputValue, setInputValue]   = useState('')
   const [error, setError]             = useState(null)
   const [hasQueried, setHasQueried]   = useState(false)
   const [dragActive, setDragActive]   = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeSuggestion, setActiveSuggestion] = useState(-1)
   const fileInputRef = useRef(null)
 
   const rows = Array.isArray(data?.data) ? data.data : []
+
+  const allContainerNos = useMemo(() => {
+    const list = Array.isArray(containerListApi?.data) ? containerListApi.data : []
+    return list.map((r) => String(r?.ContNo ?? '').trim().toUpperCase()).filter(Boolean)
+  }, [containerListApi])
+
+  const suggestions = useMemo(() => {
+    const q = inputValue.trim().toUpperCase()
+    if (!q) return []
+    return allContainerNos
+      .filter((no) => no.includes(q) && !containers.includes(no))
+      .slice(0, 8)
+  }, [inputValue, allContainerNos, containers])
 
   const addContainer = (val) => {
     const v = val.trim().toUpperCase()
     if (!v) return
     setContainers((prev) => (prev.includes(v) ? prev : [...prev, v]))
     setInputValue('')
+    setShowSuggestions(false)
+    setActiveSuggestion(-1)
   }
 
   const handleInputKeyDown = (e) => {
+    if (showSuggestions && suggestions.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault()
+      setActiveSuggestion((prev) => {
+        const dir = e.key === 'ArrowDown' ? 1 : -1
+        const next = prev + dir
+        if (next < 0) return suggestions.length - 1
+        if (next >= suggestions.length) return 0
+        return next
+      })
+      return
+    }
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      addContainer(inputValue)
+      if (showSuggestions && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
+        addContainer(suggestions[activeSuggestion])
+      } else {
+        addContainer(inputValue)
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+      setActiveSuggestion(-1)
     } else if (e.key === 'Backspace' && !inputValue && containers.length) {
       setContainers((prev) => prev.slice(0, -1))
     }
@@ -156,7 +192,7 @@ const ContainerTracking = () => {
 
               <div className="p-6">
                 <div className="flex flex-col md:flex-row md:items-end gap-4">
-                  <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="flex-1 flex flex-col gap-1.5 relative">
                     <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">
                       Cont No
                     </label>
@@ -179,13 +215,42 @@ const ContainerTracking = () => {
                       <input
                         type="text"
                         value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value.toUpperCase())}
+                        onChange={(e) => {
+                          setInputValue(e.target.value.toUpperCase())
+                          setShowSuggestions(true)
+                          setActiveSuggestion(-1)
+                        }}
+                        onFocus={() => inputValue.trim() && setShowSuggestions(true)}
                         onKeyDown={handleInputKeyDown}
-                        onBlur={() => inputValue.trim() && addContainer(inputValue)}
+                        onBlur={() => {
+                          setTimeout(() => setShowSuggestions(false), 120)
+                          if (inputValue.trim()) addContainer(inputValue)
+                        }}
                         placeholder={containers.length ? '' : 'Enter container no. and press Enter'}
                         className="flex-1 min-w-[160px] py-1 text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
                       />
                     </div>
+
+                    {showSuggestions && suggestions.length > 0 && (
+                      <ul className="absolute top-full left-0 right-0 mt-1 z-20 bg-white rounded-lg border border-slate-200 shadow-lg max-h-56 overflow-y-auto">
+                        {suggestions.map((no, idx) => (
+                          <li
+                            key={no}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              addContainer(no)
+                            }}
+                            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                              idx === activeSuggestion
+                                ? 'bg-[#0e4a78] text-white'
+                                : 'text-slate-700 hover:bg-[#eaf1f7]'
+                            }`}
+                          >
+                            {no}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
                   <button
