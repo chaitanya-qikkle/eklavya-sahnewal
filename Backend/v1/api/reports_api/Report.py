@@ -599,6 +599,99 @@ def get_container_update_history(
             pass
 
 
+@router.get("/month-wise-inventory")
+def get_month_wise_inventory(
+    report_type: str = Query("MONTH", description="DAY, MONTH, or YEAR"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Rail-inbound container distribution by location/size, grouped by day/month/year —
+    GET_RPT_MONTHWISE_INVENTORY."""
+    db = SQLManager()
+    try:
+        rtype = (report_type or "MONTH").strip().upper()
+        if rtype not in ("DAY", "MONTH", "YEAR"):
+            raise HTTPException(status_code=400, detail="report_type must be one of DAY, MONTH, YEAR")
+
+        plant_id = current_user.get("plant_id", 1)
+        now = datetime.now()
+        f_date = from_date or (now - timedelta(days=90)).strftime("%Y-%m-%d")
+        t_date = to_date or now.strftime("%Y-%m-%d")
+
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_MONTHWISE_INVENTORY ?, ?, ?, ?",
+            (plant_id, rtype, f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Month-wise inventory success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Month-wise inventory error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/equipment-accuracy")
+def get_equipment_accuracy(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    equipment_names: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Daily OCR read accuracy per equipment — GET_EQUIPMENT_ACCURACY."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        eqp_no_str = _resolve_eqp_names(db, equipment_names)
+
+        now = datetime.now()
+        from_dt = _to_proc_datetime(from_date) or (now - timedelta(days=7))
+        to_dt   = _to_proc_datetime(to_date)   or now
+
+        result = db.execute_query(
+            "EXEC dbo.GET_EQUIPMENT_ACCURACY ?, ?, ?, ?",
+            params=(plant_id, eqp_no_str, from_dt, to_dt),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message") or "Database error")
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Equipment accuracy success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Equipment accuracy error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),

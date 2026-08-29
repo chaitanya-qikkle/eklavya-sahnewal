@@ -688,6 +688,33 @@ export const ymsApi = createApi({
       },
     }),
 
+    getMonthWiseInventory: builder.query({
+      query: ({ report_type, from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        params.set('report_type', report_type || 'MONTH')
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        return {
+          url: `${API_ENDPOINTS.REPORTS.MONTH_WISE_INVENTORY}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getEquipmentAccuracy: builder.query({
+      query: ({ from_date, to_date, equipment_names } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        if (equipment_names) params.set('equipment_names', equipment_names)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.EQUIPMENT_ACCURACY}?${qs}` : API_ENDPOINTS.REPORTS.EQUIPMENT_ACCURACY,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -1067,6 +1094,8 @@ export const {
   useLazyGetInventoryMismatchQuery,
   useLazyGetPhysicalInventoryLogQuery,
   useLazyGetContainerUpdateHistoryQuery,
+  useLazyGetMonthWiseInventoryQuery,
+  useLazyGetEquipmentAccuracyQuery,
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
   useGetLifecycleDetailsQuery,

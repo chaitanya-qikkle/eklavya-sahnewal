@@ -185,7 +185,7 @@ const Navbar = ({ brand = "Qikkle" }) => {
     "Report/Report/RailPlanReport":              "/reports/rail-plan-report",
     "Report/Report/EquipmentAccuracy":           "/reports/equipment-accuracy",
     "Report/Report/DeviceRawDataReport":         "/reports/device-raw-data",
-    "Report/Report/MonthWiseInventory":          "/reports/month-wise-inventory",
+    "Report/Report/MonthWiseInventory":          "/reports/terminal-wise-container-handled",
     "Report/Report/ExceptionReport":             "/reports/gate-in-out-report",
     "Report/Report/YardTransaction":             "/reports/gate-in-out-report",
     "Report/Report/GateEntry":                   "/gate/pre-gate-in-out",
