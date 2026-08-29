@@ -342,6 +342,21 @@ const Navbar = ({ brand = "Qikkle" }) => {
       .filter(Boolean);
   }, [allNavItems, currentUser?.roleId, roleMenusResponse, roleMenusLoading]);
 
+  const dropdownHeight = useMemo(() => {
+    const BASE_HEIGHT = 280;   // default box height (fits up to 20 submenu items)
+    const HEADER_ROWS = 90;    // space used by the label header + padding above the grid
+    const ROW_HEIGHT = 26;     // approx height of one submenu row (dense grid)
+    const COLS = 5;
+
+    const hovered = visibleNavItems.find((item) => item.label === hoveredMenu);
+    const count = hovered?.submenus?.length || 0;
+    if (count <= 20) return BASE_HEIGHT;
+
+    const rows = Math.ceil(count / COLS);
+    const neededHeight = HEADER_ROWS + rows * ROW_HEIGHT;
+    return Math.max(BASE_HEIGHT, neededHeight);
+  }, [visibleNavItems, hoveredMenu]);
+
   const toggleMenu = (menuLabel) => {
     setExpandedMenus((prev) => ({
       ...prev,
@@ -511,7 +526,7 @@ const Navbar = ({ brand = "Qikkle" }) => {
                   }
                   onMouseLeave={handleHoverEnd}
                   className="w-full rounded-b-2xl shadow-2xl border-t-2 border-[#9b3535] overflow-hidden"
-                  style={{ height: "280px", marginTop: "-3px" }}
+                  style={{ height: `${dropdownHeight}px`, marginTop: "-3px", transition: "height 200ms ease" }}
                 >
                   <div className="w-full h-full bg-gradient-to-br from-[#c14d4d] to-[#a83e3e] pt-3 pb-4 px-6 relative">
                     {/* Background Image with overlay */}
