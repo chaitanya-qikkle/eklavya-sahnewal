@@ -1,6 +1,7 @@
 import React, { forwardRef, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import ReachStackerModel from "./ReachStackerModel";
 
 const TYPE_COLORS = {
   reach_stacker: "#22c55e",
@@ -292,6 +293,56 @@ const UnlockSpreader = ({ color }) => {
   );
 };
 
+// Original procedural chassis/cab/wheels rig — used for every non-reach-stacker
+// type, and as the reach_stacker fallback while its GLB loads (or if it fails).
+const ProceduralChassis = ({ material, glowMat }) => (
+  <>
+    {/* ── Chassis body: 14m long, 4.5m wide, 2m tall ── */}
+    <mesh position={[0, 1.0, 0]}>
+      <boxGeometry args={[4.5, 2.0, 14.0]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+
+    {/* Counterweight block at rear (Z-) */}
+    <mesh position={[0, 2.2, -5.5]}>
+      <boxGeometry args={[4.5, 2.0, 3.0]} />
+      <meshStandardMaterial color="#333" roughness={0.8} metalness={0.4} />
+    </mesh>
+
+    {/* ── Cab: front-right, elevated ── */}
+    <mesh position={[1.2, 3.8, 5.0]}>
+      <boxGeometry args={[2.2, 3.2, 2.8]} />
+      <primitive object={glowMat} attach="material" />
+    </mesh>
+    {/* Cab roof */}
+    <mesh position={[1.2, 5.6, 5.0]}>
+      <boxGeometry args={[2.4, 0.25, 3.0]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+    {/* Cab window (dark glass look) */}
+    <mesh position={[1.2, 4.0, 6.45]}>
+      <boxGeometry args={[2.0, 2.0, 0.1]} />
+      <meshStandardMaterial color="#1a2a3a" roughness={0.1} metalness={0.5} transparent opacity={0.85} />
+    </mesh>
+
+    {/* ── Wheels: 4 large tyres, 2 front 2 rear ── */}
+    {/* Front axle */}
+    {[[-2.6, 5.5],[2.6, 5.5]].map(([wx, wz], i) => (
+      <mesh key={`fw${i}`} position={[wx, 1.0, wz]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[1.15, 1.15, 1.1, 20]} />
+        <meshStandardMaterial color="#111" roughness={0.95} metalness={0.05} />
+      </mesh>
+    ))}
+    {/* Rear axle */}
+    {[[-2.6, -5.5],[2.6, -5.5]].map(([wx, wz], i) => (
+      <mesh key={`rw${i}`} position={[wx, 1.0, wz]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[1.1, 1.1, 1.0, 20]} />
+        <meshStandardMaterial color="#111" roughness={0.95} metalness={0.05} />
+      </mesh>
+    ))}
+  </>
+);
+
 const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
   { type, status, selected, lowPerfMode, onClick, isUnlockPacket, isCarrying, containerTag },
   ref
@@ -339,49 +390,21 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
         - Container gripped BELOW spreader
       */}
 
-      {/* ── Chassis body: 14m long, 4.5m wide, 2m tall ── */}
-      <mesh position={[0, 1.0, 0]}>
-        <boxGeometry args={[4.5, 2.0, 14.0]} />
-        <primitive object={material} attach="material" />
-      </mesh>
-
-      {/* Counterweight block at rear (Z-) */}
-      <mesh position={[0, 2.2, -5.5]}>
-        <boxGeometry args={[4.5, 2.0, 3.0]} />
-        <meshStandardMaterial color="#333" roughness={0.8} metalness={0.4} />
-      </mesh>
-
-      {/* ── Cab: front-right, elevated ── */}
-      <mesh position={[1.2, 3.8, 5.0]}>
-        <boxGeometry args={[2.2, 3.2, 2.8]} />
-        <primitive object={glowMat} attach="material" />
-      </mesh>
-      {/* Cab roof */}
-      <mesh position={[1.2, 5.6, 5.0]}>
-        <boxGeometry args={[2.4, 0.25, 3.0]} />
-        <primitive object={material} attach="material" />
-      </mesh>
-      {/* Cab window (dark glass look) */}
-      <mesh position={[1.2, 4.0, 6.45]}>
-        <boxGeometry args={[2.0, 2.0, 0.1]} />
-        <meshStandardMaterial color="#1a2a3a" roughness={0.1} metalness={0.5} transparent opacity={0.85} />
-      </mesh>
-
-      {/* ── Wheels: 4 large tyres, 2 front 2 rear ── */}
-      {/* Front axle */}
-      {[[-2.6, 5.5],[2.6, 5.5]].map(([wx, wz], i) => (
-        <mesh key={`fw${i}`} position={[wx, 1.0, wz]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.15, 1.15, 1.1, 20]} />
-          <meshStandardMaterial color="#111" roughness={0.95} metalness={0.05} />
-        </mesh>
-      ))}
-      {/* Rear axle */}
-      {[[-2.6, -5.5],[2.6, -5.5]].map(([wx, wz], i) => (
-        <mesh key={`rw${i}`} position={[wx, 1.0, wz]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.1, 1.1, 1.0, 20]} />
-          <meshStandardMaterial color="#111" roughness={0.95} metalness={0.05} />
-        </mesh>
-      ))}
+      {/* ── Machine body ──
+          Real reach-stacker types get the actual GLB model; everything else
+          (and reach_stacker if the GLB fails to load) keeps the original
+          procedural chassis/cab/wheels rig as a fallback.
+      */}
+      {typeKey === "reach_stacker" ? (
+        <ReachStackerModel
+          rotY={Math.PI}
+          fallback={
+            <ProceduralChassis material={material} glowMat={glowMat} />
+          }
+        />
+      ) : (
+        <ProceduralChassis material={material} glowMat={glowMat} />
+      )}
 
       {/* ── BOOM SYSTEM ──
           Pivot at rear-top of chassis (Z=-3, Y=2.0).
