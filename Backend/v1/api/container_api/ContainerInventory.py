@@ -127,17 +127,18 @@ def get_container_status_report(
 def get_container_gate_report(
     from_date: Optional[str] = None,
     to_date:   Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
 ):
     db = SQLManager()
     try:
         from datetime import datetime, timedelta
-        fd = from_date or (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        fd = from_date or datetime.today().strftime("%Y-%m-%d")
         td = to_date   or datetime.today().strftime("%Y-%m-%d")
         fd = fd[:10]
         td = td[:10]
         result = db.execute_query(
-            "EXEC dbo.GET_CONTAINER_LIVE_STATUS_REPORT ?, ?",
-            (fd, td),
+            "EXEC dbo.GET_CONTAINER_LIVE_STATUS_REPORT ?, ?, ?",
+            (fd, td, current_user.get("plant_id", 1)),
         )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}

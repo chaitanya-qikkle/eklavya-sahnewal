@@ -10,8 +10,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerGateReportQuery } from '../../../store/api/ymsApi'
 
-const today     = new Date().toISOString().split('T')[0]
-const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+const today = new Date().toISOString().split('T')[0]
 
 const fmt = (val) => {
   if (!val) return '—'
@@ -22,7 +21,7 @@ const fmt = (val) => {
 }
 
 const ContainerStatusReport = () => {
-  const [fromDate, setFromDate] = useState(yesterday)
+  const [fromDate, setFromDate] = useState(today)
   const [toDate,   setToDate]   = useState(today)
   const [search,   setSearch]   = useState('')
 
@@ -39,31 +38,32 @@ const ContainerStatusReport = () => {
   }, [allRows, search])
 
   const stats = useMemo(() => {
-    const inYard   = allRows.filter(r => !r.Gate_Out_Date).length
-    const gatedOut = allRows.filter(r =>  r.Gate_Out_Date).length
+    const inYard   = allRows.filter(r => !r.GateOutDate).length
+    const gatedOut = allRows.filter(r =>  r.GateOutDate).length
     return { total: allRows.length, inYard, gatedOut }
   }, [allRows])
 
-  useEffect(() => { fetchReport({ from_date: yesterday, to_date: today }) }, []) // eslint-disable-line
+  useEffect(() => { fetchReport({ from_date: today, to_date: today }) }, []) // eslint-disable-line
 
   const handleSearch = () => fetchReport({ from_date: fromDate, to_date: toDate })
 
   const handleClear = () => {
-    setFromDate(yesterday); setToDate(today); setSearch('')
-    fetchReport({ from_date: yesterday, to_date: today })
+    setFromDate(today); setToDate(today); setSearch('')
+    fetchReport({ from_date: today, to_date: today })
   }
 
   const handleExport = () => {
     if (!rows.length) return
     const ws = XLSX.utils.json_to_sheet(rows.map((r, i) => ({
       '#': i + 1,
-      'Container No':  r.CONTAINER_NO,
-      'Size':          r.Cont_Size,
-      'Type':          r.Cont_Type,
-      'Process':       r.ProcessCode,
-      'Gate In Date':  fmt(r.Gate_In_Date),
-      'TAT':           r.Gate_Out_Date ? r.OUTTAT : r.TAT,
-      'Gate Out Date': fmt(r.Gate_Out_Date),
+      'Container No':  r.ContNo,
+      'Size':          r.ContSize,
+      'Type':          r.ContTypeName,
+      'Process':       r.ProcessName,
+      'Arrival':       r.Arrival,
+      'Gate In Date':  fmt(r.GateInDate),
+      'TAT':           r.TAT,
+      'Gate Out Date': fmt(r.GateOutDate),
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'ContainerStatus')
@@ -109,33 +109,40 @@ const ContainerStatusReport = () => {
           </header>
 
           {/* ── Filter Bar ── */}
-          <div className="bg-white/95 rounded-xl shadow-lg border border-slate-300 px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiCalendar className="text-[#0e4a78]" size={11} /> From Date
-              </label>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all" />
+          <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-3">
+              <h2 className="text-lg font-semibold tracking-wide">Container Status Report</h2>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiCalendar className="text-[#0e4a78]" size={11} /> To Date
-              </label>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all" />
+            <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-4 items-end">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In From</label>
+                <div className="relative">
+                  <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                    className="pl-9 pr-3 py-2.5 border-2 border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In To</label>
+                <div className="relative">
+                  <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                    className="pl-9 pr-3 py-2.5 border-2 border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleClear}
+                  className="px-4 py-2.5 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">
+                  Clear
+                </button>
+                <button onClick={handleSearch} disabled={isFetching}
+                  className="flex items-center gap-2 bg-[#0e4a78] hover:bg-[#0a3b61] active:bg-[#072c4a] text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed">
+                  <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
+                  {isFetching ? 'Loading…' : 'Search'}
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={handleClear}
-                className="px-4 py-2 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">
-                Clear
-              </button>
-              <button onClick={handleSearch} disabled={isFetching}
-                className="flex items-center gap-2 bg-[#0e4a78] hover:bg-[#0a3b61] active:bg-[#072c4a] text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none">
-                <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
-                {isFetching ? 'Loading…' : 'Search'}
-              </button>
-            </div>
-          </div>
+          </section>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
@@ -196,7 +203,7 @@ const ContainerStatusReport = () => {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white text-xs">
-                      {['#', 'Container No', 'Size', 'Type', 'Process', 'Gate In Date', 'TAT', 'Gate Out Date'].map(h => (
+                      {['#', 'Container No', 'Size', 'Type', 'Process', 'Arrival', 'Gate In Date', 'TAT', 'Gate Out Date'].map(h => (
                         <th key={h} className="px-3 py-3 text-left font-semibold uppercase tracking-wider whitespace-nowrap border-r border-white/10 last:border-r-0">
                           {h}
                         </th>
@@ -206,42 +213,44 @@ const ContainerStatusReport = () => {
                   <tbody className="divide-y divide-slate-100">
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-14 text-center">
+                        <td colSpan={9} className="py-14 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="text-slate-500 font-medium">No records found</p>
                           <p className="text-xs text-slate-400 mt-1">Try a different date range</p>
                         </td>
                       </tr>
                     ) : rows.map((r, idx) => {
-                      const isOut = !!r.Gate_Out_Date
+                      const isOut = !!r.GateOutDate
                       const processCls = {
                         IMPORT: 'bg-purple-100 text-purple-700',
                         EXPORT: 'bg-teal-100 text-teal-700',
                         EMPTY:  'bg-slate-100 text-slate-500',
-                      }[(r.ProcessCode || '').toUpperCase()] ?? 'bg-gray-100 text-gray-600'
+                        DOMESTIC: 'bg-amber-100 text-amber-700',
+                      }[(r.ProcessName || '').toUpperCase()] ?? 'bg-gray-100 text-gray-600'
                       return (
                         <tr key={idx}
                           className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
                           <td className="px-3 py-2.5 text-[10px] text-slate-400 border-r border-slate-100">{idx + 1}</td>
                           <td className="px-3 py-2.5 border-r border-slate-100">
                             <span className="font-black font-mono text-xs text-[#0e4a78] bg-blue-50 px-2 py-0.5 rounded-full">
-                              {r.CONTAINER_NO || '—'}
+                              {r.ContNo || '—'}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 border-r border-slate-100">{r.Cont_Size || '—'}</td>
-                          <td className="px-3 py-2.5 text-xs text-slate-700 border-r border-slate-100">{r.Cont_Type || '—'}</td>
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 border-r border-slate-100">{r.ContSize ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-xs text-slate-700 border-r border-slate-100">{r.ContTypeName || '—'}</td>
                           <td className="px-3 py-2.5 border-r border-slate-100">
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${processCls}`}>
-                              {r.ProcessCode || '—'}
+                              {r.ProcessName || '—'}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 text-[11px] text-slate-700 whitespace-nowrap border-r border-slate-100">{fmt(r.Gate_In_Date)}</td>
+                          <td className="px-3 py-2.5 text-xs text-slate-700 border-r border-slate-100">{r.Arrival || '—'}</td>
+                          <td className="px-3 py-2.5 text-[11px] text-slate-700 whitespace-nowrap border-r border-slate-100">{fmt(r.GateInDate)}</td>
                           <td className="px-3 py-2.5 text-[11px] font-mono text-slate-600 whitespace-nowrap border-r border-slate-100">
-                            {(isOut ? r.OUTTAT : r.TAT) || '—'}
+                            {r.TAT || '—'}
                           </td>
                           <td className="px-3 py-2.5">
                             {isOut
-                              ? <span className="text-[11px] text-amber-700 whitespace-nowrap">{fmt(r.Gate_Out_Date)}</span>
+                              ? <span className="text-[11px] text-amber-700 whitespace-nowrap">{fmt(r.GateOutDate)}</span>
                               : <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                                   In Yard
                                 </span>}
