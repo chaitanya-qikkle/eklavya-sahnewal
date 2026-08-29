@@ -951,15 +951,15 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
         )}
       </div>
 
-      {/* Bottom progress line */}
-      {total > 0 && tone !== "slate" && (
-        <div className="h-[2px] bg-slate-100">
+      {/* Bottom progress line — always rendered so tile heights stay aligned */}
+      <div className="h-[2px] bg-slate-100">
+        {total > 0 && tone !== "slate" && (
           <div
             className="h-full transition-all duration-700 rounded-full"
             style={{ width: `${pct}%`, background: t.accent }}
           />
-        </div>
-      )}
+        )}
+      </div>
     </button>
   );
 };

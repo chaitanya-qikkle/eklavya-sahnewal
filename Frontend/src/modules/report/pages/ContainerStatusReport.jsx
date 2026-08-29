@@ -51,6 +51,11 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
           </span>
         )}
       </div>
+      <div className="h-[2px] bg-slate-100">
+        {total > 0 && tone !== "slate" && (
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
+        )}
+      </div>
     </div>
   )
 }
@@ -133,7 +138,7 @@ const ContainerStatusReport = () => {
             <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-3">
               <h2 className="text-lg font-semibold tracking-wide">Container Status Report</h2>
             </div>
-            <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-4 items-end justify-between">
+            <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-4 items-center justify-between">
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In From</label>

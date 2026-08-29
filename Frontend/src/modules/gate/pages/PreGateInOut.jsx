@@ -49,11 +49,11 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
           </span>
         )}
       </div>
-      {total > 0 && tone !== "slate" && (
-        <div className="h-[2px] bg-slate-100">
+      <div className="h-[2px] bg-slate-100">
+        {total > 0 && tone !== "slate" && (
           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
