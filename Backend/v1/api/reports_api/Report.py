@@ -120,63 +120,25 @@ def get_gate_report(
     db = SQLManager()
     try:
         container_no_param = (container_no or '').strip().upper()
-        from_date_param = None
-        to_date_param   = None
 
         if from_date:
             try:
-                from_date_param = datetime.strptime(from_date, '%Y-%m-%d')
+                datetime.strptime(from_date, '%Y-%m-%d')
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD")
         if to_date:
             try:
-                to_date_param = datetime.strptime(to_date, '%Y-%m-%d')
+                datetime.strptime(to_date, '%Y-%m-%d')
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD")
 
         plant_id = current_user.get("plant_id", 1)
 
-        conditions = ["1=1"]
-        params_list = []
-
-        if container_no_param:
-            conditions.append("I.ContNo = ?")
-            params_list.append(container_no_param)
-        if from_date_param:
-            conditions.append("CAST(I.GateInDate AS date) >= CAST(? AS date)")
-            params_list.append(from_date_param)
-        if to_date_param:
-            conditions.append("CAST(I.GateInDate AS date) <= CAST(? AS date)")
-            params_list.append(to_date_param)
-
-        where = " AND ".join(conditions)
-        query = f"""
-            SELECT
-                I.ContNo AS ContainerNo,
-                I.ContainerSize,
-                I.ContainerType,
-                I.GateInDate,
-                I.GateOutDate,
-                [dbo].[ConvertDDHHMMSS](I.GateInDate, ISNULL(I.GateOutDate, GETDATE())) AS INTAT,
-                [dbo].[ConvertDDHHMMSS](I.GateInDate, I.GateOutDate) AS OUTTAT,
-                I.Process,
-                I.BookingNo,
-                I.ShippingLine,
-                I.Mode,
-                I.DocumentNo,
-                CASE WHEN I.GateInBy='74B23F15-C9C1-4190-BDC3-4A875010F557' THEN 'Integration' ELSE 'Snaptrack' END AS ContainerStatus,
-                G.GateName,
-                CASE WHEN I.ContainerSize LIKE '%40%' THEN L.ContainerLocationName1 ELSE L.ContainerLocationName END AS ContainerLocationName,
-                I.GateInImage,
-                ISNULL(T.TrailerNo, '') AS TrailerNo
-            FROM EKL_TRN_INVENTORY I
-            LEFT JOIN ESS_MST_LOCATION L ON L.LocationID = I.LastLocID
-            LEFT JOIN ESS_MST_GATE G ON G.GateID = I.GateInType
-            LEFT JOIN EKL_TRN_TRAILER T ON T.TrailerID = I.TrailerID
-            WHERE {where}
-            ORDER BY I.GateInDate DESC
-        """
-        result = db.execute_query(query, params=tuple(params_list), fetch_all=True)
+        result = db.execute_query(
+            "EXEC dbo.GET_GATEIN_REPORT @fromDate = ?, @toDate = ?, @ContainerNo = ?, @PlantId = ?",
+            (from_date or '', to_date or '', container_no_param, plant_id),
+            fetch_all=True,
+        )
 
         if result.get("status") != "success":
             raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
