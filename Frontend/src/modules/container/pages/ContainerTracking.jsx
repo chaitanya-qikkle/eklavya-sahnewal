@@ -5,7 +5,11 @@ import { FiX, FiSearch, FiRefreshCw, FiUploadCloud, FiDownload } from 'react-ico
 import { FaFileExcel } from 'react-icons/fa'
 import { MdGpsFixed } from 'react-icons/md'
 import * as XLSX from 'xlsx'
-import { useLazyGetContainerTrackingDataQuery, useGetContainerListQuery } from '../../../store/api/ymsApi'
+import {
+  useLazyGetContainerTrackingDataQuery,
+  useGetContainerListQuery,
+  useContainerTrackingUploadMutation,
+} from '../../../store/api/ymsApi'
 
 const COLUMNS = [
   { key: 'ContNo',        label: 'Container No' },
@@ -25,6 +29,7 @@ const PROCESS_COLORS = {
 const ContainerTracking = () => {
   const [fetchTracking, { data, isFetching }] = useLazyGetContainerTrackingDataQuery()
   const { data: containerListApi } = useGetContainerListQuery()
+  const [uploadTracking, { isLoading: isUploading }] = useContainerTrackingUploadMutation()
 
   const [containers, setContainers]   = useState([])
   const [inputValue, setInputValue]   = useState('')
@@ -33,9 +38,11 @@ const ContainerTracking = () => {
   const [dragActive, setDragActive]   = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeSuggestion, setActiveSuggestion] = useState(-1)
+  const [uploadRows, setUploadRows]   = useState(null)
   const fileInputRef = useRef(null)
 
-  const rows = Array.isArray(data?.data) ? data.data : []
+  const rows = uploadRows ?? (Array.isArray(data?.data) ? data.data : [])
+  const isLoadingResults = isFetching || isUploading
 
   const allContainerNos = useMemo(() => {
     const list = Array.isArray(containerListApi?.data) ? containerListApi.data : []
@@ -93,6 +100,7 @@ const ContainerTracking = () => {
   const handleShowContainer = async () => {
     setError(null)
     setHasQueried(true)
+    setUploadRows(null)
     const list = inputValue.trim() ? [...containers, inputValue.trim().toUpperCase()] : containers
     if (!list.length) {
       setError('Enter at least one container number.')
@@ -129,17 +137,29 @@ const ContainerTracking = () => {
   const readFile = (file) => {
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const wb = XLSX.read(evt.target.result, { type: 'binary' })
         const ws = wb.Sheets[wb.SheetNames[0]]
         const rowsFromFile = XLSX.utils.sheet_to_json(ws, { header: 1 })
-        const nos = rowsFromFile
-          .flat()
-          .map((v) => String(v ?? '').trim().toUpperCase())
-          .filter((v) => v && v !== 'CONTAINER NO')
-        if (nos.length) {
-          setContainers((prev) => Array.from(new Set([...prev, ...nos])))
+        const nos = Array.from(new Set(
+          rowsFromFile
+            .flat()
+            .map((v) => String(v ?? '').trim().toUpperCase())
+            .filter((v) => v && v !== 'CONTAINER NO')
+        ))
+        if (!nos.length) {
+          setError('No container numbers found in the uploaded file.')
+          return
+        }
+        setError(null)
+        setHasQueried(true)
+        try {
+          const res = await uploadTracking(nos).unwrap()
+          setUploadRows(Array.isArray(res?.data) ? res.data : [])
+        } catch (err) {
+          setError(err?.data?.detail || err?.data?.message || err?.error || 'Failed to fetch data for uploaded containers.')
+          setUploadRows([])
         }
       } catch {
         setError('Could not read the uploaded file.')
@@ -294,7 +314,9 @@ const ContainerTracking = () => {
                     className={`flex items-center justify-center text-center px-4 py-10 rounded-lg border-2 border-dashed cursor-pointer transition-colors
                       ${dragActive ? 'border-[#0e4a78] bg-[#eaf1f7]' : 'border-slate-300 bg-slate-50 hover:border-slate-400'}`}
                   >
-                    <p className="text-slate-500 text-sm font-medium">Drop files here to upload</p>
+                    <p className="text-slate-500 text-sm font-medium">
+                      {isUploading ? 'Uploading…' : 'Drop files here to upload'}
+                    </p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -330,7 +352,7 @@ const ContainerTracking = () => {
                     <div className="px-8 py-12 text-center">
                       <div className="text-red-500 font-semibold text-sm">{error}</div>
                     </div>
-                  ) : isFetching ? (
+                  ) : isLoadingResults ? (
                     <div className="px-8 py-12 flex flex-col items-center gap-3 text-slate-400">
                       <div className="w-10 h-10 border-2 border-slate-200 border-t-[#0e4a78] rounded-full animate-spin" />
                       <p className="text-sm font-medium">Loading container data…</p>
@@ -394,7 +416,7 @@ const ContainerTracking = () => {
                   )}
                 </div>
 
-                {rows.length > 0 && !isFetching && (
+                {rows.length > 0 && !isLoadingResults && (
                   <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
                     <span>Showing <strong className="text-slate-700">{rows.length}</strong> records</span>
                   </div>

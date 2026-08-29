@@ -476,6 +476,14 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    containerTrackingUpload: builder.mutation({
+      query: (container_nos) => ({
+        url: API_ENDPOINTS.CONTAINER.CONTAINER_TRACKING_UPLOAD,
+        method: 'POST',
+        body: { container_nos },
+      }),
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -827,6 +835,7 @@ export const {
   useLazyGetContainerListQuery,
   useGetContainerTrackingDataQuery,
   useLazyGetContainerTrackingDataQuery,
+  useContainerTrackingUploadMutation,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

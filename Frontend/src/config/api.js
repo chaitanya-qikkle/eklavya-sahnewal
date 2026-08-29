@@ -170,6 +170,7 @@ export const API_ENDPOINTS = {
     GET_CONTAINER_INFO: buildUrl('/v1/container/container-info'),
     GET_CONTAINER_LIST: buildUrl('/v1/container/container-list'),
     GET_CONTAINER_TRACKING_DATA: buildUrl('/v1/container/container-tracking-data'),
+    CONTAINER_TRACKING_UPLOAD: buildUrl('/v1/container/container-tracking-upload'),
     GET_YARD_3D_INVENTORY: buildUrl('/v1/container/yard-3d-inventory'),
     GET_YARD_3D_SLOT_LIST: buildUrl('/v1/container/yard-3d-slot-list'),
     GET_CONTAINER_LIVE_STATUS: buildUrl('/v1/container/container-live-status'),

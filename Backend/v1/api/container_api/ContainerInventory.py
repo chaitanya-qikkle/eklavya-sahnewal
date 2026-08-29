@@ -257,6 +257,43 @@ def get_container_tracking_data(
         db.close_connection()
 
 
+class ContainerUploadRequest(BaseModel):
+    container_nos: list[str]
+
+    @field_validator("container_nos")
+    @classmethod
+    def _clean(cls, v):
+        cleaned = [str(c).strip().upper() for c in (v or []) if str(c).strip()]
+        if not cleaned:
+            raise ValueError("container_nos must contain at least one container number")
+        return cleaned
+
+
+@router.post("/container-tracking-upload")
+def get_container_tracking_upload(
+    payload: ContainerUploadRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        nos = payload.container_nos
+        placeholders = ", ".join(["(?)"] * len(nos))
+        query = f"""
+            DECLARE @ContainerNo ConList;
+            INSERT INTO @ContainerNo (ContainerNo) VALUES {placeholders};
+            EXEC dbo.GET_UPLOADCONTAINERNO_DETAIL @ContainerNo;
+        """
+        result = db.execute_query(query, tuple(nos))
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/lifecycle-details")
 def get_lifecycle_details(
     container_no: str,
