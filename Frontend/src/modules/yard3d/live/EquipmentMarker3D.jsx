@@ -369,10 +369,10 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
       )}
 
 
-      {/* Selection ring — scaled up for reach_stacker to match its bigger GLB */}
-      {selected && !lowPerfMode && (
+      {/* Selection ring — skipped for reach_stacker, kept for other types */}
+      {selected && !lowPerfMode && typeKey !== "reach_stacker" && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-          <ringGeometry args={typeKey === "reach_stacker" ? [22.5, 24.6, 32] : [7.5, 8.2, 32]} />
+          <ringGeometry args={[7.5, 8.2, 32]} />
           <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={1} transparent opacity={0.7} />
         </mesh>
       )}
