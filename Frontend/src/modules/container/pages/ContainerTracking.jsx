@@ -47,7 +47,7 @@ const ContainerTracking = () => {
     if (!q) return []
     return allContainerNos
       .filter((no) => no.includes(q) && !containers.includes(no))
-      .slice(0, 8)
+      .slice(0, 5)
   }, [inputValue, allContainerNos, containers])
 
   const addContainer = (val) => {
@@ -184,13 +184,13 @@ const ContainerTracking = () => {
             </div>
 
             {/* Search Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-visible">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2 rounded-t-2xl">
                 <FiSearch className="text-white text-base" />
                 <h2 className="text-white font-bold text-base tracking-wide">Container Tracking</h2>
               </div>
 
-              <div className="p-6">
+              <div className="p-6 rounded-b-2xl">
                 <div className="flex flex-col md:flex-row md:items-end gap-4">
                   <div className="flex-1 flex flex-col gap-1.5 relative">
                     <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">
