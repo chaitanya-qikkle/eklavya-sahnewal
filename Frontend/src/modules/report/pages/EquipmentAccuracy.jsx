@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { useGetEquipmentQuery, useLazyGetEquipmentAccuracyQuery } from '../../../store/api/ymsApi'
 
 const today     = new Date().toISOString().split('T')[0]
-const yesterday = new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0]
+const yesterday = today
 
 const fmtDate = (val) => {
   if (!val) return '—'
