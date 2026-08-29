@@ -204,6 +204,7 @@ export const API_ENDPOINTS = {
     COUNT_WITH_MOVES: buildUrl('/v1/reports/count-with-moves'),
     OFFLOAD_REPORT: buildUrl('/v1/reports/offload-report'),
     DEVICE_TRANSACTION_SUMMARY: buildUrl('/v1/reports/device-transaction-summary'),
+    TASK_ALLOCATION_SUMMARY: buildUrl('/v1/reports/task-allocation-summary'),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),

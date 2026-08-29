@@ -265,6 +265,42 @@ def get_device_transaction_summary(
             pass
 
 
+@router.get("/task-allocation-summary")
+def get_task_allocation_summary(
+    current_user: dict = Depends(get_current_user),
+):
+    """Yard-wise task allocation counts for today — GET_TASK_ALLOCATION_SUMMARY."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        result = db.execute_query(
+            "EXEC dbo.GET_TASK_ALLOCATION_SUMMARY ?",
+            (plant_id,),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Task allocation summary success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Task allocation summary error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),

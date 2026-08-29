@@ -1,53 +1,88 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
+import { FiSearch, FiRefreshCw, FiX, FiClipboard, FiCheckCircle, FiClock, FiList } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import { useGetTaskAllocationSummaryQuery } from '../../../store/api/ymsApi'
 
-// Mock data matching the reference image layout
-const taskRecords = [
-  { id: 1, yardName: 'BK-WH04', totalTask: 1, completedTask: 0, pendingTask: 1, nearByEquipment: '' },
-  { id: 2, yardName: 'CY-EXPORT', totalTask: 86, completedTask: 60, pendingTask: 26, nearByEquipment: 'K-18' },
-  { id: 3, yardName: 'CY-HAZ-EXP', totalTask: 6, completedTask: 5, pendingTask: 1, nearByEquipment: '' },
-  { id: 4, yardName: 'CY-IMPORT', totalTask: 1, completedTask: 1, pendingTask: 0, nearByEquipment: 'KC-14,KC-16' },
-  { id: 5, yardName: 'CY-YARD', totalTask: 30, completedTask: 14, pendingTask: 16, nearByEquipment: '' },
-  { id: 6, yardName: 'NRY', totalTask: 28, completedTask: 28, pendingTask: 0, nearByEquipment: 'KC-10' },
-  { id: 7, yardName: 'NRY-START-POINT', totalTask: 6, completedTask: 6, pendingTask: 0, nearByEquipment: '' },
-  { id: 8, yardName: 'WH0102', totalTask: 4, completedTask: 4, pendingTask: 0, nearByEquipment: 'KC-07' },
+const COLUMNS = [
+  { key: 'YardName',      label: 'Yard Name' },
+  { key: 'TotalTask',     label: 'Total Task' },
+  { key: 'CompletedTask', label: 'Completed Task' },
+  { key: 'PendingTask',   label: 'Pending Task' },
+  { key: 'NearEquipment', label: 'Near By Equipment' },
 ]
 
-// Summary card data
-const summaryData = {
-  total: 162,
-  completed: 118,
-  pending: 44
+const TONE_MAP = {
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700"   },
+}
+
+const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
+  const t = TONE_MAP[tone] || TONE_MAP.slate
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  return (
+    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
+      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+          {Icon && <Icon className="text-[15px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
+            {label}
+          </p>
+          <p className={`text-2xl font-black leading-none tracking-tight ${t.valueColor}`}>
+            {value.toLocaleString()}
+          </p>
+        </div>
+        {total > 0 && tone !== "slate" && (
+          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.iconBg}`} style={{ color: t.accent }}>
+            {pct}%
+          </span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 const TaskAllocationSummary = () => {
+  const { data, isFetching, isError, refetch } = useGetTaskAllocationSummaryQuery()
   const [search, setSearch] = useState('')
 
+  const rows = Array.isArray(data?.data) ? data.data : []
+
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) => COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q)))
+  }, [rows, search])
+
+  const stats = useMemo(() => {
+    return rows.reduce(
+      (acc, r) => ({
+        total:     acc.total     + (Number(r.TotalTask) || 0),
+        completed: acc.completed + (Number(r.CompletedTask) || 0),
+        pending:   acc.pending   + (Number(r.PendingTask) || 0),
+      }),
+      { total: 0, completed: 0, pending: 0 }
+    )
+  }, [rows])
+
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(taskRecords)
+    if (!filteredRows.length) return
+    const exportRows = filteredRows.map((r) => {
+      const out = {}
+      COLUMNS.forEach(({ key, label }) => { out[label] = r[key] ?? '' })
+      return out
+    })
+    const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'TaskAllocationSummary')
     XLSX.writeFile(wb, `TaskAllocationSummary_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
-
-  const filteredData = taskRecords.filter(item => {
-    if (search && !Object.values(item).some(val => String(val).toLowerCase().includes(search.toLowerCase()))) {
-      return false
-    }
-    return true
-  })
-
-  // Table columns definition
-  const columns = [
-    { key: 'yardName', label: 'Yard Name' },
-    { key: 'totalTask', label: 'Total Task' },
-    { key: 'completedTask', label: 'CompletedTask' },
-    { key: 'pendingTask', label: 'Pending Task' },
-    { key: 'nearByEquipment', label: 'Near By Equipment' },
-  ]
 
   return (
     <div
@@ -62,126 +97,124 @@ const TaskAllocationSummary = () => {
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
           <div className="w-full space-y-6">
 
-            {/* Summary Section - Custom Colored Cards */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              {/* Section Header with Default Blue Gradient */}
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 border-b border-blue-800">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  TASK ALLOCATION COUNT
-                </h2>
-              </div>
-
-              <div className="p-6 bg-white">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                  {/* Total Card - Orange */}
-                  <div className="bg-[#f59e0b] rounded-lg p-4 text-white relative h-32 flex flex-col justify-between shadow-md overflow-hidden">
-                    <div className="absolute right-0 bottom-0 text-6xl font-black text-black/10 -rotate-12 translate-x-4 translate-y-4">
-                      TOTAL
-                    </div>
-                    <div className="relative z-10">
-                      <div className="text-5xl font-bold">{summaryData.total}</div>
-                      <div className="font-semibold text-lg mt-1 uppercase">TOTAL</div>
-                    </div>
-                    <div className="relative z-10 self-end font-bold italic text-black/20 text-xl tracking-widest">
-                      TOTAL
-                    </div>
-                  </div>
-
-                  {/* Completed Card - Cyan */}
-                  <div className="bg-[#06b6d4] rounded-lg p-4 text-white relative h-32 flex flex-col justify-between shadow-md overflow-hidden">
-                    <div className="absolute right-0 bottom-0 text-6xl font-black text-black/10 -rotate-12 translate-x-4 translate-y-4">
-                      COMPLETED
-                    </div>
-                    <div className="relative z-10">
-                      <div className="text-5xl font-bold">{summaryData.completed}</div>
-                      <div className="font-semibold text-lg mt-1 uppercase">COMPLETED</div>
-                    </div>
-                    <div className="relative z-10 self-end font-bold italic text-black/20 text-xl tracking-widest">
-                      COMPLETED
-                    </div>
-                  </div>
-
-                  {/* Pending Card - Red */}
-                  <div className="bg-[#ef4444] rounded-lg p-4 text-white relative h-32 flex flex-col justify-between shadow-md overflow-hidden">
-                    <div className="absolute right-0 bottom-0 text-6xl font-black text-black/10 -rotate-12 translate-x-4 translate-y-4">
-                      PENDING
-                    </div>
-                    <div className="relative z-10">
-                      <div className="text-5xl font-bold">{summaryData.pending}</div>
-                      <div className="font-semibold text-lg mt-1 uppercase">PENDING</div>
-                    </div>
-                    <div className="relative z-10 self-end font-bold italic text-black/20 text-xl tracking-widest">
-                      PENDING
-                    </div>
-                  </div>
-
+            {/* Page Title + Stats */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
+                  <FiClipboard className="text-white text-xl" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-[#0e4a78]">Task Allocation Summary</h1>
+                  <p className="text-slate-500 text-sm">Today's yard-wise task counts and nearby equipment</p>
                 </div>
               </div>
-            </section>
 
-            {/* Table Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              {/* Section Header with Default Blue Gradient */}
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 shadow-md">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  TASK ALLOCATION SUMMARY
-                </h2>
+              <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[480px] shrink-0">
+                <StatTile label="Total Task"     value={stats.total}     icon={FiList}        tone="slate"   total={stats.total} />
+                <StatTile label="Completed"      value={stats.completed} icon={FiCheckCircle} tone="emerald" total={stats.total} />
+                <StatTile label="Pending"        value={stats.pending}   icon={FiClock}       tone="amber"   total={stats.total} />
               </div>
+            </div>
 
-              <div className="px-6 py-6 space-y-4">
+            {/* Results Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-white font-bold text-lg tracking-wide uppercase">Task Allocation Summary</h2>
+                  <p className="text-white/60 text-xs mt-0.5">{filteredRows.length.toLocaleString()} yards</p>
+                </div>
 
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <button
-                    onClick={handleExport}
-                    className="p-1 items-center justify-center flex"
-                    title="Export to Excel"
-                  >
-                    <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
-                  </button>
-
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-slate-600">Search:</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
                     <input
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500 w-64"
+                      placeholder="Search…"
+                      className="pl-8 pr-3 py-2 rounded-lg border border-white/30 bg-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:ring-1 focus:ring-white/50 w-44 transition-colors"
                     />
+                    <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60 text-sm pointer-events-none" />
+                    {search && (
+                      <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white">
+                        <FiX className="text-xs" />
+                      </button>
+                    )}
                   </div>
-                </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-sm shadow-sm">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    {/* Table Header with Default Blue Gradient */}
-                    <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
-                      <tr>
-                        {columns.map((column) => (
-                          <th key={column.key} className="px-5 py-3 text-left font-bold text-white tracking-wider border-r border-[#ffffff40] last:border-r-0">
-                            {column.label}
+                  <button
+                    onClick={() => refetch()}
+                    title="Refresh"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors border border-white/30"
+                  >
+                    <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={14} />
+                  </button>
+
+                  <button
+                    onClick={handleExport}
+                    disabled={!filteredRows.length}
+                    title="Export to Excel"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
+                  >
+                    <FaFileExcel />
+                    <span className="hidden sm:inline">Export</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                {isError ? (
+                  <div className="px-8 py-12 text-center">
+                    <div className="text-red-500 font-semibold text-sm">Failed to load data. Check backend connection.</div>
+                  </div>
+                ) : isFetching ? (
+                  <div className="px-8 py-12 flex flex-col items-center gap-3 text-slate-400">
+                    <div className="w-10 h-10 border-2 border-slate-200 border-t-[#0e4a78] rounded-full animate-spin" />
+                    <p className="text-sm font-medium">Loading task allocation data…</p>
+                  </div>
+                ) : filteredRows.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-slate-400 text-sm">
+                    No records found.
+                  </div>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {COLUMNS.map((col) => (
+                          <th key={col.key} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            {col.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {filteredData.map((row, index) => (
-                        <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                          {columns.map((column) => (
-                            <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
-                              {row[column.key]}
-                            </td>
-                          ))}
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRows.map((row, index) => (
+                        <tr key={index} className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}>
+                          {COLUMNS.map((col) => {
+                            const raw = row[col.key]
+                            const display = raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-4 py-3 whitespace-nowrap ${col.key === 'YardName' ? 'text-slate-800 font-semibold' : 'text-slate-600'}`}
+                              >
+                                {display}
+                              </td>
+                            )
+                          })}
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-                <div className="text-xs text-slate-500 mt-2">
-                  Showing 1 to {filteredData.length} of {filteredData.length} entries
-                </div>
+                )}
               </div>
 
-            </section>
+              {filteredRows.length > 0 && !isFetching && (
+                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
+                  <span>Showing <strong className="text-slate-700">{filteredRows.length}</strong> records</span>
+                </div>
+              )}
+            </div>
+
           </div>
         </main>
 

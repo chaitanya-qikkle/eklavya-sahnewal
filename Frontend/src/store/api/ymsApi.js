@@ -599,6 +599,13 @@ export const ymsApi = createApi({
       },
     }),
 
+    getTaskAllocationSummary: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.REPORTS.TASK_ALLOCATION_SUMMARY,
+        method: 'GET',
+      }),
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -972,6 +979,7 @@ export const {
   useGetCountWithMovesQuery,
   useLazyGetOffloadReportQuery,
   useLazyGetDeviceTransactionSummaryQuery,
+  useGetTaskAllocationSummaryQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,
