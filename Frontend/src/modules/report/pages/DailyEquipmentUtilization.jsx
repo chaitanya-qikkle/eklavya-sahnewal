@@ -143,8 +143,8 @@ const DailyEquipmentUtilization = () => {
       'Hourly Moves':             r.hourlyMoves,
       'Expected Working Hours':   r.expectedHrs,
       'Utilization %':            r.utilization.toFixed(2),
-      'Carbon Emi/Move (kg CO₂)': r.carbonMove,
-      'Carbon Emi/Hr (kg CO₂)':   r.carbonHr,
+      'Carbon Emi/Move (ton CO₂)': r.carbonMove,
+      'Carbon Emi/Hr (ton CO₂)':   r.carbonHr,
       'Laden Count':              (countMap.get(r.equipmentNo) ?? {}).laden ?? '',
       'Empty Count':              (countMap.get(r.equipmentNo) ?? {}).empty ?? '',
       '20ft Count':               (countMap.get(r.equipmentNo) ?? {}).size20 ?? '',
@@ -191,8 +191,8 @@ const DailyEquipmentUtilization = () => {
     { key: 'hourlyMoves',   label: 'Hourly Moves'           },
     { key: 'expectedHrs',   label: 'Expected Hrs'           },
     { key: 'utilization',   label: 'Utilization %'          },
-    { key: 'carbonMove',    label: 'CO₂/Move (kg)'         },
-    { key: 'carbonHr',      label: 'CO₂/Hr (kg)'           },
+    { key: 'carbonMove',    label: 'CO₂/Move (ton)'        },
+    { key: 'carbonHr',      label: 'CO₂/Hr (ton)'          },
   ]
 
   return (

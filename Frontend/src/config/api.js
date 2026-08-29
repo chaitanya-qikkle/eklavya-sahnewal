@@ -157,6 +157,7 @@ export const API_ENDPOINTS = {
 
     // Breakdown
     GET_BREAKDOWNS: buildUrl('/v1/breakdown/get-breakdowns'),
+    GET_BREAKDOWNS_FILTERED: buildUrl('/v1/breakdown/get-breakdowns-filtered'),
     ADD_BREAKDOWN: buildUrl('/v1/breakdown/add-breakdown'),
     UPDATE_BREAKDOWN: buildUrl('/v1/breakdown/update-breakdown'),
     CLOSE_BREAKDOWN: buildUrl('/v1/breakdown/close-breakdown'),

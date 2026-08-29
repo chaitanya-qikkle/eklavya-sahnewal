@@ -1,78 +1,75 @@
 import React, { useState, useMemo } from 'react'
-import { FiSearch, FiChevronUp, FiChevronDown, FiCalendar } from 'react-icons/fi'
+import { FiSearch, FiRefreshCw, FiCalendar, FiX, FiTool } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { useGetBreakdownsQuery } from '../../../store/api/ymsApi'
+import { useLazyGetBreakdownsFilteredQuery } from '../../../store/api/ymsApi'
 
-const normalizeBreakdownRow = (row) => ({
-  machine: row?.EqpName ?? '',
-  maintenanceStart: row?.MaintanceStart ?? '',
-  maintenanceEnd: row?.MaintanceEnd ?? '',
-  tat: row?.TAT ?? '-',
-  remarkType: row?.Reason ?? '',
-  status: row?.MaintanceEnd ? 'Closed' : 'Open',
-})
+const today     = new Date().toISOString().split('T')[0]
+const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
-const ExceptionReport = () => {
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [appliedRange, setAppliedRange] = useState({ from_date: '', to_date: '' })
-  const [globalSearch, setGlobalSearch] = useState('')
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null })
-  const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
-  const { data: breakdownsResponse, isLoading, isError } = useGetBreakdownsQuery(appliedRange)
-  const mockData = useMemo(
-    () => (Array.isArray(breakdownsResponse?.data) ? breakdownsResponse.data : []).map(normalizeBreakdownRow),
-    [breakdownsResponse],
-  )
+const COLUMNS = [
+  { key: 'EqpName',        label: 'Machine' },
+  { key: 'MaintanceStart', label: 'Maintenance Start', format: fmtDate },
+  { key: 'MaintanceEnd',   label: 'Maintenance End',   format: fmtDate },
+  { key: 'TAT',            label: 'TAT' },
+  { key: 'Reason',         label: 'Remark Type' },
+  { key: 'RemarkBy',       label: 'Remark By' },
+]
 
-  const handleSubmit = () => setAppliedRange({ from_date: fromDate, to_date: toDate })
+const BreakdownReport = () => {
+  const [fromDate, setFromDate] = useState(yesterday)
+  const [toDate,   setToDate]   = useState(today)
+  const [search,   setSearch]   = useState('')
+  const [hasQueried, setHasQueried] = useState(false)
 
-  // Filtering Logic
-  const filteredData = useMemo(() => {
-    let data = [...mockData]
+  const [fetchBreakdowns, { data, isFetching, isError }] = useLazyGetBreakdownsFilteredQuery()
 
-    if (globalSearch) {
-      const lowerSearch = globalSearch.toLowerCase()
-      data = data.filter(item =>
-        Object.values(item).some(val =>
-          val.toString().toLowerCase().includes(lowerSearch)
-        )
-      )
-    }
+  const rows = Array.isArray(data?.data) ? data.data : []
 
-    if (sortConfig.key) {
-      data.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1
-        return 0
-      })
-    }
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) =>
+      COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q))
+    )
+  }, [rows, search])
 
-    return data
-  }, [mockData, globalSearch, sortConfig])
+  const handleSearch = () => {
+    setHasQueried(true)
+    fetchBreakdowns({ from_date: fromDate, to_date: toDate })
+  }
 
-  // Pagination Logic
-  const totalPages = Math.ceil(filteredData.length / pageSize)
-  const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-
-  const handleSort = (key) => {
-    let direction = 'asc'
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc'
-    }
-    setSortConfig({ key, direction })
+  const handleClear = () => {
+    setFromDate(yesterday)
+    setToDate(today)
+    setSearch('')
+    setHasQueried(true)
+    fetchBreakdowns({ from_date: yesterday, to_date: today })
   }
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Exception Report")
-    XLSX.writeFile(workbook, "exception-report.xlsx")
+    if (!filteredRows.length) return
+    const exportRows = filteredRows.map((r) => {
+      const out = {}
+      COLUMNS.forEach(({ key, label, format }) => {
+        out[label] = format ? format(r[key]) : (r[key] ?? '')
+      })
+      return out
+    })
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'BreakdownReport')
+    XLSX.writeFile(wb, `BreakdownReport_${today}.xlsx`)
   }
 
   return (
@@ -81,202 +78,190 @@ const ExceptionReport = () => {
       style={{ backgroundImage: "url('/Images/bgimageold.png')" }}
     >
       <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px]" />
+
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
-          <div className="max-w-7xl mx-auto space-y-8">
+          <div className="w-full space-y-6">
 
-            {/* Search Criteria Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <header className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white px-6 py-3">
-                <h2 className="text-lg font-semibold tracking-wide uppercase">Search Criteria</h2>
-              </header>
+            {/* Page Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
+                <FiTool className="text-white text-xl" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-[#0e4a78]">Equipment Breakdown Report</h1>
+                <p className="text-slate-500 text-sm">Machine downtime, maintenance windows, and TAT</p>
+              </div>
+            </div>
+
+            {/* Filter Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2">
+                <FiSearch className="text-white text-base" />
+                <h2 className="text-white font-bold text-base tracking-wide">Search Criteria</h2>
+              </div>
+
               <div className="p-6">
-                <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-                  <div className="flex items-center gap-4 w-full md:w-auto">
-                    <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">FROM DATE</label>
-                    <div className="relative w-full md:w-64">
+                <div className="flex flex-col md:flex-row md:items-end gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">From Date</label>
+                    <div className="relative">
+                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
                         type="date"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700 uppercase"
+                        className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 w-full md:w-auto">
-                    <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px]">TO DATE</label>
-                    <div className="relative w-full md:w-64">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">To Date</label>
+                    <div className="relative">
+                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
                         type="date"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700 uppercase"
+                        className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
                       />
                     </div>
                   </div>
 
-                  <div className="flex gap-3 w-full md:w-auto mt-2 md:mt-0 justify-center">
-                    <button
-                      onClick={() => { setFromDate(''); setToDate(''); setAppliedRange({ from_date: '', to_date: '' }) }}
-                      className="px-6 py-2 border border-slate-300 text-slate-600 font-bold rounded shadow-sm hover:bg-slate-50 transition"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSubmit}
-                      className="px-8 py-2 bg-[#0e4a78] text-white font-bold rounded shadow hover:bg-[#0b3e66] transition uppercase tracking-wide"
-                    >
-                      SUBMIT
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Detailed Table Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden flex flex-col">
-
-              {/* Toolbar */}
-              <div className="px-6 py-3 border-b border-slate-200 flex justify-between items-center gap-4">
-                <button
-                  onClick={handleExport}
-                  className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded shadow hover:bg-green-700 transition"
-                  title="Export Excel"
-                >
-                  <FaFileExcel />
-                </button>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-600 font-medium">Search:</span>
-                  <input
-                    type="text"
-                    value={globalSearch}
-                    onChange={(e) => setGlobalSearch(e.target.value)}
-                    className="px-3 py-1 border border-slate-300 rounded w-48 focus:outline-none focus:border-[#0e4a78]"
-                  />
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="overflow-x-auto w-full">
-                <table className="min-w-full text-xs md:text-sm text-left">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white">
-                      {[
-                        { key: 'machine', label: 'MACHINE' },
-                        { key: 'maintenanceStart', label: 'MAINTENANCE START' },
-                        { key: 'maintenanceEnd', label: 'MAINTENANCE END' },
-                        { key: 'tat', label: 'TAT' },
-                        { key: 'remarkType', label: 'REMARK TYPE' },
-                        { key: 'status', label: 'STATUS' },
-                      ].map(col => (
-                        <th
-                          key={col.key}
-                          onClick={() => handleSort(col.key)}
-                          className="px-4 sm:px-5 py-3 text-left font-semibold border-r border-white/30 last:border-r-0 cursor-pointer hover:bg-white/10 whitespace-nowrap"
-                        >
-                          <div className="flex items-center gap-1">
-                            {col.label}
-                            <div className="flex flex-col opacity-50">
-                              <FiChevronUp className="w-2.5 h-2.5 -mb-0.5" />
-                              <FiChevronDown className="w-2.5 h-2.5 -mt-0.5" />
-                            </div>
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {isLoading ? (
-                      <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                          Loading…
-                        </td>
-                      </tr>
-                    ) : isError ? (
-                      <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-red-600">
-                          Failed to load breakdown records.
-                        </td>
-                      </tr>
-                    ) : paginatedData.length > 0 ? (
-                      paginatedData.map((row, idx) => (
-                        <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-bold">{row.machine}</td>
-                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.maintenanceStart}</td>
-                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.maintenanceEnd}</td>
-                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.tat}</td>
-                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.remarkType}</td>
-                          <td className="px-4 sm:px-5 py-3 text-slate-700 font-semibold">
-                            <span className={`px-2 py-1 rounded text-xs ${row.status === 'Open' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                              {row.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                          No data available in table
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination Footer */}
-              <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-600">
-                <div>
-                  Showing {Math.min((currentPage - 1) * pageSize + 1, filteredData.length)} to {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} entries
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                      currentPage === 1
-                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                        : 'text-[#0e4a78] hover:bg-blue-50'
-                    }`}
-                  >
-                    Previous
-                  </button>
-
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-600">Page</span>
+                    <button
+                      onClick={handleClear}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSearch}
+                      disabled={isFetching}
+                      className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md disabled:opacity-60 uppercase tracking-wide"
+                    >
+                      {isFetching
+                        ? <FiRefreshCw className="animate-spin text-base" />
+                        : <FiSearch className="text-base" />
+                      }
+                      {isFetching ? 'Loading…' : 'Search'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-white font-bold text-lg tracking-wide uppercase">Breakdown Records</h2>
+                  <p className="text-white/60 text-xs mt-0.5">{filteredRows.length.toLocaleString()} records</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
                     <input
-                      type="number"
-                      min={1}
-                      max={totalPages || 1}
-                      value={currentPage}
-                      onChange={(e) => {
-                        const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
-                        setCurrentPage(p)
-                      }}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search…"
+                      className="pl-8 pr-3 py-2 rounded-lg border border-white/30 bg-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:ring-1 focus:ring-white/50 w-44 transition-colors"
                     />
-                    <span className="text-slate-600">of {totalPages || 1}</span>
+                    <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60 text-sm pointer-events-none" />
+                    {search && (
+                      <button
+                        onClick={() => setSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                      >
+                        <FiX className="text-xs" />
+                      </button>
+                    )}
                   </div>
 
                   <button
-                    type="button"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                      currentPage === totalPages || totalPages === 0
-                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                        : 'text-[#0e4a78] hover:bg-blue-50'
-                    }`}
+                    onClick={handleExport}
+                    disabled={!filteredRows.length}
+                    title="Export to Excel"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
                   >
-                    Next
+                    <FaFileExcel />
+                    <span className="hidden sm:inline">Export</span>
                   </button>
                 </div>
               </div>
-            </section>
+
+              <div className="overflow-x-auto">
+                {isError ? (
+                  <div className="px-8 py-12 text-center">
+                    <div className="text-red-500 font-semibold text-sm">Failed to load breakdown records.</div>
+                  </div>
+                ) : isFetching ? (
+                  <div className="px-8 py-12 flex flex-col items-center gap-3 text-slate-400">
+                    <div className="w-10 h-10 border-2 border-slate-200 border-t-[#0e4a78] rounded-full animate-spin" />
+                    <p className="text-sm font-medium">Loading breakdown data…</p>
+                  </div>
+                ) : !hasQueried ? (
+                  <div className="px-8 py-14 text-center">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center">
+                      <FiTool className="text-slate-400 text-xl" />
+                    </div>
+                    <p className="text-slate-400 text-sm font-medium">
+                      Select a date range and click <strong className="text-slate-600">Search</strong> to load data.
+                    </p>
+                  </div>
+                ) : filteredRows.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-slate-400 text-sm">
+                    No breakdown records found for the selected range.
+                  </div>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {COLUMNS.map((col) => (
+                          <th
+                            key={col.key}
+                            className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap"
+                          >
+                            {col.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRows.map((row, index) => (
+                        <tr
+                          key={index}
+                          className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}
+                        >
+                          {COLUMNS.map((col) => {
+                            const raw = row[col.key]
+                            const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-4 py-3 whitespace-nowrap ${col.key === 'EqpName' ? 'text-slate-800 font-semibold' : 'text-slate-600'}`}
+                              >
+                                {display}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {filteredRows.length > 0 && !isFetching && (
+                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
+                  <span>Showing <strong className="text-slate-700">{filteredRows.length}</strong> records</span>
+                </div>
+              )}
+            </div>
 
           </div>
         </main>
@@ -287,4 +272,4 @@ const ExceptionReport = () => {
   )
 }
 
-export default ExceptionReport
+export default BreakdownReport

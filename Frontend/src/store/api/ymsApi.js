@@ -826,6 +826,14 @@ export const ymsApi = createApi({
       providesTags: ['Breakdowns'],
     }),
 
+    getBreakdownsFiltered: builder.query({
+      query: ({ from_date, to_date }) => ({
+        url: `${API_ENDPOINTS.MASTER.GET_BREAKDOWNS_FILTERED}?from_date=${encodeURIComponent(from_date)}&to_date=${encodeURIComponent(to_date)}`,
+        method: 'GET',
+      }),
+      providesTags: ['Breakdowns'],
+    }),
+
     addBreakdown: builder.mutation({
       query: (body) => ({
         url: API_ENDPOINTS.MASTER.ADD_BREAKDOWN,
@@ -953,6 +961,7 @@ export const {
   useGetTrailerReportQuery,
   useLazyGetTrailerReportQuery,
   useGetBreakdownsQuery,
+  useLazyGetBreakdownsFilteredQuery,
   useLazyGetBreakdownsQuery,
   useAddBreakdownMutation,
   useUpdateBreakdownMutation,

@@ -103,6 +103,33 @@ def get_breakdowns(
         db.close_connection()
 
 
+@breakdown_router.get("/get-breakdowns-filtered")
+def get_breakdowns_filtered(
+    from_date: str,
+    to_date: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Date-ranged breakdown list — calls GET_BREAKDOWN_DETAIL_FILTER.
+
+    Unlike GET_BREAKDOWN_DETAIL (today/open only), this SP takes an explicit
+    date range and only returns closed breakdowns (MaintanceEnd IS NOT NULL).
+    """
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_BREAKDOWN_DETAIL_FILTER ?, ?, ?",
+            (current_user.get("plant_id", 1), from_date, to_date),
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}
+        rows = result.get("data") or []
+        return {"status": "success", "message": f"{len(rows)} record(s)", "data": rows}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
+    finally:
+        db.close_connection()
+
+
 @breakdown_router.get("/get-breakdown-by-id")
 def get_breakdown_by_id(
     brkid: int,

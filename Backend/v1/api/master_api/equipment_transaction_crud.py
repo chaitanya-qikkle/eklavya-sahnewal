@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from typing import Optional
+from datetime import datetime
 
 from utils.db_utils import SQLManager
 from middleware.auth_middleware import get_current_user
@@ -75,7 +76,7 @@ def get_daily_utilization(
     """
     db = SQLManager()
     try:
-        from_d = _normalize_datetime(from_date) or "2026-01-01"
+        from_d = _normalize_datetime(from_date) or datetime.today().strftime("%Y-%m-%d")
         to_d   = _normalize_datetime(to_date)   or from_d
         eqp    = eqp_no or ""
         response = db.execute_query(
@@ -98,7 +99,7 @@ def get_daily_utilization_count(
     """Laden/Empty/Size20/Size40 counts from GET_EKY_TRN_DAILY_UTILIZATION_COUNT SP."""
     db = SQLManager()
     try:
-        from_d = _normalize_datetime(from_date) or "2026-01-01"
+        from_d = _normalize_datetime(from_date) or datetime.today().strftime("%Y-%m-%d")
         to_d   = _normalize_datetime(to_date)   or from_d
         response = db.execute_query(
             "EXEC dbo.GET_EKY_TRN_DAILY_UTILIZATION_COUNT ?, ?",
