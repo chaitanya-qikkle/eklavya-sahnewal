@@ -90,7 +90,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const ymsApi = createApi({
   reducerPath: 'ymsApi',
   baseQuery: baseQueryWithReauth,
-    tagTypes: ['Roles', 'Users', 'Menus', 'RoleMenus', 'Process', 'Equipment', 'EquipmentTransactions', 'DeviceData', 'ContainerInventory', 'Breakdowns'],
+    tagTypes: ['Roles', 'Users', 'Menus', 'RoleMenus', 'Process', 'Equipment', 'EquipmentTransactions', 'DeviceData', 'ContainerInventory', 'Breakdowns', 'RailPlan'],
     endpoints: (builder) => ({
 
     // ─── Auth ────────────────────────────────────────────────────────────────
@@ -484,6 +484,58 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getRailPlanList: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.CONTAINER.GET_RAIL_PLAN_LIST,
+        method: 'GET',
+      }),
+      providesTags: ['RailPlan'],
+    }),
+
+    getRailPlanDetail: builder.query({
+      query: ({ rail_plan_name, is_job_allotted }) => ({
+        url: `${API_ENDPOINTS.CONTAINER.GET_RAIL_PLAN_DETAIL}?rail_plan_name=${encodeURIComponent(rail_plan_name)}&is_job_allotted=${is_job_allotted}`,
+        method: 'GET',
+      }),
+      providesTags: ['RailPlan'],
+    }),
+
+    railPlanTask: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.CONTAINER.RAIL_PLAN_TASK,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['RailPlan'],
+    }),
+
+    railPlanAddTask: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.CONTAINER.RAIL_PLAN_ADD_TASK,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['RailPlan'],
+    }),
+
+    railPlanDeleteTask: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.CONTAINER.RAIL_PLAN_DELETE_TASK,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['RailPlan'],
+    }),
+
+    railPlanUpload: builder.mutation({
+      query: (rows) => ({
+        url: API_ENDPOINTS.CONTAINER.RAIL_PLAN_UPLOAD,
+        method: 'POST',
+        body: { rows },
+      }),
+      invalidatesTags: ['RailPlan'],
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -836,6 +888,13 @@ export const {
   useGetContainerTrackingDataQuery,
   useLazyGetContainerTrackingDataQuery,
   useContainerTrackingUploadMutation,
+  useGetRailPlanListQuery,
+  useGetRailPlanDetailQuery,
+  useLazyGetRailPlanDetailQuery,
+  useRailPlanTaskMutation,
+  useRailPlanAddTaskMutation,
+  useRailPlanDeleteTaskMutation,
+  useRailPlanUploadMutation,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

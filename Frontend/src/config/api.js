@@ -187,6 +187,12 @@ export const API_ENDPOINTS = {
     GET_TRAILER_GATE_IN_LIST: buildUrl('/v1/container/trailer-gate-in-list'),
     GET_TRAILER_GATE_OUT_LIST: buildUrl('/v1/container/trailer-gate-out-list'),
     TRAILER_GATE_OUT: buildUrl('/v1/container/trailer-gate-out'),
+    GET_RAIL_PLAN_LIST: buildUrl('/v1/container/rail-plan-list'),
+    GET_RAIL_PLAN_DETAIL: buildUrl('/v1/container/rail-plan-detail'),
+    RAIL_PLAN_TASK: buildUrl('/v1/container/rail-plan-task'),
+    RAIL_PLAN_ADD_TASK: buildUrl('/v1/container/rail-plan-add-task'),
+    RAIL_PLAN_DELETE_TASK: buildUrl('/v1/container/rail-plan-delete-task'),
+    RAIL_PLAN_UPLOAD: buildUrl('/v1/container/rail-plan-upload'),
   },
 
   // Reports

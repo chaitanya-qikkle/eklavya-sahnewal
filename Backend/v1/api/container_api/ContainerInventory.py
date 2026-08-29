@@ -3,6 +3,7 @@ from utils.db_utils import SQLManager
 from middleware.auth_middleware import get_current_user
 from pydantic import BaseModel, field_validator
 from typing import Optional
+import time
 
 router = APIRouter()
 
@@ -506,5 +507,248 @@ def update_physical_container_location(body: UpdateLocationRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+    finally:
+        db.close_connection()
+
+
+# ── Rail Plan Management ────────────────────────────────────────────────────
+
+@router.get("/rail-plan-list")
+def get_rail_plan_list(
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_RAIL_PLAN_NAME_LIST ?",
+            (current_user.get("plant_id", 1),),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/rail-plan-detail")
+def get_rail_plan_detail(
+    rail_plan_name: str,
+    is_job_allotted: int = Query(..., ge=0, le=1),
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_RAIL_PLAN_LIST ?, ?, ?",
+            (current_user.get("plant_id", 1), rail_plan_name, is_job_allotted),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+class RailPlanTaskRequest(BaseModel):
+    rail_plan_name: str
+    type: str  # ACTIVATE | DEACTIVATE | DELETE
+
+    @field_validator("type")
+    @classmethod
+    def _valid_type(cls, v):
+        vv = str(v).strip().upper()
+        if vv not in ("ACTIVATE", "DEACTIVATE", "DELETE"):
+            raise ValueError("type must be one of ACTIVATE, DEACTIVATE, DELETE")
+        return vv
+
+
+@router.post("/rail-plan-task")
+def post_rail_plan_task(
+    body: RailPlanTaskRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        query = """
+            DECLARE @IsSuccess INT = 0;
+            DECLARE @ModifiedByUID uniqueidentifier = CONVERT(uniqueidentifier, ?);
+            EXEC dbo.INS_RAIL_PLAN_TASK
+                @PlantID      = ?,
+                @RailPlanName = ?,
+                @ModifiedBy   = @ModifiedByUID,
+                @Type         = ?,
+                @IsSuccess    = @IsSuccess OUTPUT;
+        """
+        params = (
+            str(current_user.get("user_id", "")),
+            current_user.get("plant_id", 1),
+            body.rail_plan_name,
+            body.type,
+        )
+        result = db.execute_query(query, params, commit=True)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed")}
+        rows = result.get("data") or []
+        is_success = rows[0].get("IsSuccess") if rows else None
+        return {"status": "success", "is_success": is_success}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+class NewTaskRequest(BaseModel):
+    rail_plan_name: str
+    container_no: str
+    is_job_allotted: bool
+
+
+@router.post("/rail-plan-add-task")
+def post_rail_plan_add_task(
+    body: NewTaskRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        query = """
+            DECLARE @IsSuccess INT = 0;
+            DECLARE @ModifiedByUID uniqueidentifier = CONVERT(uniqueidentifier, ?);
+            EXEC dbo.INS_NEW_TASK
+                @PlantID        = ?,
+                @RailPlanName   = ?,
+                @ContainerNo    = ?,
+                @IsJobAllotted  = ?,
+                @ModifiedBy     = @ModifiedByUID,
+                @IsSuccess      = @IsSuccess OUTPUT;
+        """
+        params = (
+            str(current_user.get("user_id", "")),
+            current_user.get("plant_id", 1),
+            body.rail_plan_name.strip(),
+            body.container_no.strip().upper(),
+            1 if body.is_job_allotted else 0,
+        )
+        result = db.execute_query(query, params, commit=True)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed")}
+        rows = result.get("data") or []
+        is_success = rows[0].get("IsSuccess") if rows else None
+        return {"status": "success", "is_success": is_success}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+class DeleteRailPlanTaskRequest(BaseModel):
+    job_id_list: list[int]
+    plan_status: int  # 1 = complete task(s), 0 = delete rail-plan row(s)
+
+    @field_validator("job_id_list")
+    @classmethod
+    def _non_empty(cls, v):
+        if not v:
+            raise ValueError("job_id_list must contain at least one id")
+        return v
+
+
+@router.post("/rail-plan-delete-task")
+def post_rail_plan_delete_task(
+    body: DeleteRailPlanTaskRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        query = """
+            DECLARE @ModifiedByUID uniqueidentifier = CONVERT(uniqueidentifier, ?);
+            EXEC dbo.DEL_RAIL_PLAN_TASK ?, ?, @ModifiedByUID, ?;
+        """
+        params = (
+            str(current_user.get("user_id", "")),
+            current_user.get("plant_id", 1),
+            ",".join(str(j) for j in body.job_id_list),
+            body.plan_status,
+        )
+        result = db.execute_query(query, params, commit=True)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed")}
+        rows = result.get("data") or []
+        sp_result = rows[0].get("Result") if rows else None
+        return {"status": "success", "result": sp_result}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+class RailPlanUploadRow(BaseModel):
+    container_no: str
+    container_size: str = ""
+    to_location: str = ""
+
+
+class RailPlanUploadRequest(BaseModel):
+    rows: list[RailPlanUploadRow]
+
+    @field_validator("rows")
+    @classmethod
+    def _non_empty(cls, v):
+        if not v:
+            raise ValueError("rows must contain at least one entry")
+        return v
+
+
+@router.post("/rail-plan-upload")
+def post_rail_plan_upload(
+    body: RailPlanUploadRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        file_id    = int(time.time())
+        plant_id   = current_user.get("plant_id", 1)
+        modified_by = str(current_user.get("user_id", ""))
+
+        placeholders = ", ".join(["(?, ?, ?, ?, ?, ?, CONVERT(uniqueidentifier, ?))"] * len(body.rows))
+        params = []
+        for idx, row in enumerate(body.rows, start=1):
+            params.extend([
+                idx,
+                row.container_no.strip().upper(),
+                row.container_size.strip(),
+                row.to_location.strip(),
+                file_id,
+                plant_id,
+                modified_by,
+            ])
+
+        query = f"""
+            DECLARE @BulkRailPlan dbo.BULK_RAIL_PLAN;
+            INSERT INTO @BulkRailPlan (SrNo, ContainerNo, ContainerSize, ToLocation, FileID, PlantId, ModifiedBy)
+            VALUES {placeholders};
+            EXEC dbo.UPLOAD_RAILPLAN_LIST_1 @BulkRailPlan;
+        """
+        result = db.execute_query(query, tuple(params), commit=True)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed")}
+        errors = result.get("data") or []
+        if isinstance(errors, list) and errors and isinstance(errors[0], list):
+            errors = errors[0]
+        return {
+            "status":         "success",
+            "rail_plan_name": f"RailPlan_{file_id}",
+            "file_id":        file_id,
+            "total_rows":     len(body.rows),
+            "error_count":    len(errors),
+            "errors":         errors,
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
     finally:
         db.close_connection()
