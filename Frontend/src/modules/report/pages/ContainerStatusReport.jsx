@@ -33,27 +33,22 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
   return (
     <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
       <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${t.iconBg} ${t.iconColor}`}>
-          {Icon && <Icon className="text-[15px]" />}
+      <div className="pl-3.5 pr-3 py-2.5 flex items-center gap-2.5">
+        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+          {Icon && <Icon className="text-[13px]" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-0.5">
             {label}
           </p>
-          <p className={`text-2xl font-black leading-none tracking-tight ${t.valueColor}`}>
+          <p className={`text-lg font-black leading-none tracking-tight ${t.valueColor}`}>
             {value.toLocaleString()}
           </p>
         </div>
         {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>
+          <span className={`flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>
             {pct}%
           </span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
         )}
       </div>
     </div>
