@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiArrowDownCircle, FiArrowUpCircle, FiBox } from 'react-icons/fi'
+import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useGetEquipmentQuery, useLazyGetEquipmentUtilizationReportQuery } from '../../../store/api/ymsApi'
@@ -29,35 +29,6 @@ const COLUMNS = [
   { key: 'LOADED',           label: 'Laden' },
   { key: 'EMT',              label: 'Empty' },
 ]
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700"  },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate" }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  return (
-    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
-      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
-      <div className="pl-3.5 pr-3 py-2.5 flex items-center gap-2.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg ${t.iconBg} ${t.iconColor}`}>
-          {Icon && <Icon className="text-[13px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-0.5">
-            {label}
-          </p>
-          <p className={`text-lg font-black leading-none tracking-tight ${t.valueColor}`}>
-            {value.toLocaleString()}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 const EquipmentUtilization = () => {
   const { data: equipmentApi } = useGetEquipmentQuery()
@@ -144,9 +115,13 @@ const EquipmentUtilization = () => {
         totalLiftup: acc.totalLiftup + (Number(r.LIFTDETAIL) || 0),
         import:      acc.import      + (Number(r.IMPORT) || 0),
         export:      acc.export      + (Number(r.EXPORT) || 0),
+        rail:        acc.rail        + (Number(r.RAIL) || 0),
+        domestic:    acc.domestic    + (Number(r.DOMESTIC) || 0),
+        gdl:         acc.gdl         + (Number(r.GDL) || 0),
         laden:       acc.laden       + (Number(r.LOADED) || 0),
+        empty:       acc.empty       + (Number(r.EMT) || 0),
       }),
-      { totalLiftup: 0, import: 0, export: 0, laden: 0 }
+      { totalLiftup: 0, import: 0, export: 0, rail: 0, domestic: 0, gdl: 0, laden: 0, empty: 0 }
     )
   }, [rows])
 
@@ -319,16 +294,26 @@ const EquipmentUtilization = () => {
                       {isFetching ? 'Loading…' : 'Filter'}
                     </button>
                   </div>
-
-                  <div className="grid grid-cols-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-auto lg:flex-1 lg:min-w-[400px]">
-                    <StatTile label="Total Liftup" value={stats.totalLiftup} icon={FiBox}            tone="slate" />
-                    <StatTile label="Import"       value={stats.import}      icon={FiArrowDownCircle} tone="emerald" />
-                    <StatTile label="Export"       value={stats.export}      icon={FiArrowUpCircle}   tone="amber" />
-                    <StatTile label="Laden"        value={stats.laden}       icon={FiTruck}            tone="violet" />
-                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Summary Cards */}
+            {rows.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Liftup', value: stats.totalLiftup },
+                  { label: 'Import',       value: stats.import      },
+                  { label: 'Export',       value: stats.export      },
+                  { label: 'Laden',        value: stats.laden       },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-white rounded-lg shadow border border-slate-200 px-5 py-4">
+                    <div className="text-[10px] font-bold text-[#0e4a78] uppercase tracking-widest mb-1">{label}</div>
+                    <div className="text-2xl font-black text-slate-800">{value.toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
@@ -419,6 +404,22 @@ const EquipmentUtilization = () => {
                         </tr>
                       ))}
                     </tbody>
+                    {filteredRows.length > 0 && (
+                      <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                        <tr>
+                          <td className="px-4 py-2.5 text-slate-700 font-bold">Total</td>
+                          <td />
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.totalLiftup.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.import.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.export.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.rail.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.domestic.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.gdl.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.laden.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.empty.toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 )}
               </div>
