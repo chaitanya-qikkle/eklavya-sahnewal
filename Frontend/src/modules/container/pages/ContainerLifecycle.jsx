@@ -313,7 +313,7 @@ const ContainerLifecycle = () => {
     <div className="w-full min-h-screen bg-slate-50">
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 max-w-screen-2xl mx-auto w-full">
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 w-full">
 
           {/* ═══ SEARCH BAR ═══ */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0c3d5f] via-[#0e4a78] to-[#164e7a] p-6 shadow-2xl mb-6">
