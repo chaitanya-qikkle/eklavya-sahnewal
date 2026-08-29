@@ -30,7 +30,7 @@ def get_gate_report(
 ):
     svc = _service()
     try:
-        return svc.get_gate_report(container_no, from_date, to_date)
+        return svc.get_gate_report(container_no, from_date, to_date, current_user.get("plant_id", 1))
     finally:
         svc.repo.db.close()
 

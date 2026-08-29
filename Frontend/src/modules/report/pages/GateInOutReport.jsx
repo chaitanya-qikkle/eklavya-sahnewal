@@ -28,10 +28,11 @@ const StatusBadge = ({ val }) => {
 }
 
 const GateInOutReport = () => {
-  const today = new Date().toISOString().split('T')[0]
+  const today     = new Date().toISOString().split('T')[0]
+  const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
   const [searchContainer, setSearchContainer] = useState('')
-  const [dateFrom,        setDateFrom]        = useState(today)
+  const [dateFrom,        setDateFrom]        = useState(yesterday)
   const [dateTo,          setDateTo]          = useState(today)
   const [records,         setRecords]         = useState([])
   const [loading,         setLoading]         = useState(false)
@@ -81,7 +82,7 @@ const GateInOutReport = () => {
 
   const handleClear = () => {
     setSearchContainer('')
-    setDateFrom(today)
+    setDateFrom(yesterday)
     setDateTo(today)
     setRecords([])
     setFetched(false)

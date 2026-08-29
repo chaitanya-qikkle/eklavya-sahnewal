@@ -67,6 +67,7 @@ class ReportsService:
         container_no: Optional[str],
         from_date: Optional[str],
         to_date: Optional[str],
+        plant_id: int,
     ) -> dict:
         if from_date:
             try:
@@ -79,7 +80,7 @@ class ReportsService:
             except ValueError:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid to_date. Use YYYY-MM-DD")
 
-        result = self.repo.get_gate_report(from_date or "", to_date or "", container_no or "")
+        result = self.repo.get_gate_report(from_date or "", to_date or "", container_no or "", plant_id)
         if result.get("status") != "success":
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message"))
 
