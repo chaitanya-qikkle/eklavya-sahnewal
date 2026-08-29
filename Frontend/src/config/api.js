@@ -208,6 +208,8 @@ export const API_ENDPOINTS = {
     NAVISION_STATUS: buildUrl('/v1/reports/navision-status'),
     LOGIN_HISTORY: buildUrl('/v1/reports/login-history'),
     INVENTORY_MISMATCH: buildUrl('/v1/reports/inventory-mismatch'),
+    PHYSICAL_INVENTORY_LOG: buildUrl('/v1/reports/physical-inventory-log'),
+    CONTAINER_UPDATE_HISTORY: buildUrl('/v1/reports/container-update-history'),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),

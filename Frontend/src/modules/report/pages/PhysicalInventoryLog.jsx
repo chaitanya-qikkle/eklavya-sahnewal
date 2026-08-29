@@ -1,67 +1,75 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FaFileExcel, FaSearch, FaFilter } from 'react-icons/fa'
-import { FiCalendar, FiRefreshCw } from 'react-icons/fi'
+import { FaFileExcel } from 'react-icons/fa'
+import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiMapPin } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { useLazyGetPhysicalInventoryLogQuery } from '../../../store/api/ymsApi'
 
-// Mock Data for Physical Inventory Log
-const logRecords = [
-  { id: 1, containerNo: 'TCNU5799359', updatedLocation: 'CY-EXPORT:N63:3', inventoryDate: '16-12-2025 10:17:54' },
-  { id: 2, containerNo: 'TRHU4777786', updatedLocation: 'CY-EXPORT:N63:2', inventoryDate: '16-12-2025 10:17:35' },
-  { id: 3, containerNo: 'DPWU9073165', updatedLocation: 'CY-EXPORT:N63:1', inventoryDate: '16-12-2025 10:17:25' },
-  { id: 4, containerNo: 'TGBU5998622', updatedLocation: 'CY-EXPORT:063:2', inventoryDate: '16-12-2025 10:17:14' },
-  { id: 5, containerNo: 'HAMU4197783', updatedLocation: 'CY-EXPORT:063:1', inventoryDate: '16-12-2025 10:17:05' },
-  { id: 6, containerNo: 'NYKU9705876', updatedLocation: 'CY-EXPORT:058:3', inventoryDate: '16-12-2025 10:16:22' },
-  { id: 7, containerNo: 'NLLU4143989', updatedLocation: 'CY-EXPORT:058:2', inventoryDate: '16-12-2025 10:16:07' },
-  { id: 8, containerNo: 'MSMU6010234', updatedLocation: 'CY-EXPORT:058:1', inventoryDate: '16-12-2025 10:15:56' },
-  { id: 9, containerNo: 'TCKU7471512', updatedLocation: 'CY-EXPORT:N58:4', inventoryDate: '16-12-2025 10:15:47' },
-  { id: 10, containerNo: 'TCKU7471512', updatedLocation: 'CY-EXPORT:N58:4', inventoryDate: '16-12-2025 10:15:46' },
+const today = new Date().toISOString().split('T')[0]
+
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+const COLUMNS = [
+  { key: 'ContainerNo',    label: 'Container No' },
+  { key: 'InventoryType',  label: 'Inventory Type' },
+  { key: 'Location',       label: 'Location' },
+  { key: 'PlantName',      label: 'Plant' },
+  { key: 'UpdatedDate',    label: 'Updated Date', format: fmtDate },
 ]
 
 const PhysicalInventoryLog = () => {
-  // State for filters
-  const [fromDate, setFromDate] = useState('2026-02-16')
+  const [fetchLog, { data, isFetching, isError }] = useLazyGetPhysicalInventoryLogQuery()
+  const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [hasQueried, setHasQueried] = useState(false)
   const itemsPerPage = 10
 
-  // Export to Excel function for "Log Details"
-  const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(logRecords)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'PhysicalInventoryLog')
-    XLSX.writeFile(wb, `PhysicalInventoryLog_${new Date().toISOString().split('T')[0]}.xlsx`)
+  useEffect(() => { setHasQueried(true); fetchLog({}) }, []) // eslint-disable-line
+
+  const rows = Array.isArray(data?.data) ? data.data : []
+
+  const handleSearch = () => {
+    setCurrentPage(1)
+    setHasQueried(true)
+    fetchLog({ from_date: fromDate || undefined, to_date: toDate || undefined })
   }
 
-  // Clear filters function
-  const handleCancel = () => {
+  const handleClear = () => {
     setFromDate('')
     setToDate('')
     setSearch('')
+    setCurrentPage(1)
+    setHasQueried(true)
+    fetchLog({})
   }
 
-  // Refresh function mock
-  const handleRefresh = () => {
-    // Logic to reload data would go here
+  const filteredData = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) => COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q)))
+  }, [rows, search])
+
+  const handleExport = () => {
+    if (!filteredData.length) return
+    const exportRows = filteredData.map((r) => {
+      const out = {}
+      COLUMNS.forEach(({ key, label, format }) => { out[label] = format ? format(r[key]) : (r[key] ?? '') })
+      return out
+    })
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'PhysicalInventoryLog')
+    XLSX.writeFile(wb, `PhysicalInventoryLog_${today}.xlsx`)
   }
-
-  // Table Columns definition
-  const columns = [
-    { key: 'containerNo', label: 'ContainerNo' },
-    { key: 'updatedLocation', label: 'Updated Location' },
-    { key: 'inventoryDate', label: 'InventoryDate' },
-  ]
-
-  // Filter logic for the table
-  const filteredData = logRecords.filter(item => {
-    // Search filter
-    if (search && !Object.values(item).some(val => String(val).toLowerCase().includes(search.toLowerCase()))) {
-      return false
-    }
-    return true
-  })
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -71,211 +79,210 @@ const PhysicalInventoryLog = () => {
       className="w-full min-h-screen relative overflow-hidden bg-cover bg-center"
       style={{ backgroundImage: "url('/Images/bgimageold.png')" }}
     >
-      <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px]" />
 
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar />
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
-          <div className="w-full space-y-8">
+          <div className="w-full space-y-6">
 
-            {/* Filter Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-200 overflow-hidden transition-all hover:shadow-2xl">
-              {/* Default Blue Gradient Header */}
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 border-b border-blue-800 flex justify-between items-center">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase flex items-center gap-2">
-                  <FaFilter className="text-blue-200" />
-                  PHYSICAL INVENTORY LOG
-                </h2>
-                <button onClick={handleRefresh} className="text-white/80 hover:text-white transition-colors">
-                  <FiRefreshCw />
-                </button>
+            {/* Page Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
+                <FiMapPin className="text-white text-xl" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-[#0e4a78]">Physical Inventory Log</h1>
+                <p className="text-slate-500 text-sm">Container location scans from the physical inventory sweep</p>
+              </div>
+            </div>
+
+            {/* Filter Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2">
+                <FiSearch className="text-white text-base" />
+                <h2 className="text-white font-bold text-base tracking-wide">Search Criteria</h2>
               </div>
 
-              <div className="p-8 bg-white">
-                <div className="flex flex-col lg:flex-row items-center justify-center gap-8">
-
-                  {/* From Date Filter */}
-                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto group">
-                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px] text-right group-hover:text-[#0e4a78] transition-colors">FROM</label>
-                    <div className="relative w-full sm:w-72 shadow-sm rounded-md transition-shadow hover:shadow-md">
+              <div className="p-6">
+                <div className="flex flex-col md:flex-row md:items-end gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">From Date</label>
+                    <div className="relative">
+                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
                         type="date"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-transparent text-sm text-slate-700 transition-all font-medium"
+                        className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
                       />
-                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-[#0e4a78] transition-colors" />
                     </div>
                   </div>
 
-                  {/* To Date Filter */}
-                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto group">
-                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px] text-right group-hover:text-[#0e4a78] transition-colors">TO</label>
-                    <div className="relative w-full sm:w-72 shadow-sm rounded-md transition-shadow hover:shadow-md">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">To Date</label>
+                    <div className="relative">
+                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
                         type="date"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-transparent text-sm text-slate-700 transition-all font-medium"
+                        className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
                       />
-                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-[#0e4a78] transition-colors" />
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-3 ml-auto lg:ml-8 mt-6 lg:mt-0 w-full lg:w-auto justify-end">
-                    <button
-                      onClick={handleCancel}
-                      className="px-6 py-2.5 bg-slate-100 border border-slate-300 text-slate-600 rounded-md text-sm font-semibold hover:bg-slate-200 transition-all shadow-sm hover:shadow active:scale-95"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="px-8 py-2.5 bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white rounded-md text-sm font-bold hover:shadow-lg hover:from-[#0a3b61] hover:to-[#0e4a78] transition-all shadow-md active:scale-95 uppercase tracking-wide"
-                    >
-                      SUBMIT
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-            </section>
-
-            {/* Log Details Table Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-200 overflow-hidden transition-all hover:shadow-2xl">
-              {/* Default Blue Gradient Header */}
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 shadow-md flex justify-between items-center">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  LOG DETAILS
-                </h2>
-                <div className="text-white/80 text-xs font-mono bg-black/20 px-2 py-1 rounded">
-                  Total Records: {filteredData.length}
-                </div>
-              </div>
-
-              <div className="p-6 space-y-6">
-
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-500 mr-2">Actions:</span>
                     <button
-                      onClick={handleExport}
-                      className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition-all shadow-sm flex items-center justify-center group"
-                      title="Export to Excel"
+                      onClick={handleClear}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
                     >
-                      <FaFileExcel className="text-xl text-green-600 group-hover:scale-110 transition-transform" />
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSearch}
+                      disabled={isFetching}
+                      className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md disabled:opacity-60 uppercase tracking-wide"
+                    >
+                      {isFetching
+                        ? <FiRefreshCw className="animate-spin text-base" />
+                        : <FiSearch className="text-base" />
+                      }
+                      {isFetching ? 'Loading…' : 'Search'}
                     </button>
                   </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-3">Leave dates empty to view today's log.</p>
+              </div>
+            </div>
 
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-80 group">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FaSearch className="text-slate-400 group-focus-within:text-[#0e4a78] transition-colors" />
-                      </div>
-                      <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search records..."
-                        className="pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-transparent w-full transition-all shadow-sm text-slate-700"
-                      />
-                    </div>
-                  </div>
+            {/* Results Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-white font-bold text-lg tracking-wide uppercase">Log Details</h2>
+                  <p className="text-white/60 text-xs mt-0.5">{filteredData.length.toLocaleString()} records</p>
                 </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    {/* Default Blue Gradient Header for Table */}
-                    <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
-                      <tr>
-                        {columns.map((column) => (
-                          <th key={column.key} className="px-6 py-4 text-left font-bold text-white uppercase tracking-wider border-r border-white/10 last:border-r-0 whitespace-nowrap text-xs">
-                            {column.label}
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search…"
+                      className="pl-8 pr-3 py-2 rounded-lg border border-white/30 bg-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:ring-1 focus:ring-white/50 w-44 transition-colors"
+                    />
+                    <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60 text-sm pointer-events-none" />
+                    {search && (
+                      <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white">
+                        <FiX className="text-xs" />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleExport}
+                    disabled={!filteredData.length}
+                    title="Export to Excel"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
+                  >
+                    <FaFileExcel />
+                    <span className="hidden sm:inline">Export</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                {isError ? (
+                  <div className="px-8 py-12 text-center">
+                    <div className="text-red-500 font-semibold text-sm">Failed to load data. Check backend connection.</div>
+                  </div>
+                ) : isFetching ? (
+                  <div className="px-8 py-12 flex flex-col items-center gap-3 text-slate-400">
+                    <div className="w-10 h-10 border-2 border-slate-200 border-t-[#0e4a78] rounded-full animate-spin" />
+                    <p className="text-sm font-medium">Loading inventory log…</p>
+                  </div>
+                ) : !hasQueried ? (
+                  <div className="px-8 py-14 text-center">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center">
+                      <FiMapPin className="text-slate-400 text-xl" />
+                    </div>
+                    <p className="text-slate-400 text-sm font-medium">
+                      Select a date range and click <strong className="text-slate-600">Search</strong> to load data.
+                    </p>
+                  </div>
+                ) : paginatedData.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-slate-400 text-sm">
+                    No records found for the selected criteria.
+                  </div>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {COLUMNS.map((col) => (
+                          <th key={col.key} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            {col.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {paginatedData.length > 0 ? (
-                        paginatedData.map((row, index) => (
-                          <tr key={index} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100 group">
-                            {columns.map((column) => (
-                              <td key={column.key} className="px-6 py-4 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0 group-hover:text-blue-900 transition-colors font-medium">
-                                {row[column.key]}
+                    <tbody className="divide-y divide-slate-100">
+                      {paginatedData.map((row, index) => (
+                        <tr key={index} className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}>
+                          {COLUMNS.map((col) => {
+                            const raw = row[col.key]
+                            const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-4 py-3 whitespace-nowrap ${col.key === 'ContainerNo' ? 'text-slate-800 font-semibold' : 'text-slate-600'}`}
+                              >
+                                {display}
                               </td>
-                            ))}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={columns.length} className="px-6 py-12 text-slate-500 text-center flex flex-col items-center justify-center gap-2">
-                            <div className="text-4xl opacity-20">📭</div>
-                            <p>No data available matching your criteria</p>
-                          </td>
+                            )
+                          })}
                         </tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
-                </div>
+                )}
+              </div>
 
-                {/* Pagination */}
-                <div className="flex flex-col sm:flex-row items-center justify-between text-sm text-slate-600 pt-2 border-t border-slate-100 gap-3">
-                  <div className="font-medium">
-                    Showing <span className="font-bold text-slate-800">{paginatedData.length}</span> of{' '}
-                    <span className="font-bold text-slate-800">{filteredData.length}</span> total records (Page{' '}
-                    <span className="font-bold text-slate-800">{currentPage}</span> of{' '}
-                    <span className="font-bold text-slate-800">{totalPages || 1}</span>)
-                  </div>
-
+              {filteredData.length > 0 && !isFetching && (
+                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-slate-500">
+                  <span>
+                    Showing <strong className="text-slate-700">{paginatedData.length}</strong> of{' '}
+                    <strong className="text-slate-700">{filteredData.length}</strong> records
+                  </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                        currentPage === 1
-                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      className={`px-3 py-1.5 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1 ? 'text-slate-400 cursor-not-allowed bg-slate-100' : 'text-[#0e4a78] hover:bg-blue-50'
                       }`}
                     >
                       Previous
                     </button>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-600">Page</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={totalPages || 1}
-                        value={currentPage}
-                        onChange={(e) => {
-                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
-                          setCurrentPage(p)
-                        }}
-                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
-                      />
-                      <span className="text-slate-600">of {totalPages || 1}</span>
-                    </div>
-
+                    <span className="text-slate-600">Page {currentPage} of {totalPages || 1}</span>
                     <button
                       type="button"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages || 1, p + 1))}
                       disabled={currentPage === totalPages || totalPages === 0}
-                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                        currentPage === totalPages || totalPages === 0
-                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      className={`px-3 py-1.5 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0 ? 'text-slate-400 cursor-not-allowed bg-slate-100' : 'text-[#0e4a78] hover:bg-blue-50'
                       }`}
                     >
                       Next
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
 
-              </div>
-
-            </section>
           </div>
         </main>
 

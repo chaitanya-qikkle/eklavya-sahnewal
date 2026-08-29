@@ -511,6 +511,94 @@ def get_rail_journey_by_document(
             pass
 
 
+@router.get("/physical-inventory-log")
+def get_physical_inventory_log(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Physical inventory scan log — GET_PHYSICAL_INVENTORY_LOG.
+
+    No from_date → SP defaults to today's log only (its own ELSE branch).
+    """
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        f_date = (from_date or '').strip()
+        t_date = (to_date or '').strip() or f_date
+
+        result = db.execute_query(
+            "EXEC dbo.GET_PHYSICAL_INVENTORY_LOG ?, ?, ?",
+            (plant_id, f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Physical inventory log success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Physical inventory log error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/container-update-history")
+def get_container_update_history(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """User-wise container update counts — GET_CONTAINER_UPDATE_HISTORY.
+
+    No from_date → SP defaults to today's updates only (its own ELSE branch).
+    """
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        f_date = (from_date or '').strip()
+        t_date = (to_date or '').strip() or f_date
+
+        result = db.execute_query(
+            "EXEC dbo.GET_CONTAINER_UPDATE_HISTORY ?, ?, ?",
+            (plant_id, f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Container update history success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Container update history error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),

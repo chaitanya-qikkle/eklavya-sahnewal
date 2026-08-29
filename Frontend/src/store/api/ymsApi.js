@@ -662,6 +662,32 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getPhysicalInventoryLog: builder.query({
+      query: ({ from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.PHYSICAL_INVENTORY_LOG}?${qs}` : API_ENDPOINTS.REPORTS.PHYSICAL_INVENTORY_LOG,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getContainerUpdateHistory: builder.query({
+      query: ({ from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.CONTAINER_UPDATE_HISTORY}?${qs}` : API_ENDPOINTS.REPORTS.CONTAINER_UPDATE_HISTORY,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -1039,6 +1065,8 @@ export const {
   useLazyGetNavisionStatusQuery,
   useLazyGetLoginHistoryQuery,
   useLazyGetInventoryMismatchQuery,
+  useLazyGetPhysicalInventoryLogQuery,
+  useLazyGetContainerUpdateHistoryQuery,
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
   useGetLifecycleDetailsQuery,
