@@ -715,6 +715,13 @@ export const ymsApi = createApi({
       },
     }),
 
+    getDocumentNumbers: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.REPORTS.DOCUMENT_NUMBERS,
+        method: 'GET',
+      }),
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -1096,6 +1103,7 @@ export const {
   useLazyGetContainerUpdateHistoryQuery,
   useLazyGetMonthWiseInventoryQuery,
   useLazyGetEquipmentAccuracyQuery,
+  useGetDocumentNumbersQuery,
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
   useGetLifecycleDetailsQuery,

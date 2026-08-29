@@ -477,15 +477,14 @@ def get_rail_journey_by_document(
     document_no: str = Query(...),
     current_user: dict = Depends(get_current_user),
 ):
-    """Container-level rail journey detail for a document — GET_RPT_JOURNEY_BY_DOCUMENT."""
+    """Container-level rail journey detail for one or more documents — GET_ALL_JOURNEY_BY_DOCUMENT."""
     db = SQLManager()
     try:
-        plant_id = current_user.get("plant_id", 1)
         doc_no = (document_no or '').strip()
 
         result = db.execute_query(
-            "EXEC dbo.GET_RPT_JOURNEY_BY_DOCUMENT ?, ?",
-            (plant_id, doc_no),
+            "EXEC dbo.GET_ALL_JOURNEY_BY_DOCUMENT ?",
+            (doc_no,),
             fetch_all=True,
         )
 
@@ -503,6 +502,37 @@ def get_rail_journey_by_document(
         raise
     except Exception as e:
         logger.error(f"Rail journey by document error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/document-numbers")
+def get_document_numbers(
+    current_user: dict = Depends(get_current_user),
+):
+    """Distinct pre-rail-in document numbers from the last 30 days — GET_DOCUMENT_NO."""
+    db = SQLManager()
+    try:
+        result = db.execute_query("EXEC dbo.GET_DOCUMENT_NO", fetch_all=True)
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Document numbers success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document numbers error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     finally:
         try:

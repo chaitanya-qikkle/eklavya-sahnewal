@@ -212,6 +212,7 @@ export const API_ENDPOINTS = {
     CONTAINER_UPDATE_HISTORY: buildUrl('/v1/reports/container-update-history'),
     MONTH_WISE_INVENTORY: buildUrl('/v1/reports/month-wise-inventory'),
     EQUIPMENT_ACCURACY: buildUrl('/v1/reports/equipment-accuracy'),
+    DOCUMENT_NUMBERS: buildUrl('/v1/reports/document-numbers'),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),
