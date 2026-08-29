@@ -722,6 +722,46 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getRailPlanNameList: builder.query({
+      query: ({ report_type, from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        params.set('report_type', report_type || 'MONTH')
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        return {
+          url: `${API_ENDPOINTS.REPORTS.RAIL_PLAN_NAME_LIST}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getActualVsProposedPlan: builder.query({
+      query: ({ from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.ACTUAL_VS_PROPOSED_PLAN}?${qs}` : API_ENDPOINTS.REPORTS.ACTUAL_VS_PROPOSED_PLAN,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getRailInReport: builder.query({
+      query: ({ container_no, from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (container_no) params.set('container_no', container_no)
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.RAIL_IN_REPORT}?${qs}` : API_ENDPOINTS.REPORTS.RAIL_IN_REPORT,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -1104,6 +1144,9 @@ export const {
   useLazyGetMonthWiseInventoryQuery,
   useLazyGetEquipmentAccuracyQuery,
   useGetDocumentNumbersQuery,
+  useLazyGetRailPlanNameListQuery,
+  useLazyGetActualVsProposedPlanQuery,
+  useLazyGetRailInReportQuery,
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
   useGetLifecycleDetailsQuery,

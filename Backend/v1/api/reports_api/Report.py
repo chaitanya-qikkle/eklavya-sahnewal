@@ -722,6 +722,138 @@ def get_equipment_accuracy(
             pass
 
 
+@router.get("/rail-plan-name-list")
+def get_rail_plan_name_list(
+    report_type: str = Query("MONTH", description="DAY, MONTH, or YEAR — passed through to the SP, currently unused by its query"),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Rail plan names with latest job-creation date in a range — GET_RPT_RAIL_PLAN_NAME_LIST."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        now = datetime.now()
+        f_date = from_date or (now - timedelta(days=30)).strftime("%Y-%m-%d")
+        t_date = to_date or now.strftime("%Y-%m-%d")
+
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_RAIL_PLAN_NAME_LIST ?, ?, ?, ?",
+            (report_type, f_date, t_date, plant_id),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Rail plan name list success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Rail plan name list error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/actual-vs-proposed-plan")
+def get_actual_vs_proposed_plan(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Completed jobs comparing proposed vs actual container location — GET_ACTUAL_VS_PROPOSED_PLAN."""
+    db = SQLManager()
+    try:
+        now = datetime.now()
+        f_date = from_date or (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        t_date = to_date or now.strftime("%Y-%m-%d")
+
+        result = db.execute_query(
+            "EXEC dbo.GET_ACTUAL_VS_PROPOSED_PLAN ?, ?",
+            (f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Actual vs proposed plan success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Actual vs proposed plan error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/rail-in-report")
+def get_rail_in_report(
+    container_no: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Pre-rail-in container detail — GET_RPT_EKL_RAIL_IN."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        cont_no  = (container_no or '').strip().upper()
+
+        f_date = (from_date or '').strip()
+        t_date = (to_date or '').strip()
+        if not cont_no and not f_date:
+            now = datetime.now()
+            f_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            t_date = now.strftime("%Y-%m-%d")
+
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_EKL_RAIL_IN ?, ?, ?, ?",
+            (f_date, t_date, cont_no, plant_id),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Rail in report success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Rail in report error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),
