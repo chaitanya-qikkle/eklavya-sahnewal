@@ -60,7 +60,6 @@ def get_device_data_live_locations(current_user: dict = Depends(get_current_user
     """
     db = SQLManager()
     try:
-        plant_id = current_user.get("plant_id", 1)
         response = db.execute_query(
             """
             -- Single scan: get max DeviceTransID per KalmarNo per relevant PacketID
@@ -97,13 +96,10 @@ def get_device_data_live_locations(current_user: dict = Depends(get_current_user
             FROM agg A
             INNER JOIN EKL_TRN_EKDEVICEDATA P1 WITH (NOLOCK) ON P1.DeviceTransID = A.p1_id
             INNER JOIN ESS_MST_EQUIPMENT    EQ WITH (NOLOCK)
-                    ON EQ.Equipment_Name = P1.KalmarNo
-                   AND ISNULL(EQ.IsDelete, 0) = 0
-                   AND EQ.PlantID = ?
+                    ON EQ.Equipment_Name = P1.KalmarNo AND ISNULL(EQ.IsDelete, 0) = 0
             LEFT  JOIN EKL_TRN_EKDEVICEDATA LK WITH (NOLOCK) ON LK.DeviceTransID = A.lk_id
             LEFT  JOIN EKL_TRN_EKDEVICEDATA UK WITH (NOLOCK) ON UK.DeviceTransID = A.uk_id
             """,
-            (plant_id,),
             fetch_all=True,
         )
         data = response.get("data") or []
