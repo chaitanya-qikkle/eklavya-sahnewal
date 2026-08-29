@@ -4,9 +4,6 @@ import {
   useGetDeviceDataLiveLocationsQuery,
 } from "../../../store/api/ymsApi";
 
-// How long after an unlock (PacketID=8) the "just dropped" ring keeps pulsing.
-const UNLOCK_RECENT_MS = 15 * 60 * 1000; // 15 minutes
-
 const normalizeKey = (value) => (value == null ? "" : String(value).trim().toUpperCase());
 
 const pick = (row, keys) => {
@@ -134,12 +131,11 @@ const normalizeLiveLocationRow = (row) => {
   const gpsContainer = pick(row, ["RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id"]) || null;
 
   // isCarrying: last lock/unlock event was a lock -> machine has a box on its spreader.
-  // Stays true until the machine reports an unlock (it is genuinely still holding).
+  // isUnlockPacket: last event was an unlock -> machine just dropped a container.
+  // Both reflect PACKET_STATE exactly as returned by the current data — no
+  // recency gating, so the badge always matches what the table currently shows.
   const isCarrying = packetState === 7;
-  // isUnlockPacket: last event was an unlock. Gate on recency so the unlock ring
-  // is a transient "just dropped" pulse, not a permanent badge on every idle machine.
-  const unlockAgeMs = lastUkAt ? Date.now() - new Date(lastUkAt).getTime() : Infinity;
-  const isUnlockPacket = packetState === 8 && Number.isFinite(unlockAgeMs) && unlockAgeMs <= UNLOCK_RECENT_MS;
+  const isUnlockPacket = packetState === 8;
 
   // Pick the most relevant container number for the current state.
   const activeContainer = isCarrying

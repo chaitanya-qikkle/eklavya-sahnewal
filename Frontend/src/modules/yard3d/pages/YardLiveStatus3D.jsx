@@ -595,7 +595,7 @@ export default function YardLiveStatus3D() {
   }, [liveEquipment, equipmentProjection]);
 
   const renderableEquipment = useMemo(
-    () => equipmentWithPos.filter(eq => eq.hasFix && eq.isFresh && !(eq.yardPos?.outOfBounds)),
+    () => equipmentWithPos.filter(eq => eq.hasFix && !(eq.yardPos?.outOfBounds)),
     [equipmentWithPos]
   );
 

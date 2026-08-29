@@ -95,8 +95,6 @@ def get_device_data_live_locations(current_user: dict = Depends(get_current_user
                 ISNULL(P1.Location, '')                               AS LOCATION
             FROM agg A
             INNER JOIN EKL_TRN_EKDEVICEDATA P1 WITH (NOLOCK) ON P1.DeviceTransID = A.p1_id
-            INNER JOIN ESS_MST_EQUIPMENT    EQ WITH (NOLOCK)
-                    ON EQ.Equipment_Name = P1.KalmarNo AND ISNULL(EQ.IsDelete, 0) = 0
             LEFT  JOIN EKL_TRN_EKDEVICEDATA LK WITH (NOLOCK) ON LK.DeviceTransID = A.lk_id
             LEFT  JOIN EKL_TRN_EKDEVICEDATA UK WITH (NOLOCK) ON UK.DeviceTransID = A.uk_id
             """,
