@@ -165,6 +165,10 @@ def set_role_menus(request: RoleMenuSetRequest, current_user: dict = Depends(get
         db.close_connection()
 
 
+# Usernames granted every active menu regardless of their role's actual mapping.
+FULL_MENU_ACCESS_USERNAMES = {"skai"}
+
+
 @menu_router.get("/get-role-menus")
 def get_role_menus(role_id: str, current_user: dict = Depends(get_current_user)):
     db = SQLManager()
@@ -174,6 +178,20 @@ def get_role_menus(role_id: str, current_user: dict = Depends(get_current_user))
             rid = int(role_id)
         except (ValueError, TypeError):
             rid = role_id
+
+        username = str(current_user.get("username") or "").strip().lower()
+        if username in FULL_MENU_ACCESS_USERNAMES:
+            query = """
+                SELECT MenuID AS MENU_ID, MenuName AS MENU_NAME,
+                       ParentID AS PARENT_MENU_ID, MenuUrl AS MENU_URL,
+                       IsActive AS IS_ACTIVE
+                FROM IND_MST_MENU
+                WHERE (IsDelete = 0 OR IsDelete IS NULL)
+                      AND (IsActive = 1 OR IsActive IS NULL)
+            """
+            response = db.execute_query(query)
+            logger.info(f"get-role-menus: full-access override for username={username} → {len(response.get('data') or [])} menus")
+            return response
 
         query = """
             SELECT m.MenuID AS MENU_ID, m.MenuName AS MENU_NAME,
