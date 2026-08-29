@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FiCalendar, FiRefreshCw } from 'react-icons/fi'
+import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiArrowDownCircle, FiArrowUpCircle, FiBox } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useGetEquipmentQuery, useLazyGetEquipmentUtilizationReportQuery } from '../../../store/api/ymsApi'
@@ -30,18 +30,51 @@ const COLUMNS = [
   { key: 'EMT',              label: 'Empty' },
 ]
 
+const TONE_MAP = {
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700"  },
+}
+
+const StatTile = ({ label, value, icon: Icon, tone = "slate" }) => {
+  const t = TONE_MAP[tone] || TONE_MAP.slate
+  return (
+    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
+      <div className="pl-3.5 pr-3 py-2.5 flex items-center gap-2.5">
+        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+          {Icon && <Icon className="text-[13px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-0.5">
+            {label}
+          </p>
+          <p className={`text-lg font-black leading-none tracking-tight ${t.valueColor}`}>
+            {value.toLocaleString()}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const EquipmentUtilization = () => {
   const { data: equipmentApi } = useGetEquipmentQuery()
   const [fetchReport, { data: apiData, isFetching, isError }] = useLazyGetEquipmentUtilizationReportQuery()
 
   const equipmentList = useMemo(() => {
     const rows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : []
-    return rows
-      .map((r) => String(r?.Equipment_Name ?? r?.equipment_name ?? r?.EQUIPMENT_NAME ?? '').trim())
-      .filter(Boolean)
+    return Array.from(new Set(
+      rows.map((r) => String(r?.Equipment_Name ?? r?.equipment_name ?? r?.EQUIPMENT_NAME ?? '').trim()).filter(Boolean)
+    ))
   }, [equipmentApi])
 
-  const [selectedEqp, setSelectedEqp] = useState([])
+  const [selectedEqp, setSelectedEqp]   = useState([])
+  const [eqpSearch, setEqpSearch]       = useState('')
+  const [eqpOpen, setEqpOpen]           = useState(false)
+  const eqpBoxRef = useRef(null)
+
   const [fromDate, setFromDate]       = useState(yesterday)
   const [toDate,   setToDate]         = useState(today)
   const [search,   setSearch]         = useState('')
@@ -52,13 +85,29 @@ const EquipmentUtilization = () => {
     fetchReport({ from_date: yesterday, to_date: today })
   }, []) // eslint-disable-line
 
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (eqpBoxRef.current && !eqpBoxRef.current.contains(e.target)) setEqpOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
   const allSelected = selectedEqp.length === 0
+
+  const filteredEqpOptions = useMemo(() => {
+    const q = eqpSearch.trim().toLowerCase()
+    if (!q) return equipmentList
+    return equipmentList.filter((name) => name.toLowerCase().includes(q))
+  }, [equipmentList, eqpSearch])
 
   const toggleEqp = (name) => {
     setSelectedEqp((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
     )
   }
+
+  const removeEqp = (name) => setSelectedEqp((prev) => prev.filter((n) => n !== name))
 
   const handleFilter = () => {
     setCurrentPage(1)
@@ -71,6 +120,7 @@ const EquipmentUtilization = () => {
 
   const handleClear = () => {
     setSelectedEqp([])
+    setEqpSearch('')
     setFromDate(yesterday)
     setToDate(today)
     setSearch('')
@@ -87,6 +137,18 @@ const EquipmentUtilization = () => {
       COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q))
     )
   }, [rows, search])
+
+  const stats = useMemo(() => {
+    return rows.reduce(
+      (acc, r) => ({
+        totalLiftup: acc.totalLiftup + (Number(r.LIFTDETAIL) || 0),
+        import:      acc.import      + (Number(r.IMPORT) || 0),
+        export:      acc.export      + (Number(r.EXPORT) || 0),
+        laden:       acc.laden       + (Number(r.LOADED) || 0),
+      }),
+      { totalLiftup: 0, import: 0, export: 0, laden: 0 }
+    )
+  }, [rows])
 
   const handleExport = () => {
     if (!filteredRows.length) return
@@ -119,221 +181,281 @@ const EquipmentUtilization = () => {
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
           <div className="w-full space-y-6">
 
-            {/* Filter Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <div className="bg-[#0e4a78] px-6 py-3 border-b border-blue-800">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  EQUIPMENT UTILIZATION
-                </h2>
+            {/* Page Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
+                <FiTruck className="text-white text-xl" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-[#0e4a78]">Equipment Utilization</h1>
+                <p className="text-slate-500 text-sm">Machine-wise lift activity and process breakdown</p>
+              </div>
+            </div>
+
+            {/* Filter Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-visible">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2 rounded-t-2xl">
+                <FiTruck className="text-white text-base" />
+                <h2 className="text-white font-bold text-base tracking-wide">Equipment Utilization</h2>
               </div>
 
-              <div className="p-6 bg-white">
-                <div className="flex flex-col xl:flex-row items-center justify-between gap-6">
+              <div className="p-6 rounded-b-2xl">
+                <div className="flex flex-col lg:flex-row lg:items-end gap-4">
 
-                  <div className="flex flex-col lg:flex-row items-center gap-6 w-full flex-wrap">
-
-                    {/* Eqp Name */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">Eqp Name</label>
-                      <select
-                        multiple
-                        value={selectedEqp}
-                        onChange={(e) => setSelectedEqp(Array.from(e.target.selectedOptions, (o) => o.value))}
-                        className="w-full sm:w-64 h-24 px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm bg-slate-50 text-slate-700"
-                      >
-                        {equipmentList.map((name) => (
-                          <option key={name} value={name}>{name}</option>
-                        ))}
-                      </select>
-                      <span className="text-xs text-slate-500 whitespace-nowrap">
-                        {allSelected ? `All (${equipmentList.length})` : `${selectedEqp.length} selected`}
+                  {/* Equipment multi-select */}
+                  <div className="flex flex-col gap-1.5 relative w-full lg:w-72" ref={eqpBoxRef}>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">
+                      Equipment
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEqpOpen((o) => !o)}
+                      className="flex items-center justify-between w-full px-3 py-2.5 min-h-[42px] rounded-lg border border-slate-300 bg-white text-sm text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] transition-colors"
+                    >
+                      <span className="flex flex-wrap gap-1.5 items-center">
+                        {allSelected ? (
+                          <span className="text-slate-500">All equipment ({equipmentList.length})</span>
+                        ) : selectedEqp.length <= 3 ? (
+                          selectedEqp.map((name) => (
+                            <span key={name} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-semibold">
+                              {name}
+                              <FiX
+                                className="text-[10px] hover:text-red-500 cursor-pointer"
+                                onClick={(e) => { e.stopPropagation(); removeEqp(name) }}
+                              />
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[#0e4a78] font-semibold text-xs">{selectedEqp.length} equipment selected</span>
+                        )}
                       </span>
-                    </div>
+                      <FiChevronDown className={`text-slate-400 shrink-0 ml-2 transition-transform ${eqpOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                    {/* From Date */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">From Date</label>
-                      <div className="relative w-full sm:w-64">
-                        <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                        <input
-                          type="date"
-                          value={fromDate}
-                          onChange={(e) => setFromDate(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm text-slate-700"
-                        />
+                    {eqpOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white rounded-lg border border-slate-200 shadow-lg overflow-hidden">
+                        <div className="p-2 border-b border-slate-100 relative">
+                          <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none" />
+                          <input
+                            type="text"
+                            value={eqpSearch}
+                            onChange={(e) => setEqpSearch(e.target.value)}
+                            placeholder="Search equipment…"
+                            className="w-full pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#0e4a78]"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-52 overflow-y-auto">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEqp([])}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[#eaf1f7] transition-colors ${allSelected ? 'bg-[#eaf1f7] font-semibold text-[#0e4a78]' : 'text-slate-700'}`}
+                          >
+                            All Equipment
+                          </button>
+                          {filteredEqpOptions.map((name) => (
+                            <label
+                              key={name}
+                              className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-[#eaf1f7] transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedEqp.includes(name)}
+                                onChange={() => toggleEqp(name)}
+                                className="accent-[#0e4a78]"
+                              />
+                              <span className="text-slate-700">{name}</span>
+                            </label>
+                          ))}
+                          {filteredEqpOptions.length === 0 && (
+                            <p className="px-3 py-4 text-center text-xs text-slate-400">No matches</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    {/* To Date */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">To Date</label>
-                      <div className="relative w-full sm:w-64">
-                        <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-                        <input
-                          type="date"
-                          value={toDate}
-                          onChange={(e) => setToDate(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm text-slate-700"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 ml-auto lg:ml-0 mt-4 lg:mt-0 w-full lg:w-auto justify-end">
-                      <button
-                        onClick={handleClear}
-                        className="px-4 py-2 bg-slate-100 border border-slate-300 text-slate-600 rounded text-sm font-medium hover:bg-slate-200 transition-colors shadow-sm"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        onClick={handleFilter}
-                        disabled={isFetching}
-                        className="flex items-center gap-2 px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase disabled:opacity-60"
-                      >
-                        <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
-                        {isFetching ? 'Loading…' : 'Filter'}
-                      </button>
+                  {/* From Date */}
+                  <div className="flex flex-col gap-1.5 w-full lg:w-48">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">From Date</label>
+                    <div className="relative">
+                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                      <input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
+                      />
                     </div>
                   </div>
 
-                </div>
-              </div>
-            </section>
+                  {/* To Date */}
+                  <div className="flex flex-col gap-1.5 w-full lg:w-48">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">To Date</label>
+                    <div className="relative">
+                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                      <input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
+                      />
+                    </div>
+                  </div>
 
-            {/* Table Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 shadow-md">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  EQUIPMENT UTILIZATION SUMMARY
-                </h2>
-              </div>
-
-              <div className="px-6 py-6 space-y-4">
-
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={handleExport}
-                      disabled={!filteredRows.length}
-                      className="p-1 disabled:opacity-40"
-                      title="Export to Excel"
+                      onClick={handleClear}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
                     >
-                      <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleFilter}
+                      disabled={isFetching}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#0e4a78] text-white text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md disabled:opacity-60 uppercase tracking-wide whitespace-nowrap"
+                    >
+                      <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
+                      {isFetching ? 'Loading…' : 'Filter'}
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Search:</label>
+                  <div className="grid grid-cols-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-auto lg:flex-1 lg:min-w-[400px]">
+                    <StatTile label="Total Liftup" value={stats.totalLiftup} icon={FiBox}            tone="slate" />
+                    <StatTile label="Import"       value={stats.import}      icon={FiArrowDownCircle} tone="emerald" />
+                    <StatTile label="Export"       value={stats.export}      icon={FiArrowUpCircle}   tone="amber" />
+                    <StatTile label="Laden"        value={stats.laden}       icon={FiTruck}            tone="violet" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-white font-bold text-lg tracking-wide uppercase">Utilization Summary</h2>
+                  <p className="text-white/60 text-xs mt-0.5">{filteredRows.length.toLocaleString()} records</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
                     <input
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500 w-full sm:w-64 text-slate-700"
+                      placeholder="Search…"
+                      className="pl-8 pr-3 py-2 rounded-lg border border-white/30 bg-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:ring-1 focus:ring-white/50 w-44 transition-colors"
                     />
+                    <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60 text-sm pointer-events-none" />
+                    {search && (
+                      <button
+                        onClick={() => setSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                      >
+                        <FiX className="text-xs" />
+                      </button>
+                    )}
                   </div>
-                </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-sm shadow-sm">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
-                      <tr>
-                        {COLUMNS.map((column) => (
-                          <th key={column.key} className="px-5 py-3 text-left font-bold text-white uppercase tracking-wider border-r border-[#ffffff40] last:border-r-0 whitespace-nowrap">
-                            {column.label}
+                  <button
+                    onClick={handleExport}
+                    disabled={!filteredRows.length}
+                    title="Export to Excel"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
+                  >
+                    <FaFileExcel />
+                    <span className="hidden sm:inline">Export</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                {isFetching ? (
+                  <div className="px-8 py-12 flex flex-col items-center gap-3 text-slate-400">
+                    <div className="w-10 h-10 border-2 border-slate-200 border-t-[#0e4a78] rounded-full animate-spin" />
+                    <p className="text-sm font-medium">Loading equipment data…</p>
+                  </div>
+                ) : isError ? (
+                  <div className="px-8 py-12 text-center">
+                    <div className="text-red-500 font-semibold text-sm">Failed to load data. Check backend connection.</div>
+                  </div>
+                ) : paginatedRecords.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-slate-400 text-sm">
+                    No records found for the selected criteria.
+                  </div>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {COLUMNS.map((col) => (
+                          <th
+                            key={col.key}
+                            className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap"
+                          >
+                            {col.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {isFetching ? (
-                        <tr>
-                          <td colSpan={COLUMNS.length} className="px-5 py-8 text-center text-slate-400">
-                            <FiRefreshCw className="inline animate-spin mr-2" /> Loading equipment data…
-                          </td>
+                    <tbody className="divide-y divide-slate-100">
+                      {paginatedRecords.map((row, index) => (
+                        <tr
+                          key={index}
+                          className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}
+                        >
+                          {COLUMNS.map((col) => {
+                            const raw = row[col.key]
+                            const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-4 py-3 whitespace-nowrap ${col.key === 'EqpName' ? 'text-slate-800 font-semibold' : 'text-slate-600'}`}
+                              >
+                                {display}
+                              </td>
+                            )
+                          })}
                         </tr>
-                      ) : isError ? (
-                        <tr>
-                          <td colSpan={COLUMNS.length} className="px-5 py-8 text-center text-red-500 font-semibold">
-                            Failed to load data. Check backend connection.
-                          </td>
-                        </tr>
-                      ) : paginatedRecords.length > 0 ? (
-                        paginatedRecords.map((row, index) => (
-                          <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                            {COLUMNS.map((column) => {
-                              const raw = row[column.key]
-                              const display = column.format ? column.format(raw) : (raw ?? '—')
-                              return (
-                                <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
-                                  {display}
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={COLUMNS.length} className="px-5 py-3 text-slate-500">
-                            No data available in table
-                          </td>
-                        </tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
-                </div>
-                <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
-                  <div>
-                    Showing <strong className="text-[#0e4a78]">{paginatedRecords.length}</strong> of{' '}
-                    <strong className="text-[#0e4a78]">{filteredRows.length}</strong> total records (Page{' '}
-                    <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
-                  </div>
+                )}
+              </div>
+
+              {filteredRows.length > 0 && (
+                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-slate-500">
+                  <span>
+                    Showing <strong className="text-slate-700">{paginatedRecords.length}</strong> of{' '}
+                    <strong className="text-slate-700">{filteredRows.length}</strong> records
+                  </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                        currentPage === 1
-                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      className={`px-3 py-1.5 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1 ? 'text-slate-400 cursor-not-allowed bg-slate-100' : 'text-[#0e4a78] hover:bg-blue-50'
                       }`}
                     >
                       Previous
                     </button>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-600">Page</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={totalPages || 1}
-                        value={currentPage}
-                        onChange={(e) => {
-                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
-                          setCurrentPage(p)
-                        }}
-                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
-                      />
-                      <span className="text-slate-600">of {totalPages || 1}</span>
-                    </div>
-
+                    <span className="text-slate-600">Page {currentPage} of {totalPages || 1}</span>
                     <button
                       type="button"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages || 1, p + 1))}
                       disabled={currentPage === totalPages || totalPages === 0}
-                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                        currentPage === totalPages || totalPages === 0
-                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      className={`px-3 py-1.5 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0 ? 'text-slate-400 cursor-not-allowed bg-slate-100' : 'text-[#0e4a78] hover:bg-blue-50'
                       }`}
                     >
                       Next
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
+            </div>
 
-            </section>
           </div>
         </main>
 
