@@ -199,6 +199,7 @@ export const API_ENDPOINTS = {
   // Reports
   REPORTS: {
     GATE_IN_OUT: buildUrl('/v1/reports/reports'),
+    EQUIPMENT_UTILIZATION: buildUrl('/v1/reports/equipment-utilization'),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),

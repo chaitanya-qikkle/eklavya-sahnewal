@@ -162,6 +162,51 @@ def get_gate_report(
             pass
 
 
+@router.get("/equipment-utilization")
+def get_equipment_utilization_report(
+    from_date: Optional[str] = Query(None),
+    to_date:   Optional[str] = Query(None),
+    equipment_names: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+
+        now = datetime.now()
+        from_dt = _to_proc_datetime(from_date) or (now - timedelta(days=1))
+        to_dt   = _to_proc_datetime(to_date)   or now
+
+        eqp_no = _resolve_eqp_names(db, equipment_names)
+
+        result = db.execute_query(
+            "EXEC dbo.GET_EQPIMENTUTLIZATION_REPORT @fromDate = ?, @toDate = ?, @Eqp = ?, @PlantID = ?",
+            params=(from_dt, to_dt, eqp_no, plant_id),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Equipment utilization report success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Equipment utilization report error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/service-dashboard")
 def get_service_dashboard(
     from_date: Optional[str] = Query(None),

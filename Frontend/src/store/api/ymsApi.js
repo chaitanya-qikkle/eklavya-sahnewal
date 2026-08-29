@@ -549,6 +549,20 @@ export const ymsApi = createApi({
       },
     }),
 
+    getEquipmentUtilizationReport: builder.query({
+      query: ({ from_date, to_date, equipment_names } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        if (equipment_names) params.set('equipment_names', equipment_names)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.EQUIPMENT_UTILIZATION}?${qs}` : API_ENDPOINTS.REPORTS.EQUIPMENT_UTILIZATION,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -910,6 +924,7 @@ export const {
   useRailPlanUploadMutation,
   useGetRailMovementTatQuery,
   useLazyGetRailMovementTatQuery,
+  useLazyGetEquipmentUtilizationReportQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

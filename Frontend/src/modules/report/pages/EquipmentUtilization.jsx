@@ -1,52 +1,110 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FiCalendar, FiFilter } from 'react-icons/fi'
-import { FaFileExcel, FaFilePdf } from 'react-icons/fa'
+import { FiCalendar, FiRefreshCw } from 'react-icons/fi'
+import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import { useGetEquipmentQuery, useLazyGetEquipmentUtilizationReportQuery } from '../../../store/api/ymsApi'
 
-const equipmentRecords = [
-  // No data available in table as per image, but adding empty state handling
+const today     = new Date().toISOString().split('T')[0]
+const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+const COLUMNS = [
+  { key: 'EqpName',          label: 'Equipment' },
+  { key: 'TransactionDate',  label: 'Utilization Date', format: fmtDate },
+  { key: 'LIFTDETAIL',       label: 'Total Liftup' },
+  { key: 'IMPORT',           label: 'Import' },
+  { key: 'EXPORT',           label: 'Export' },
+  { key: 'RAIL',             label: 'Rail' },
+  { key: 'DOMESTIC',         label: 'Domestic' },
+  { key: 'GDL',              label: 'GDL' },
+  { key: 'LOADED',           label: 'Laden' },
+  { key: 'EMT',              label: 'Empty' },
 ]
 
 const EquipmentUtilization = () => {
-  const [eqpName, setEqpName] = useState('All selected (12)')
-  const [fromDate, setFromDate] = useState('2025-12-09T11:15')
-  const [toDate, setToDate] = useState('2025-12-08T11:15')
-  const [search, setSearch] = useState('')
+  const { data: equipmentApi } = useGetEquipmentQuery()
+  const [fetchReport, { data: apiData, isFetching, isError }] = useLazyGetEquipmentUtilizationReportQuery()
+
+  const equipmentList = useMemo(() => {
+    const rows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : []
+    return rows
+      .map((r) => String(r?.Equipment_Name ?? r?.equipment_name ?? r?.EQUIPMENT_NAME ?? '').trim())
+      .filter(Boolean)
+  }, [equipmentApi])
+
+  const [selectedEqp, setSelectedEqp] = useState([])
+  const [fromDate, setFromDate]       = useState(yesterday)
+  const [toDate,   setToDate]         = useState(today)
+  const [search,   setSearch]         = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(equipmentRecords)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'EquipmentUtilization')
-    XLSX.writeFile(wb, `EquipmentUtilization_${new Date().toISOString().split('T')[0]}.xlsx`)
+  useEffect(() => {
+    fetchReport({ from_date: yesterday, to_date: today })
+  }, []) // eslint-disable-line
+
+  const allSelected = selectedEqp.length === 0
+
+  const toggleEqp = (name) => {
+    setSelectedEqp((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    )
+  }
+
+  const handleFilter = () => {
+    setCurrentPage(1)
+    fetchReport({
+      from_date: fromDate,
+      to_date: toDate,
+      equipment_names: allSelected ? undefined : selectedEqp.join(','),
+    })
   }
 
   const handleClear = () => {
-    setEqpName('All selected (12)')
-    setFromDate('')
-    setToDate('')
+    setSelectedEqp([])
+    setFromDate(yesterday)
+    setToDate(today)
     setSearch('')
+    setCurrentPage(1)
+    fetchReport({ from_date: yesterday, to_date: today })
   }
 
-  // Columns definition
-  const columns = [
-    { key: 'equipment', label: 'EQUIPMENT' },
-    { key: 'utilizationDate', label: 'UTILIZATION DATE' },
-    { key: 'totalLiftup', label: 'TOTAL LIFTUP' },
-    { key: 'import', label: 'IMPORT' },
-    { key: 'export', label: 'EXPORT' },
-    { key: 'rail', label: 'RAIL' },
-    { key: 'domestic', label: 'DOMESTIC' },
-    { key: 'gdl', label: 'GDL' },
-    { key: 'laden', label: 'LADEN' },
-    { key: 'empty', label: 'EMPTY' },
-  ]
+  const rows = Array.isArray(apiData?.data) ? apiData.data : []
 
-  const totalPages = Math.ceil(equipmentRecords.length / itemsPerPage) || 1
-  const paginatedRecords = equipmentRecords.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) =>
+      COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q))
+    )
+  }, [rows, search])
+
+  const handleExport = () => {
+    if (!filteredRows.length) return
+    const exportRows = filteredRows.map((r) => {
+      const out = {}
+      COLUMNS.forEach(({ key, label, format }) => {
+        out[label] = format ? format(r[key]) : (r[key] ?? '')
+      })
+      return out
+    })
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'EquipmentUtilization')
+    XLSX.writeFile(wb, `EquipmentUtilization_${today}.xlsx`)
+  }
+
+  const totalPages = Math.ceil(filteredRows.length / itemsPerPage) || 1
+  const paginatedRecords = filteredRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   return (
     <div
@@ -76,47 +134,47 @@ const EquipmentUtilization = () => {
 
                     {/* Eqp Name */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">EQP NAME <span className="text-red-500">*</span></label>
-                      <div className="relative w-full sm:w-64">
-                        <select
-                          value={eqpName}
-                          onChange={(e) => setEqpName(e.target.value)}
-                          className="w-full px-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm bg-slate-50 text-slate-700"
-                        >
-                          <option value="All selected (12)">All selected (12)</option>
-                          <option value="KC-11">KC-11</option>
-                          <option value="KC-12">KC-12</option>
-                        </select>
-                      </div>
+                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">Eqp Name</label>
+                      <select
+                        multiple
+                        value={selectedEqp}
+                        onChange={(e) => setSelectedEqp(Array.from(e.target.selectedOptions, (o) => o.value))}
+                        className="w-full sm:w-64 h-24 px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm bg-slate-50 text-slate-700"
+                      >
+                        {equipmentList.map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">
+                        {allSelected ? `All (${equipmentList.length})` : `${selectedEqp.length} selected`}
+                      </span>
                     </div>
 
                     {/* From Date */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">FROM DATE <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">From Date</label>
                       <div className="relative w-full sm:w-64">
+                        <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                         <input
-                          type="datetime-local"
+                          type="date"
                           value={fromDate}
                           onChange={(e) => setFromDate(e.target.value)}
-                          // Added text-slate-700 ensures text is visible 
                           className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm text-slate-700"
                         />
-                        <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                       </div>
                     </div>
 
                     {/* To Date */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">TO DATE <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[80px]">To Date</label>
                       <div className="relative w-full sm:w-64">
+                        <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                         <input
-                          type="datetime-local"
+                          type="date"
                           value={toDate}
                           onChange={(e) => setToDate(e.target.value)}
-                          // Added text-slate-700 ensures text is visible
                           className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm text-slate-700"
                         />
-                        <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                       </div>
                     </div>
 
@@ -128,9 +186,12 @@ const EquipmentUtilization = () => {
                         Clear
                       </button>
                       <button
-                        className="px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase"
+                        onClick={handleFilter}
+                        disabled={isFetching}
+                        className="flex items-center gap-2 px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase disabled:opacity-60"
                       >
-                        Filter
+                        <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
+                        {isFetching ? 'Loading…' : 'Filter'}
                       </button>
                     </div>
                   </div>
@@ -153,16 +214,11 @@ const EquipmentUtilization = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleExport}
-                      className="p-1"
+                      disabled={!filteredRows.length}
+                      className="p-1 disabled:opacity-40"
                       title="Export to Excel"
                     >
                       <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
-                    </button>
-                    <button
-                      className="p-1"
-                      title="Export to PDF"
-                    >
-                      <FaFilePdf className="text-3xl text-red-600 hover:text-red-700 transition-colors" />
                     </button>
                   </div>
 
@@ -181,7 +237,7 @@ const EquipmentUtilization = () => {
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
                     <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
                       <tr>
-                        {columns.map((column) => (
+                        {COLUMNS.map((column) => (
                           <th key={column.key} className="px-5 py-3 text-left font-bold text-white uppercase tracking-wider border-r border-[#ffffff40] last:border-r-0 whitespace-nowrap">
                             {column.label}
                           </th>
@@ -189,19 +245,35 @@ const EquipmentUtilization = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {paginatedRecords.length > 0 ? (
+                      {isFetching ? (
+                        <tr>
+                          <td colSpan={COLUMNS.length} className="px-5 py-8 text-center text-slate-400">
+                            <FiRefreshCw className="inline animate-spin mr-2" /> Loading equipment data…
+                          </td>
+                        </tr>
+                      ) : isError ? (
+                        <tr>
+                          <td colSpan={COLUMNS.length} className="px-5 py-8 text-center text-red-500 font-semibold">
+                            Failed to load data. Check backend connection.
+                          </td>
+                        </tr>
+                      ) : paginatedRecords.length > 0 ? (
                         paginatedRecords.map((row, index) => (
                           <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                            {columns.map((column) => (
-                              <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
-                                {row[column.key]}
-                              </td>
-                            ))}
+                            {COLUMNS.map((column) => {
+                              const raw = row[column.key]
+                              const display = column.format ? column.format(raw) : (raw ?? '—')
+                              return (
+                                <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
+                                  {display}
+                                </td>
+                              )
+                            })}
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={columns.length} className="px-5 py-3 text-slate-500">
+                          <td colSpan={COLUMNS.length} className="px-5 py-3 text-slate-500">
                             No data available in table
                           </td>
                         </tr>
@@ -212,7 +284,7 @@ const EquipmentUtilization = () => {
                 <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
                   <div>
                     Showing <strong className="text-[#0e4a78]">{paginatedRecords.length}</strong> of{' '}
-                    <strong className="text-[#0e4a78]">{equipmentRecords.length}</strong> total records (Page{' '}
+                    <strong className="text-[#0e4a78]">{filteredRows.length}</strong> total records (Page{' '}
                     <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
                   </div>
                   <div className="flex items-center gap-2">
