@@ -12,7 +12,7 @@ const fmtDate = (val) => {
   const d = new Date(String(val).replace(' ', 'T'))
   if (isNaN(d)) return String(val)
   const p = (n) => String(n).padStart(2, '0')
-  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
 const COLUMNS = [
@@ -78,13 +78,13 @@ const PreRailInReport = () => {
 
   const rows = Array.isArray(data?.data) ? data.data : []
 
-  const handleSubmit = () => {
+  const handleSearch = () => {
     if (!selectedDocs.length) return
     setHasQueried(true)
     fetchDetail(selectedDocs.join(','))
   }
 
-  const handleCancel = () => {
+  const handleClear = () => {
     setSelectedDocs([])
     setDocSearch('')
     setSearch('')
@@ -122,28 +122,38 @@ const PreRailInReport = () => {
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
           <div className="w-full space-y-6">
 
-            {/* Filter Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-visible">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 border-b border-blue-800 rounded-t-2xl">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  All Rail Journey Detail
-                </h2>
+            {/* Page Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
+                <FiTruck className="text-white text-xl" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-[#0e4a78]">All Rail Journey Detail</h1>
+                <p className="text-slate-500 text-sm">Container-level journey detail by rail document</p>
+              </div>
+            </div>
+
+            {/* Filter Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-visible">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2 rounded-t-2xl">
+                <FiSearch className="text-white text-base" />
+                <h2 className="text-white font-bold text-base tracking-wide">Search Criteria</h2>
               </div>
 
-              <div className="p-6 bg-white rounded-b-2xl">
-                <div className="flex flex-col lg:flex-row items-end gap-4">
+              <div className="p-6 rounded-b-2xl">
+                <div className="flex flex-col lg:flex-row lg:items-end gap-4">
 
                   {/* Document No multi-select */}
                   <div className="flex flex-col gap-1.5 relative w-full lg:w-[420px]" ref={docBoxRef}>
-                    <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap">Document No</label>
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">Document No</label>
                     <button
                       type="button"
                       onClick={() => setDocOpen((o) => !o)}
-                      className="flex items-center justify-between w-full px-3 py-2 min-h-[42px] rounded border border-slate-300 bg-white text-sm text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                      className="flex items-center justify-between w-full px-3 py-2.5 min-h-[42px] rounded-lg border border-slate-300 bg-white text-sm text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] transition-colors"
                     >
                       <span className="flex flex-wrap gap-1.5 items-center">
                         {selectedDocs.length === 0 ? (
-                          <span className="text-slate-400">None selected</span>
+                          <span className="text-slate-500">None selected</span>
                         ) : selectedDocs.length <= 3 ? (
                           selectedDocs.map((doc) => (
                             <span key={doc} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-semibold">
@@ -188,124 +198,127 @@ const PreRailInReport = () => {
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={handleCancel}
-                      className="px-4 py-2 bg-slate-100 border border-slate-300 text-slate-600 rounded text-sm font-medium hover:bg-slate-200 transition-colors shadow-sm"
+                      onClick={handleClear}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
                     >
-                      Cancel
+                      Clear
                     </button>
                     <button
-                      onClick={handleSubmit}
+                      onClick={handleSearch}
                       disabled={isFetching || !selectedDocs.length}
-                      className="flex items-center gap-2 px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase disabled:opacity-60"
+                      className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md disabled:opacity-60 uppercase tracking-wide"
                     >
-                      {isFetching ? <FiRefreshCw className="animate-spin" size={13} /> : null}
-                      {isFetching ? 'Loading…' : 'Submit'}
+                      {isFetching
+                        ? <FiRefreshCw className="animate-spin text-base" />
+                        : <FiSearch className="text-base" />
+                      }
+                      {isFetching ? 'Loading…' : 'Search'}
                     </button>
                   </div>
-
                 </div>
               </div>
-            </section>
+            </div>
 
-            {/* Table Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 shadow-md flex items-center justify-between">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  Rail Journey Detail
-                  {!isFetching && <span className="ml-2 text-xs font-normal text-white/60">({filteredData.length} records)</span>}
-                </h2>
-              </div>
+            {/* Results Card */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-white font-bold text-lg tracking-wide uppercase">Rail Journey Detail</h2>
+                  <p className="text-white/60 text-xs mt-0.5">{filteredData.length.toLocaleString()} records</p>
+                </div>
 
-              <div className="px-6 py-6 space-y-4">
-
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleExport}
-                      disabled={!filteredData.length}
-                      className="p-1 items-center justify-center flex disabled:opacity-40"
-                      title="Export to Excel"
-                    >
-                      <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Search:</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
                     <input
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500 w-full sm:w-64 text-slate-700"
+                      placeholder="Search…"
+                      className="pl-8 pr-3 py-2 rounded-lg border border-white/30 bg-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:ring-1 focus:ring-white/50 w-44 transition-colors"
                     />
+                    <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60 text-sm pointer-events-none" />
+                    {search && (
+                      <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white">
+                        <FiX className="text-xs" />
+                      </button>
+                    )}
                   </div>
-                </div>
 
-                <div className="overflow-x-auto border border-slate-200 rounded-sm shadow-sm">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
-                      <tr>
-                        <th className="px-3 py-3 text-left font-bold text-white uppercase tracking-wider border-r border-[#ffffff40] whitespace-nowrap">#</th>
-                        {COLUMNS.map((column) => (
-                          <th key={column.key} className="px-3 py-3 text-left font-bold text-white uppercase tracking-wider border-r border-[#ffffff40] last:border-r-0 whitespace-nowrap">
-                            {column.label}
+                  <button
+                    onClick={handleExport}
+                    disabled={!filteredData.length}
+                    title="Export to Excel"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
+                  >
+                    <FaFileExcel />
+                    <span className="hidden sm:inline">Export</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                {isError ? (
+                  <div className="px-8 py-12 text-center">
+                    <div className="text-red-500 font-semibold text-sm">Failed to load data. Check backend connection.</div>
+                  </div>
+                ) : isFetching ? (
+                  <div className="px-8 py-12 flex flex-col items-center gap-3 text-slate-400">
+                    <div className="w-10 h-10 border-2 border-slate-200 border-t-[#0e4a78] rounded-full animate-spin" />
+                    <p className="text-sm font-medium">Loading rail journey detail…</p>
+                  </div>
+                ) : !hasQueried ? (
+                  <div className="px-8 py-14 text-center">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center">
+                      <FiTruck className="text-slate-400 text-xl" />
+                    </div>
+                    <p className="text-slate-400 text-sm font-medium">
+                      Select document number(s) and click <strong className="text-slate-600">Search</strong> to load data.
+                    </p>
+                  </div>
+                ) : filteredData.length === 0 ? (
+                  <div className="px-8 py-12 text-center text-slate-400 text-sm">
+                    No records found for the selected criteria.
+                  </div>
+                ) : (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        {COLUMNS.map((col) => (
+                          <th key={col.key} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                            {col.label}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {isFetching ? (
-                        <tr>
-                          <td colSpan={COLUMNS.length + 1} className="px-5 py-8 text-center text-slate-500">
-                            <FiRefreshCw className="inline animate-spin mr-2" /> Loading rail journey detail…
-                          </td>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredData.map((row, index) => (
+                        <tr key={index} className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}>
+                          {COLUMNS.map((col) => {
+                            const raw = row[col.key]
+                            const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
+                            return (
+                              <td
+                                key={col.key}
+                                className={`px-4 py-3 whitespace-nowrap ${col.key === 'ContainerNo' ? 'text-slate-800 font-semibold' : 'text-slate-600'}`}
+                              >
+                                {display}
+                              </td>
+                            )
+                          })}
                         </tr>
-                      ) : isError ? (
-                        <tr>
-                          <td colSpan={COLUMNS.length + 1} className="px-5 py-8 text-center text-red-500 font-semibold">
-                            Failed to load data. Check backend connection.
-                          </td>
-                        </tr>
-                      ) : !hasQueried ? (
-                        <tr>
-                          <td colSpan={COLUMNS.length + 1} className="px-5 py-14 text-center text-slate-400">
-                            <FiTruck className="mx-auto text-3xl mb-2 text-slate-300" />
-                            Select document number(s) and click <strong className="text-slate-600">Submit</strong> to view journey detail.
-                          </td>
-                        </tr>
-                      ) : filteredData.length > 0 ? (
-                        filteredData.map((row, index) => (
-                          <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                            <td className="px-3 py-3 text-slate-400 text-xs whitespace-nowrap border-r border-slate-100 text-center">{index + 1}</td>
-                            {COLUMNS.map((column) => {
-                              const raw = row[column.key]
-                              const display = column.format ? column.format(raw) : (raw != null && raw !== '' ? raw : '—')
-                              return (
-                                <td
-                                  key={column.key}
-                                  className={`px-3 py-3 whitespace-nowrap border-r border-slate-100 last:border-r-0 ${
-                                    column.key === 'ContainerNo' ? 'text-slate-800 font-semibold' : 'text-slate-700'
-                                  }`}
-                                >
-                                  {display}
-                                </td>
-                              )
-                            })}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={COLUMNS.length + 1} className="px-5 py-3 text-slate-500 text-center">
-                            No data available in table
-                          </td>
-                        </tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
-                </div>
+                )}
               </div>
 
-            </section>
+              {filteredData.length > 0 && !isFetching && (
+                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
+                  <span>Showing <strong className="text-slate-700">{filteredData.length}</strong> records</span>
+                </div>
+              )}
+            </div>
+
           </div>
         </main>
 
