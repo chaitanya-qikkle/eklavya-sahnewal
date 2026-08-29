@@ -51,11 +51,6 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
           </span>
         )}
       </div>
-      {total > 0 && tone !== "slate" && (
-        <div className="h-[2px] bg-slate-100">
-          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-        </div>
-      )}
     </div>
   )
 }
@@ -120,25 +115,17 @@ const ContainerStatusReport = () => {
 
         <main className="flex-1 px-4 sm:px-6 pb-10">
 
-          {/* ── Header + Stat Cards ── */}
-          <header className="pt-6 pb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Reports</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
-                <MdOutlineInventory2 /> Container Status Report
-              </h1>
-              <p className="text-slate-500 mt-0.5 text-sm">
-                {stats.total > 0
-                  ? `${stats.total.toLocaleString()} containers for selected range`
-                  : 'Select date range and click Search'}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
-              <StatTile label="Total"     value={stats.total}    icon={FiPackage} tone="slate"   total={stats.total} />
-              <StatTile label="In Yard"   value={stats.inYard}   icon={FiLogIn}   tone="emerald" total={stats.total} />
-              <StatTile label="Gated Out" value={stats.gatedOut} icon={FiLogOut}  tone="amber"   total={stats.total} />
-            </div>
+          {/* ── Header ── */}
+          <header className="pt-6 pb-5">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Reports</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
+              <MdOutlineInventory2 /> Container Status Report
+            </h1>
+            <p className="text-slate-500 mt-0.5 text-sm">
+              {stats.total > 0
+                ? `${stats.total.toLocaleString()} containers for selected range`
+                : 'Select date range and click Search'}
+            </p>
           </header>
 
           {/* ── Filter Bar ── */}
@@ -146,33 +133,41 @@ const ContainerStatusReport = () => {
             <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-3">
               <h2 className="text-lg font-semibold tracking-wide">Container Status Report</h2>
             </div>
-            <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-4 items-end">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In From</label>
-                <div className="relative">
-                  <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                  <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                    className="pl-9 pr-3 py-2.5 border-2 border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
+            <div className="px-4 sm:px-6 py-4 flex flex-wrap gap-4 items-end justify-between">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In From</label>
+                  <div className="relative">
+                    <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                      className="pl-9 pr-3 py-2.5 border-2 border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In To</label>
+                  <div className="relative">
+                    <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                      className="pl-9 pr-3 py-2.5 border-2 border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleClear}
+                    className="px-4 py-2.5 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">
+                    Clear
+                  </button>
+                  <button onClick={handleSearch} disabled={isFetching}
+                    className="flex items-center gap-2 bg-[#0e4a78] hover:bg-[#0a3b61] active:bg-[#072c4a] text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed">
+                    <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
+                    {isFetching ? 'Loading…' : 'Search'}
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Gate In To</label>
-                <div className="relative">
-                  <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                  <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                    className="pl-9 pr-3 py-2.5 border-2 border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={handleClear}
-                  className="px-4 py-2.5 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">
-                  Clear
-                </button>
-                <button onClick={handleSearch} disabled={isFetching}
-                  className="flex items-center gap-2 bg-[#0e4a78] hover:bg-[#0a3b61] active:bg-[#072c4a] text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed">
-                  <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
-                  {isFetching ? 'Loading…' : 'Search'}
-                </button>
+
+              <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full sm:w-[540px] shrink-0">
+                <StatTile label="Total"     value={stats.total}    icon={FiPackage} tone="slate"   total={stats.total} />
+                <StatTile label="In Yard"   value={stats.inYard}   icon={FiLogIn}   tone="emerald" total={stats.total} />
+                <StatTile label="Gated Out" value={stats.gatedOut} icon={FiLogOut}  tone="amber"   total={stats.total} />
               </div>
             </div>
           </section>

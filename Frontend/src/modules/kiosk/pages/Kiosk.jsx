@@ -323,7 +323,7 @@ const Kiosk = () => {
 
       {/* ── Footer ────────────────────────────────────────────────────────────── */}
       <footer className="flex-shrink-0 bg-[#012541] border-t border-[#0e4a78]/40 px-8 py-1 flex items-center justify-between">
-        <p className="text-xs text-white/80 font-medium">Gateway Distriparks Limited - CFS-Chennai</p>
+        <p className="text-xs text-white/80 font-medium">Gateway Distriparks Limited - ICD Sahnewal</p>
         <p className="text-xs text-white/60">© {new Date().getFullYear()} Qikkle Solutions Pvt Ltd. All rights reserved.</p>
       </footer>
 

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiCalendar, FiLogIn, FiLogOut, FiFilter,
-  FiDownload, FiMapPin, FiTruck as FiTruckIcon,
+  FiDownload, FiMapPin, FiTruck as FiTruckIcon, FiPackage,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaTruck } from 'react-icons/fa'
@@ -17,6 +17,45 @@ function prettyGateName(name) {
     .filter(Boolean)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
+}
+
+const TONE_MAP = {
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
+}
+
+const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
+  const t = TONE_MAP[tone] || TONE_MAP.slate
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  return (
+    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
+      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+          {Icon && <Icon className="text-[15px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
+            {label}
+          </p>
+          <p className={`text-2xl font-black leading-none tracking-tight ${t.valueColor}`}>
+            {value.toLocaleString()}
+          </p>
+        </div>
+        {total > 0 && tone !== "slate" && (
+          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>
+            {pct}%
+          </span>
+        )}
+      </div>
+      {total > 0 && tone !== "slate" && (
+        <div className="h-[2px] bg-slate-100">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 const PAGE_SIZE = 20
@@ -248,17 +287,10 @@ export default function PreGateInOut() {
             </div>
 
             {/* Stat cards */}
-            <div className="grid grid-cols-3 gap-3 lg:gap-4">
-              {[
-                { label: 'Total',    val: total,          cls: 'from-[#0e4a78] to-[#0a3b61]',    light: 'text-blue-100'    },
-                { label: 'Gate In',  val: gate_in_count,   cls: 'from-emerald-600 to-emerald-500', light: 'text-emerald-100' },
-                { label: 'Gate Out', val: gate_out_count,  cls: 'from-amber-500 to-amber-600',     light: 'text-amber-100'   },
-              ].map(s => (
-                <div key={s.label} className={`bg-gradient-to-br ${s.cls} rounded-xl shadow-lg p-3 sm:p-4 text-white`}>
-                  <p className={`text-xs uppercase tracking-wider font-semibold ${s.light}`}>{s.label}</p>
-                  <p className="text-2xl sm:text-3xl font-bold mt-1">{s.val.toLocaleString()}</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
+              <StatTile label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
+              <StatTile label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
+              <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
             </div>
           </header>
 
