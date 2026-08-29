@@ -216,6 +216,47 @@ def get_container_info(container_no: str = ""):
         db.close_connection()
 
 
+@router.get("/container-list")
+def get_container_list(
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_CONTAINERLIST ?",
+            (current_user.get("plant_id", 1),),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/container-tracking-data")
+def get_container_tracking_data(
+    container_no: str,
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_CONTAINERTRACKING_DATA ?, ?",
+            (container_no.strip().upper(), current_user.get("plant_id", 1)),
+        )
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+        return {"status": "success", "data": data, "total_records": len(data)}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/lifecycle-details")
 def get_lifecycle_details(
     container_no: str,

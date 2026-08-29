@@ -460,6 +460,22 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    getContainerList: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.CONTAINER.GET_CONTAINER_LIST,
+        method: 'GET',
+      }),
+      providesTags: ['ContainerInventory'],
+    }),
+
+    getContainerTrackingData: builder.query({
+      query: (container_no) => ({
+        url: `${API_ENDPOINTS.CONTAINER.GET_CONTAINER_TRACKING_DATA}?container_no=${encodeURIComponent(container_no)}`,
+        method: 'GET',
+      }),
+      providesTags: ['ContainerInventory'],
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -807,6 +823,10 @@ export const {
   useLazyGetContainerInventoryQuery,
   useGetContainerInfoQuery,
   useLazyGetContainerInfoQuery,
+  useGetContainerListQuery,
+  useLazyGetContainerListQuery,
+  useGetContainerTrackingDataQuery,
+  useLazyGetContainerTrackingDataQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,
