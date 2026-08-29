@@ -1,51 +1,77 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FiCalendar } from 'react-icons/fi'
+import { FiCalendar, FiSearch, FiRefreshCw, FiX, FiUsers } from 'react-icons/fi'
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import { useGetUsersQuery, useLazyGetLoginHistoryQuery } from '../../../store/api/ymsApi'
 
-const loginRecords = [
-  { id: 1, fullName: 'Ishwari Vishe', username: 'Ishwari', loginTime: '03-12-2025 14:36:36', logoutTime: '03-12-2025 14:40:51', sessionTime: '000:04', status: 'INACTIVE' },
-  { id: 2, fullName: 'Ishwari Vishe', username: 'Ishwari', loginTime: '03-12-2025 14:35:06', logoutTime: '03-12-2025 14:36:36', sessionTime: '000:01', status: 'INACTIVE' },
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+const COLUMNS = [
+  { key: 'FullName',    label: 'Full Name' },
+  { key: 'UserName',    label: 'Username' },
+  { key: 'LoginTime',   label: 'Login Time', format: fmtDate },
+  { key: 'LogoutTime',  label: 'Logout Time', format: fmtDate },
+  { key: 'SessionTime', label: 'Session Time' },
+  { key: 'UserStatus',  label: 'Status' },
 ]
 
 const LoginHistoryReport = () => {
-  const [user, setUser] = useState('Ishwari')
-  const [fromDate, setFromDate] = useState('2025-11-30')
-  const [toDate, setToDate] = useState('2025-12-16')
+  const { data: usersApi } = useGetUsersQuery()
+  const [fetchHistory, { data, isFetching, isError }] = useLazyGetLoginHistoryQuery()
+
+  const [userId, setUserId] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
 
+  const users = usersApi?.users || []
+
+  useEffect(() => { fetchHistory({}) }, []) // eslint-disable-line
+
+  const rows = Array.isArray(data?.data) ? data.data : []
+
+  const handleSubmit = () => {
+    fetchHistory({
+      user_id: userId || undefined,
+      from_date: fromDate || undefined,
+      to_date: toDate || undefined,
+    })
+  }
+
+  const handleCancel = () => {
+    setUserId('')
+    setFromDate('')
+    setToDate('')
+    setSearch('')
+    fetchHistory({})
+  }
+
+  const filteredData = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) => COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q)))
+  }, [rows, search])
+
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(loginRecords)
+    if (!filteredData.length) return
+    const exportRows = filteredData.map((r) => {
+      const out = {}
+      COLUMNS.forEach(({ key, label, format }) => { out[label] = format ? format(r[key]) : (r[key] ?? '') })
+      return out
+    })
+    const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'LoginHistory')
     XLSX.writeFile(wb, `LoginHistory_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
-
-  const handleCancel = () => {
-    setUser('Ishwari')
-    setFromDate('')
-    setToDate('')
-    setSearch('')
-  }
-
-  // Columns definition
-  const columns = [
-    { key: 'fullName', label: 'FULL NAME' },
-    { key: 'username', label: 'USERNAME' },
-    { key: 'loginTime', label: 'LOGIN TIME' },
-    { key: 'logoutTime', label: 'LOGOUT TIME' },
-    { key: 'sessionTime', label: 'SESSION TIME' },
-    { key: 'status', label: 'STATUS' },
-  ]
-
-  const filteredData = loginRecords.filter(item => {
-    if (search && !Object.values(item).some(val => String(val).toLowerCase().includes(search.toLowerCase()))) {
-      return false
-    }
-    return true
-  })
 
   return (
     <div
@@ -62,9 +88,9 @@ const LoginHistoryReport = () => {
 
             {/* Filter Section */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <div className="bg-[#0e4a78] px-6 py-3 border-b border-blue-800">
-                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  LOGIN HISTORY
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 border-b border-blue-800">
+                <h2 className="text-white font-bold text-lg tracking-wide uppercase flex items-center gap-2">
+                  <FiUsers /> Login History
                 </h2>
               </div>
 
@@ -73,23 +99,26 @@ const LoginHistoryReport = () => {
 
                   {/* User */}
                   <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px]">USER</label>
+                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px]">User</label>
                     <div className="relative w-full sm:w-64">
                       <select
-                        value={user}
-                        onChange={(e) => setUser(e.target.value)}
+                        value={userId}
+                        onChange={(e) => setUserId(e.target.value)}
                         className="w-full px-4 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm shadow-sm bg-white text-slate-700"
                       >
-                        <option value="Ishwari">Ishwari</option>
-                        <option value="Admin">Admin</option>
-                        <option value="User1">User1</option>
+                        <option value="">— All Users (Today) —</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {[u.firstName, u.lastName].filter(Boolean).join(' ') || u.username} ({u.username})
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
 
                   {/* From Date */}
                   <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px]">FROM</label>
+                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px]">From</label>
                     <div className="relative w-full sm:w-48">
                       <input
                         type="date"
@@ -103,7 +132,7 @@ const LoginHistoryReport = () => {
 
                   {/* To Date */}
                   <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[30px]">TO</label>
+                    <label className="text-sm font-bold text-slate-700 uppercase whitespace-nowrap min-w-[30px]">To</label>
                     <div className="relative w-full sm:w-48">
                       <input
                         type="date"
@@ -123,9 +152,12 @@ const LoginHistoryReport = () => {
                       Cancel
                     </button>
                     <button
-                      className="px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase"
+                      onClick={handleSubmit}
+                      disabled={isFetching}
+                      className="flex items-center gap-2 px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase disabled:opacity-60"
                     >
-                      SUBMIT
+                      {isFetching ? <FiRefreshCw className="animate-spin" size={13} /> : null}
+                      {isFetching ? 'Loading…' : 'Submit'}
                     </button>
                   </div>
 
@@ -135,9 +167,10 @@ const LoginHistoryReport = () => {
 
             {/* Table Section */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <div className="bg-[#0e4a78] px-6 py-3 shadow-md">
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-3 shadow-md flex items-center justify-between">
                 <h2 className="text-white font-bold text-lg tracking-wide uppercase">
-                  LOGIN HISTORY REPORT
+                  Login History Report
+                  {!isFetching && <span className="ml-2 text-xs font-normal text-white/60">({filteredData.length} records)</span>}
                 </h2>
               </div>
 
@@ -147,7 +180,8 @@ const LoginHistoryReport = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleExport}
-                      className="p-1"
+                      disabled={!filteredData.length}
+                      className="p-1 disabled:opacity-40"
                       title="Export to Excel"
                     >
                       <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
@@ -156,21 +190,28 @@ const LoginHistoryReport = () => {
 
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Search:</label>
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500 w-full sm:w-64 text-slate-700"
-                    />
+                    <div className="relative w-full sm:w-64">
+                      <input
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="border border-slate-300 rounded px-2 py-1 pl-7 text-sm focus:outline-none focus:border-blue-500 w-full text-slate-700"
+                      />
+                      <FiSearch className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none" />
+                      {search && (
+                        <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <FiX className="text-xs" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded-sm shadow-sm">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    {/* Table Header with Default Blue Gradient */}
                     <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
                       <tr>
-                        {columns.map((column) => (
+                        {COLUMNS.map((column) => (
                           <th key={column.key} className="px-5 py-3 text-left font-bold text-white uppercase tracking-wider border-r border-[#ffffff40] last:border-r-0 whitespace-nowrap">
                             {column.label}
                           </th>
@@ -178,19 +219,42 @@ const LoginHistoryReport = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {filteredData.length > 0 ? (
+                      {isFetching ? (
+                        <tr>
+                          <td colSpan={COLUMNS.length} className="px-5 py-8 text-center text-slate-500">
+                            <FiRefreshCw className="inline animate-spin mr-2" /> Loading login history…
+                          </td>
+                        </tr>
+                      ) : isError ? (
+                        <tr>
+                          <td colSpan={COLUMNS.length} className="px-5 py-8 text-center text-red-500 font-semibold">
+                            Failed to load data. Check backend connection.
+                          </td>
+                        </tr>
+                      ) : filteredData.length > 0 ? (
                         filteredData.map((row, index) => (
                           <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                            {columns.map((column) => (
-                              <td key={column.key} className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
-                                {row[column.key]}
-                              </td>
-                            ))}
+                            {COLUMNS.map((column) => {
+                              const raw = row[column.key]
+                              const display = column.format ? column.format(raw) : (raw != null && raw !== '' ? raw : '—')
+                              return (
+                                <td
+                                  key={column.key}
+                                  className={`px-5 py-3 whitespace-nowrap border-r border-slate-100 last:border-r-0 ${
+                                    column.key === 'UserStatus'
+                                      ? raw === 'ACTIVE' ? 'text-emerald-600 font-semibold' : 'text-slate-400 font-semibold'
+                                      : 'text-slate-700'
+                                  }`}
+                                >
+                                  {display}
+                                </td>
+                              )
+                            })}
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={columns.length} className="px-5 py-3 text-slate-500 text-center">
+                          <td colSpan={COLUMNS.length} className="px-5 py-3 text-slate-500 text-center">
                             No data available in table
                           </td>
                         </tr>

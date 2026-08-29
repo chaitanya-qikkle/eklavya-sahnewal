@@ -342,6 +342,175 @@ def get_navision_status(
             pass
 
 
+@router.get("/login-history")
+def get_login_history(
+    user_id: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """User login/logout session history — GET_LOGIN_HISTORY.
+
+    No user_id → today's active sessions only (SP's first branch).
+    No dates → SP ignores date range entirely (NULL @FromDate branch).
+    """
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        uid = (user_id or '').strip() or '00000000-0000-0000-0000-000000000000'
+
+        f_date = _to_proc_datetime(from_date)
+        t_date = _to_proc_datetime(to_date)
+
+        result = db.execute_query(
+            "EXEC dbo.GET_LOGIN_HISTORY ?, ?, ?, ?",
+            (plant_id, uid, f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Login history success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login history error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/inventory-mismatch")
+def get_inventory_mismatch(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """OCR-scanned containers with no matching inventory record — GET_MISMATCH_CONTAINER_HANDLE_DATA."""
+    db = SQLManager()
+    try:
+        now = datetime.now()
+        f_date = from_date or (now - timedelta(days=15)).strftime("%Y-%m-%d")
+        t_date = to_date or now.strftime("%Y-%m-%d")
+
+        result = db.execute_query(
+            "EXEC dbo.GET_MISMATCH_CONTAINER_HANDLE_DATA ?, ?",
+            (f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Inventory mismatch success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Inventory mismatch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/rail-journey")
+def get_rail_journey(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Rail journey summary by document — GET_RPT_RAIL_JOURNEY."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        f_date = _to_proc_datetime(from_date)
+        t_date = _to_proc_datetime(to_date)
+
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_RAIL_JOURNEY ?, ?, ?",
+            (plant_id, f_date, t_date),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Rail journey success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Rail journey error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/rail-journey-by-document")
+def get_rail_journey_by_document(
+    document_no: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Container-level rail journey detail for a document — GET_RPT_JOURNEY_BY_DOCUMENT."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        doc_no = (document_no or '').strip()
+
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_JOURNEY_BY_DOCUMENT ?, ?",
+            (plant_id, doc_no),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Rail journey by document success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Rail journey by document error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),

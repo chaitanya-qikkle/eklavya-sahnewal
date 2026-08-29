@@ -615,6 +615,53 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getLoginHistory: builder.query({
+      query: ({ user_id, from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (user_id) params.set('user_id', user_id)
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.LOGIN_HISTORY}?${qs}` : API_ENDPOINTS.REPORTS.LOGIN_HISTORY,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getInventoryMismatch: builder.query({
+      query: ({ from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.INVENTORY_MISMATCH}?${qs}` : API_ENDPOINTS.REPORTS.INVENTORY_MISMATCH,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getRailJourney: builder.query({
+      query: ({ from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.RAIL_JOURNEY}?${qs}` : API_ENDPOINTS.REPORTS.RAIL_JOURNEY,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getRailJourneyByDocument: builder.query({
+      query: (document_no) => ({
+        url: `${API_ENDPOINTS.REPORTS.RAIL_JOURNEY_BY_DOCUMENT}?document_no=${encodeURIComponent(document_no)}`,
+        method: 'GET',
+      }),
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -990,6 +1037,10 @@ export const {
   useLazyGetDeviceTransactionSummaryQuery,
   useGetTaskAllocationSummaryQuery,
   useLazyGetNavisionStatusQuery,
+  useLazyGetLoginHistoryQuery,
+  useLazyGetInventoryMismatchQuery,
+  useLazyGetRailJourneyQuery,
+  useLazyGetRailJourneyByDocumentQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

@@ -1,39 +1,52 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FaFileExcel } from 'react-icons/fa'
-import { FiCalendar } from 'react-icons/fi'
+import { FiCalendar, FiRefreshCw } from 'react-icons/fi'
 import { CgGoogleTasks } from "react-icons/cg";
 import * as XLSX from 'xlsx'
+import { useLazyGetInventoryMismatchQuery } from '../../../store/api/ymsApi'
 
-const mismatchRecords = [
-  { id: 1, containerNo: 'ZIWU3027555', transactionDate: '14-12-2025 22:06:23' },
-  { id: 2, containerNo: 'WSNU6849865', transactionDate: '06-12-2025 14:06:08' },
-  { id: 3, containerNo: 'WSDU8877866', transactionDate: '05-12-2025 07:06:20' },
-  { id: 4, containerNo: 'WSCU6633677', transactionDate: '02-12-2025 13:56:48' },
-  { id: 5, containerNo: 'WSCU5247659', transactionDate: '11-12-2025 11:07:30' },
-  { id: 6, containerNo: 'WSCU3590334', transactionDate: '02-12-2025 11:35:01' },
-  { id: 7, containerNo: 'WRSU6205750', transactionDate: '10-12-2025 19:13:11' },
-  { id: 8, containerNo: 'WRSU2329497', transactionDate: '12-12-2025 09:30:47' },
-  { id: 9, containerNo: 'WRSU0139775', transactionDate: '16-12-2025 01:10:16' },
-]
+const today     = new Date().toISOString().split('T')[0]
+const fromDefault = new Date(Date.now() - 15 * 864e5).toISOString().split('T')[0]
+
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
 
 const InventoryMismatch = () => {
-  const [fromDate, setFromDate] = useState('2025-12-01')
-  const [toDate, setToDate] = useState('2025-12-16')
+  const [fetchMismatch, { data, isFetching, isError }] = useLazyGetInventoryMismatchQuery()
+  const [fromDate, setFromDate] = useState(fromDefault)
+  const [toDate, setToDate] = useState(today)
   const [search, setSearch] = useState('')
 
+  useEffect(() => { fetchMismatch({ from_date: fromDefault, to_date: today }) }, []) // eslint-disable-line
+
+  const rows = Array.isArray(data?.data) ? data.data : []
+
+  const handleSubmit = () => fetchMismatch({ from_date: fromDate, to_date: toDate })
+
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(mismatchRecords)
+    if (!filteredData.length) return
+    const exportRows = filteredData.map((r) => ({
+      'Container No': r.ContainerNo,
+      'Transaction Date': fmtDate(r.TransDateTime),
+    }))
+    const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'MismatchContainer')
-    XLSX.writeFile(wb, `MismatchContainer_${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(wb, `MismatchContainer_${today}.xlsx`)
   }
 
   const handleCancel = () => {
-    setFromDate('')
-    setToDate('')
+    setFromDate(fromDefault)
+    setToDate(today)
     setSearch('')
+    fetchMismatch({ from_date: fromDefault, to_date: today })
   }
 
   // Columns definition
@@ -43,12 +56,14 @@ const InventoryMismatch = () => {
     { key: 'transactionDate', label: 'TRANSACTION DATE' },
   ]
 
-  const filteredData = mismatchRecords.filter(item => {
-    if (search && !Object.values(item).some(val => String(val).toLowerCase().includes(search.toLowerCase()))) {
-      return false
-    }
-    return true
-  })
+  const filteredData = useMemo(() => {
+    if (!search.trim()) return rows
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) =>
+      String(r.ContainerNo ?? '').toLowerCase().includes(q) ||
+      fmtDate(r.TransDateTime).toLowerCase().includes(q)
+    )
+  }, [rows, search])
 
   return (
     <div
@@ -110,9 +125,12 @@ const InventoryMismatch = () => {
                       Cancel
                     </button>
                     <button
-                      className="px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase"
+                      onClick={handleSubmit}
+                      disabled={isFetching}
+                      className="flex items-center gap-2 px-6 py-2 bg-[#0e4a78] text-white rounded text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md uppercase disabled:opacity-60"
                     >
-                      SUBMIT
+                      {isFetching ? <FiRefreshCw className="animate-spin" size={13} /> : null}
+                      {isFetching ? 'Loading…' : 'Submit'}
                     </button>
                   </div>
 
@@ -128,7 +146,8 @@ const InventoryMismatch = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleExport}
-                      className="p-1"
+                      disabled={!filteredData.length}
+                      className="p-1 disabled:opacity-40"
                       title="Export to Excel"
                     >
                       <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
@@ -159,24 +178,36 @@ const InventoryMismatch = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {filteredData.length > 0 ? (
+                      {isFetching ? (
+                        <tr>
+                          <td colSpan={columns.length} className="px-5 py-8 text-center text-slate-500">
+                            <FiRefreshCw className="inline animate-spin mr-2" /> Loading mismatch data…
+                          </td>
+                        </tr>
+                      ) : isError ? (
+                        <tr>
+                          <td colSpan={columns.length} className="px-5 py-8 text-center text-red-500 font-semibold">
+                            Failed to load data. Check backend connection.
+                          </td>
+                        </tr>
+                      ) : filteredData.length > 0 ? (
                         filteredData.map((row, index) => (
                           <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
                             <td className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
                               <CgGoogleTasks className="text-purple-400 text-xl border border-purple-400 rounded p-0.5" />
                             </td>
                             <td className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0 font-medium">
-                              {row.containerNo}
+                              {row.ContainerNo}
                             </td>
                             <td className="px-5 py-3 text-slate-700 whitespace-nowrap border-r border-slate-100 last:border-r-0">
-                              {row.transactionDate}
+                              {fmtDate(row.TransDateTime)}
                             </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
                           <td colSpan={columns.length} className="px-5 py-3 text-slate-500 text-center">
-                            No data available in table
+                            No mismatched containers found for the selected range.
                           </td>
                         </tr>
                       )}

@@ -206,12 +206,16 @@ export const API_ENDPOINTS = {
     DEVICE_TRANSACTION_SUMMARY: buildUrl('/v1/reports/device-transaction-summary'),
     TASK_ALLOCATION_SUMMARY: buildUrl('/v1/reports/task-allocation-summary'),
     NAVISION_STATUS: buildUrl('/v1/reports/navision-status'),
+    LOGIN_HISTORY: buildUrl('/v1/reports/login-history'),
+    INVENTORY_MISMATCH: buildUrl('/v1/reports/inventory-mismatch'),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),
     DEVICE_RAW_DATA: buildUrl('/v1/reports/device-raw-data'),
     DEVICE_RAW_DATA_KALMAR_LIST: buildUrl('/v1/reports/device-raw-data/kalmar-list'),
     TRAILER_REPORT:  buildUrl('/v1/reports/trailer-report'),
+    RAIL_JOURNEY: buildUrl('/v1/reports/rail-journey'),
+    RAIL_JOURNEY_BY_DOCUMENT: buildUrl('/v1/reports/rail-journey-by-document'),
   },
 };
 
