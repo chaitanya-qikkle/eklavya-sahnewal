@@ -584,6 +584,21 @@ export const ymsApi = createApi({
       },
     }),
 
+    getDeviceTransactionSummary: builder.query({
+      query: ({ container_no, from_date, to_date, equipment_names } = {}) => {
+        const params = new URLSearchParams()
+        if (container_no) params.set('container_no', container_no)
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        if (equipment_names) params.set('equipment_names', equipment_names)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.DEVICE_TRANSACTION_SUMMARY}?${qs}` : API_ENDPOINTS.REPORTS.DEVICE_TRANSACTION_SUMMARY,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -956,6 +971,7 @@ export const {
   useLazyGetEquipmentUtilizationReportQuery,
   useGetCountWithMovesQuery,
   useLazyGetOffloadReportQuery,
+  useLazyGetDeviceTransactionSummaryQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

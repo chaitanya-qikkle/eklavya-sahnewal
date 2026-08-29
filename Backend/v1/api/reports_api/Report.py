@@ -217,6 +217,54 @@ def get_offload_report(
             pass
 
 
+@router.get("/device-transaction-summary")
+def get_device_transaction_summary(
+    container_no: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    equipment_names: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Lock-key (LK) transaction summary via GET_DEVICE_LOCK_REPORT_SUMMARY."""
+    db = SQLManager()
+    try:
+        plant_id = current_user.get("plant_id", 1)
+        cont_no  = (container_no or '').strip().upper()
+
+        eqp_no_str = _resolve_eqp_names(db, equipment_names)
+
+        now = datetime.now()
+        from_dt = _to_proc_datetime(from_date) or (now - timedelta(days=1))
+        to_dt   = _to_proc_datetime(to_date)   or now
+
+        result = db.execute_query(
+            "EXEC dbo.GET_DEVICE_LOCK_REPORT_SUMMARY ?, ?, ?, ?, ?",
+            params=(cont_no, eqp_no_str, from_dt, to_dt, plant_id),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message") or "Database error")
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Device transaction summary success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Device transaction summary error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),
