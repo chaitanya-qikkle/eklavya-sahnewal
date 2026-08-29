@@ -563,6 +563,27 @@ export const ymsApi = createApi({
       },
     }),
 
+    getCountWithMoves: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.REPORTS.COUNT_WITH_MOVES,
+        method: 'GET',
+      }),
+    }),
+
+    getOffloadReport: builder.query({
+      query: ({ container_no, from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
+        if (container_no) params.set('container_no', container_no)
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+        const qs = params.toString()
+        return {
+          url: qs ? `${API_ENDPOINTS.REPORTS.OFFLOAD_REPORT}?${qs}` : API_ENDPOINTS.REPORTS.OFFLOAD_REPORT,
+          method: 'GET',
+        }
+      },
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -933,6 +954,8 @@ export const {
   useGetRailMovementTatQuery,
   useLazyGetRailMovementTatQuery,
   useLazyGetEquipmentUtilizationReportQuery,
+  useGetCountWithMovesQuery,
+  useLazyGetOffloadReportQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

@@ -201,6 +201,8 @@ export const API_ENDPOINTS = {
   REPORTS: {
     GATE_IN_OUT: buildUrl('/v1/reports/reports'),
     EQUIPMENT_UTILIZATION: buildUrl('/v1/reports/equipment-utilization'),
+    COUNT_WITH_MOVES: buildUrl('/v1/reports/count-with-moves'),
+    OFFLOAD_REPORT: buildUrl('/v1/reports/offload-report'),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),

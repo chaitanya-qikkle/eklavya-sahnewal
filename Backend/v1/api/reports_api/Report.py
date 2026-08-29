@@ -162,6 +162,92 @@ def get_gate_report(
             pass
 
 
+@router.get("/offload-report")
+def get_offload_report(
+    container_no: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    db = SQLManager()
+    try:
+        container_no_param = (container_no or '').strip().upper()
+
+        if from_date:
+            try:
+                datetime.strptime(from_date, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD")
+        if to_date:
+            try:
+                datetime.strptime(to_date, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD")
+
+        plant_id = current_user.get("plant_id", 1)
+        now = datetime.now()
+        f_date = from_date or (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        t_date = to_date or now.strftime("%Y-%m-%d")
+
+        result = db.execute_query(
+            "EXEC dbo.GET_OFFLOAD_REPORT @fromDate = ?, @toDate = ?, @ContNo = ?, @PlantID = ?",
+            (f_date, t_date, container_no_param, plant_id),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Offload report success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Offload report error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
+@router.get("/count-with-moves")
+def get_count_with_moves(
+    current_user: dict = Depends(get_current_user),
+):
+    """In-yard non-empty containers ranked by move count — GET_COUNT_WITH_MOVES takes no params."""
+    db = SQLManager()
+    try:
+        result = db.execute_query("EXEC dbo.GET_COUNT_WITH_MOVES", fetch_all=True)
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Count with moves report success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Count with moves report error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/equipment-utilization")
 def get_equipment_utilization_report(
     from_date: Optional[str] = Query(None),
