@@ -309,7 +309,7 @@ const TrailerGateOut = () => {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[420px] shrink-0">
+                <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
                   <StatTile
                     label="Total Entries"
                     value={stats.total}
@@ -535,7 +535,7 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
           {Icon && <Icon className="text-[15px]" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-none mb-1.5 truncate">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
             {label}
           </p>
           <p

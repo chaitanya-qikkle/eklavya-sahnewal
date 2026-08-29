@@ -10,7 +10,8 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerGateReportQuery } from '../../../store/api/ymsApi'
 
-const today = new Date().toISOString().split('T')[0]
+const today     = new Date().toISOString().split('T')[0]
+const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
 const fmt = (val) => {
   if (!val) return '—'
@@ -20,8 +21,47 @@ const fmt = (val) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+const TONE_MAP = {
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
+}
+
+const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
+  const t = TONE_MAP[tone] || TONE_MAP.slate
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  return (
+    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
+      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+          {Icon && <Icon className="text-[15px]" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
+            {label}
+          </p>
+          <p className={`text-2xl font-black leading-none tracking-tight ${t.valueColor}`}>
+            {value.toLocaleString()}
+          </p>
+        </div>
+        {total > 0 && tone !== "slate" && (
+          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>
+            {pct}%
+          </span>
+        )}
+      </div>
+      {total > 0 && tone !== "slate" && (
+        <div className="h-[2px] bg-slate-100">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ContainerStatusReport = () => {
-  const [fromDate, setFromDate] = useState(today)
+  const [fromDate, setFromDate] = useState(yesterday)
   const [toDate,   setToDate]   = useState(today)
   const [search,   setSearch]   = useState('')
 
@@ -43,13 +83,13 @@ const ContainerStatusReport = () => {
     return { total: allRows.length, inYard, gatedOut }
   }, [allRows])
 
-  useEffect(() => { fetchReport({ from_date: today, to_date: today }) }, []) // eslint-disable-line
+  useEffect(() => { fetchReport({ from_date: yesterday, to_date: today }) }, []) // eslint-disable-line
 
   const handleSearch = () => fetchReport({ from_date: fromDate, to_date: toDate })
 
   const handleClear = () => {
-    setFromDate(today); setToDate(today); setSearch('')
-    fetchReport({ from_date: today, to_date: today })
+    setFromDate(yesterday); setToDate(today); setSearch('')
+    fetchReport({ from_date: yesterday, to_date: today })
   }
 
   const handleExport = () => {
@@ -94,17 +134,10 @@ const ContainerStatusReport = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 lg:gap-4">
-              {[
-                { label: 'Total',     val: stats.total,    cls: 'from-[#0e4a78] to-[#0a3b61]',    Icon: FiPackage  },
-                { label: 'In Yard',   val: stats.inYard,   cls: 'from-emerald-600 to-emerald-500', Icon: FiLogIn    },
-                { label: 'Gated Out', val: stats.gatedOut, cls: 'from-amber-500 to-amber-600',     Icon: FiLogOut   },
-              ].map(s => (
-                <div key={s.label} className={`bg-gradient-to-br ${s.cls} rounded-xl shadow-lg p-3 sm:p-4 text-white`}>
-                  <p className="text-xs uppercase tracking-wider font-semibold text-white/70">{s.label}</p>
-                  <p className="text-2xl sm:text-3xl font-bold mt-1">{s.val.toLocaleString()}</p>
-                </div>
-              ))}
+            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
+              <StatTile label="Total"     value={stats.total}    icon={FiPackage} tone="slate"   total={stats.total} />
+              <StatTile label="In Yard"   value={stats.inYard}   icon={FiLogIn}   tone="emerald" total={stats.total} />
+              <StatTile label="Gated Out" value={stats.gatedOut} icon={FiLogOut}  tone="amber"   total={stats.total} />
             </div>
           </header>
 
