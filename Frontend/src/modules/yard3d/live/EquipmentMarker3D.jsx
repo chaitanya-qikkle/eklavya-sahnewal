@@ -546,14 +546,20 @@ const EquipmentMarker3D = forwardRef(function EquipmentMarker3D(
         </>
       )}
 
-      {/* Heading arrow — direction indicator at front */}
-      <mesh position={[0, 2.2, 8.0]} rotation={[Math.PI / 2, 0, 0]}>
-        <coneGeometry args={[0.9, 2.5, 10]} />
-        <primitive object={glowMat} attach="material" />
-      </mesh>
+      {/* Heading arrow — direction indicator at front.
+          Skipped for reach_stacker: the real GLB already shows machine
+          heading, and this green cone was overlaying it. */}
+      {typeKey !== "reach_stacker" && (
+        <mesh position={[0, 2.2, 8.0]} rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.9, 2.5, 10]} />
+          <primitive object={glowMat} attach="material" />
+        </mesh>
+      )}
 
-      {/* Status beacon on cab roof */}
-      {!lowPerfMode && (
+      {/* Status beacon on cab roof.
+          Skipped for reach_stacker: this green/status-colored ball was
+          floating over the GLB model — the GLB doesn't need it. */}
+      {!lowPerfMode && typeKey !== "reach_stacker" && (
         <mesh position={[1.2, 6.2, 5.0]}>
           <sphereGeometry args={[selected ? 1.1 : 0.8, 12, 12]} />
           <meshStandardMaterial

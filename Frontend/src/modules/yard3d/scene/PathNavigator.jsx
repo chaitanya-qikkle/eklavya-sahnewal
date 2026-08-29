@@ -205,19 +205,19 @@ function GroundPath({ waypoints, entrancePos }) {
       </mesh>
       {/* Destination — at AISLE ENTRANCE (green pin on concrete) */}
       <mesh position={[end.x, 0.2, end.z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.7, 1.1, 18]} />
+        <ringGeometry args={[1.05, 1.65, 18]} />
         <meshBasicMaterial color="#22c55e" transparent opacity={0.9} depthWrite={false} />
       </mesh>
-      <mesh position={[end.x, 2.0, end.z]}>
-        <cylinderGeometry args={[0.1, 0.1, 4.0, 6]} />
+      <mesh position={[end.x, 3.0, end.z]}>
+        <cylinderGeometry args={[0.15, 0.15, 6.0, 6]} />
         <meshBasicMaterial color="#22c55e" transparent opacity={0.8} depthWrite={false} />
       </mesh>
-      <mesh position={[end.x, 4.3, end.z]}>
-        <coneGeometry args={[0.52, 1.0, 5]} />
+      <mesh position={[end.x, 6.45, end.z]}>
+        <coneGeometry args={[0.78, 1.5, 5]} />
         <meshBasicMaterial color="#22c55e" transparent opacity={0.95} depthWrite={false} />
       </mesh>
       <mesh position={[end.x, 0.15, end.z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[2.5, 20]} />
+        <circleGeometry args={[3.75, 20]} />
         <meshBasicMaterial color="#22c55e" transparent opacity={0.1} depthWrite={false} />
       </mesh>
     </group>

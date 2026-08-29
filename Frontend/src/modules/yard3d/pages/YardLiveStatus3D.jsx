@@ -594,8 +594,13 @@ export default function YardLiveStatus3D() {
     }));
   }, [liveEquipment, equipmentProjection]);
 
+  // Only require a GPS fix — don't drop machines whose fix falls outside the
+  // (tight, synthetic) geofence box. LiveEquipmentLayer/its projection already
+  // clamps out-of-bounds GPS onto the yard edge (clampToYard=true) for exactly
+  // this drift case, so filtering them out here just hid real machines instead
+  // of letting them render clamped at the boundary.
   const renderableEquipment = useMemo(
-    () => equipmentWithPos.filter(eq => eq.hasFix && !(eq.yardPos?.outOfBounds)),
+    () => equipmentWithPos.filter(eq => eq.hasFix),
     [equipmentWithPos]
   );
 
