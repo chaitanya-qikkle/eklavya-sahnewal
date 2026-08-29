@@ -606,6 +606,15 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getNavisionStatus: builder.query({
+      query: (navision_type) => ({
+        url: navision_type
+          ? `${API_ENDPOINTS.REPORTS.NAVISION_STATUS}?navision_type=${encodeURIComponent(navision_type)}`
+          : API_ENDPOINTS.REPORTS.NAVISION_STATUS,
+        method: 'GET',
+      }),
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -980,6 +989,7 @@ export const {
   useLazyGetOffloadReportQuery,
   useLazyGetDeviceTransactionSummaryQuery,
   useGetTaskAllocationSummaryQuery,
+  useLazyGetNavisionStatusQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,
