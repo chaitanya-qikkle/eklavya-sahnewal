@@ -762,6 +762,13 @@ export const ymsApi = createApi({
       },
     }),
 
+    getMismatchHandling: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.REPORTS.MISMATCH_HANDLING,
+        method: 'GET',
+      }),
+    }),
+
     getLifecycleDetails: builder.query({
       query: (container_no) => ({
         url: `${API_ENDPOINTS.CONTAINER.GET_LIFECYCLE_DETAILS}?container_no=${encodeURIComponent(container_no)}`,
@@ -1149,6 +1156,7 @@ export const {
   useLazyGetRailInReportQuery,
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
+  useLazyGetMismatchHandlingQuery,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

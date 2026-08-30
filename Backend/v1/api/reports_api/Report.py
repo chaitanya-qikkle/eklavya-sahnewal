@@ -854,6 +854,41 @@ def get_rail_in_report(
             pass
 
 
+@router.get("/mismatch-handling")
+def get_mismatch_handling(
+    current_user: dict = Depends(get_current_user),
+):
+    """Navision vs Eklavya inventory reconciliation — GET_RPT_INVENTORY_MISSMATCH."""
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_INVENTORY_MISSMATCH",
+            (),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+        data = result.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(f"Mismatch handling success: {len(data)} records")
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Mismatch handling error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+
+
 @router.get("/count-with-moves")
 def get_count_with_moves(
     current_user: dict = Depends(get_current_user),

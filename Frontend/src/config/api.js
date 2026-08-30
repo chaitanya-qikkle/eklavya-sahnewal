@@ -224,6 +224,7 @@ export const API_ENDPOINTS = {
     TRAILER_REPORT:  buildUrl('/v1/reports/trailer-report'),
     RAIL_JOURNEY: buildUrl('/v1/reports/rail-journey'),
     RAIL_JOURNEY_BY_DOCUMENT: buildUrl('/v1/reports/rail-journey-by-document'),
+    MISMATCH_HANDLING: buildUrl('/v1/reports/mismatch-handling'),
   },
 };
 
