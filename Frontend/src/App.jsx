@@ -58,6 +58,7 @@ const routeDefinitions = [
   { path: '/dashboard/yard-builder', Component: lazyPage(() => import('./modules/yard3d/pages/YardBuilderPage')) },
 
   { path: '/container/assign-inventory-block', Component: lazyPage(() => import('./modules/container/pages/AssignInventoryBlock')) },
+  { path: '/container/inventory-mapping', Component: lazyPage(() => import('./modules/container/pages/InventoryMapping')) },
   { path: '/container/history-status', Component: lazyPage(() => import('./modules/container/pages/ContainerHistoryStatus')) },
   { path: '/container/lifecycle', Component: lazyPage(() => import('./modules/container/pages/ContainerLifecycle')) },
   { path: '/container/e-survey', Component: lazyPage(() => import('./modules/container/pages/ESurvey')) },

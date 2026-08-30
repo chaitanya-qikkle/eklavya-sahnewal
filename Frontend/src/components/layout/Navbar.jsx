@@ -166,6 +166,7 @@ const Navbar = ({ brand = "Qikkle" }) => {
     "Report/Report/ActualVsProposedPlan":         "/reports/actual-vs-proposed-plan",
     "Report/Report/ContainerLiveReport":         "/reports/container-status-report",
     "Report/Report/AssignInventoryBlock":        "/container/assign-inventory-block",
+    "Essential/Container/InventoryMapping":      "/container/inventory-mapping",
     "Report/Report/TrailerLiveStatus":           "/trailer/status",
     "Report/Report/TrailerReport":               "/trailer/report",
     "Report/Report/GateInReport":                "/reports/gate-in-out-report",

@@ -762,6 +762,23 @@ export const ymsApi = createApi({
       },
     }),
 
+    getInventoryEntryDropdown: builder.query({
+      query: (block_name) => ({
+        url: block_name
+          ? `${API_ENDPOINTS.MASTER.INVENTORY_ENTRY_DROPDOWN}?block_name=${encodeURIComponent(block_name)}`
+          : API_ENDPOINTS.MASTER.INVENTORY_ENTRY_DROPDOWN,
+        method: 'GET',
+      }),
+    }),
+
+    submitInventoryEntry: builder.mutation({
+      query: (body) => ({
+        url: API_ENDPOINTS.MASTER.INVENTORY_ENTRY_SUBMIT,
+        method: 'POST',
+        body,
+      }),
+    }),
+
     getMismatchHandling: builder.query({
       query: () => ({
         url: API_ENDPOINTS.REPORTS.MISMATCH_HANDLING,
@@ -1157,6 +1174,8 @@ export const {
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
   useLazyGetMismatchHandlingQuery,
+  useLazyGetInventoryEntryDropdownQuery,
+  useSubmitInventoryEntryMutation,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
   useGetLifecycleOffloadTimelineQuery,

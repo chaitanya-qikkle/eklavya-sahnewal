@@ -17,7 +17,7 @@ def get_dropdown_data(block_name: Optional[str] = None):
     API 1 — Dropdown data for the Inventory Entry screen (no token required).
 
     Returns:
-      - blocks  : all active blocks for the plant
+      - blocks  : distinct BlockName values from ESS_MST_LOCATION
       - rows    : distinct RowNo values for the given block_name (empty if not provided)
       - columns : distinct ColumnName values for the given block_name (empty if not provided)
 
@@ -27,19 +27,30 @@ def get_dropdown_data(block_name: Optional[str] = None):
     """
     db = SQLManager()
     try:
-        response = db.execute_query(
-            "EXEC dbo.SP_INVENTORY_ENTRY_DROPDOWN ?, ?",
-            (_PLANT_ID, block_name),
-            fetch_all=True,
+        blocks_response = db.execute_query(
+            "SELECT DISTINCT BlockName FROM ESS_MST_LOCATION WHERE BlockName IS NOT NULL AND BlockName <> '' ORDER BY BlockName"
         )
+        if blocks_response.get("status") != "success":
+            return blocks_response
+        blocks = blocks_response.get("data") or []
 
-        if response.get("status") != "success":
-            return response
+        rows, columns = [], []
+        if block_name:
+            rows_response = db.execute_query(
+                "SELECT DISTINCT RowNo FROM ESS_MST_LOCATION WHERE BlockName = ? AND RowNo IS NOT NULL AND RowNo <> '' ORDER BY RowNo",
+                (block_name,),
+            )
+            if rows_response.get("status") != "success":
+                return rows_response
+            rows = rows_response.get("data") or []
 
-        result_sets = response.get("data") or []
-        blocks  = result_sets[0] if len(result_sets) > 0 else []
-        rows    = result_sets[1] if len(result_sets) > 1 else []
-        columns = result_sets[2] if len(result_sets) > 2 else []
+            columns_response = db.execute_query(
+                "SELECT DISTINCT ColumnName FROM ESS_MST_LOCATION WHERE BlockName = ? AND ColumnName IS NOT NULL AND ColumnName <> '' ORDER BY ColumnName",
+                (block_name,),
+            )
+            if columns_response.get("status") != "success":
+                return columns_response
+            columns = columns_response.get("data") or []
 
         return {
             "status": "success",
