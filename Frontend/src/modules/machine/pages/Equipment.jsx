@@ -41,8 +41,8 @@ const buildHeightSettings = (apiHeights) => {
 const initialForm = {
   eqpId: null,
   equipmentName: "",
-  deviceId: "",
   equipmentCode: "",
+  deviceId: "",
   equipmentMaker: "",
   simId: "",
   isRemoveDevice: "No",
@@ -77,7 +77,7 @@ export default function Equipment() {
 
   const getActorId = () => {
     const user = getStoredUser();
-    return user?.user_id ?? user?.id ?? 1;
+    return String(user?.user_id ?? user?.id ?? '00000000-0000-0000-0000-000000000000');
   };
 
   // ✅ FIX 2: records useMemo mein heightSettings add kiya
@@ -92,6 +92,7 @@ export default function Equipment() {
     return rawList.map(item => ({
       eqpId: item?.Eqp_ID ?? item?.eqp_id,
       equipmentName: item?.Equipment_Name ?? item?.equipment_name,
+      equipmentCode: item?.Equipment_Code ?? item?.equipment_code,
       deviceId: item?.Device_ID ?? item?.device_id,
       equipmentMaker: item?.Equipment_Maker ?? item?.equipment_maker,
       simId: item?.Sim_ID ?? item?.sim_id,
@@ -160,6 +161,7 @@ export default function Equipment() {
     setForm({
       eqpId: record.eqpId,
       equipmentName: record.equipmentName || "",
+      equipmentCode: record.equipmentCode || "",
       deviceId: record.deviceId || "",
       equipmentMaker: record.equipmentMaker || "",
       simId: record.simId || "",
@@ -215,6 +217,7 @@ export default function Equipment() {
     try {
       const payload = {
         plant_id: parseInt(form.plantId) || 1,
+        equipment_code: form.equipmentCode,
         equipment_name: form.equipmentName,
         device_id: form.deviceId,
         installation_date: form.installationDate || null,
@@ -474,6 +477,7 @@ export default function Equipment() {
                         </div>
                         <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           <TextField label="Equipment Name" name="equipmentName" value={form.equipmentName} onChange={handleChange} required />
+                          <TextField label="Equipment Code" name="equipmentCode" value={form.equipmentCode} onChange={handleChange} />
                           <SelectField label="Owner Name (Plant Name)" name="ownerName" value={form.ownerName} onChange={handleChange} options={plants.map(p => p.plantName)} />
                           <TextField label="Equipment Type" name="equipmentType" value={form.equipmentType} onChange={handleChange} />
                           <TextField label="Equipment Maker" name="equipmentMaker" value={form.equipmentMaker} onChange={handleChange} />

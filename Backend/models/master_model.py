@@ -99,6 +99,7 @@ class HeightSettingRequest(BaseModel):
 
 class EquipmentAddRequest(BaseModel):
     plant_id: Optional[int] = None
+    equipment_code: Optional[str] = None
     equipment_name: str
     device_id: Optional[str] = None
     installation_date: Optional[str] = None
@@ -107,18 +108,19 @@ class EquipmentAddRequest(BaseModel):
     equipment_maker: Optional[str] = None
     sim_id: Optional[str] = None
     vtm_imei_no: Optional[str] = None
+    is_remove_device: Optional[bool] = False
+    created_by: Optional[str] = ''
+    # Accepted but not persisted — INS_ESS_MST_EQUIPMENT has no columns for these.
     job_allow: Optional[bool] = False
     is_active: Optional[bool] = True
-    is_delete: Optional[bool] = False
-    is_remove_device: Optional[bool] = False
     is_manual_breakdown: Optional[bool] = False
-    created_by: Optional[int] = 1
-    height_settings: Optional[List[HeightSettingRequest]] = []  
+    height_settings: Optional[List[HeightSettingRequest]] = []
 
 
 class EquipmentUpdateRequest(BaseModel):
     eqp_id: int
     plant_id: Optional[int] = None
+    equipment_code: Optional[str] = None
     equipment_name: str
     device_id: Optional[str] = None
     installation_date: Optional[str] = None
@@ -127,17 +129,17 @@ class EquipmentUpdateRequest(BaseModel):
     equipment_maker: Optional[str] = None
     sim_id: Optional[str] = None
     vtm_imei_no: Optional[str] = None
+    is_remove_device: Optional[bool] = False
+    modified_by: Optional[str] = ''
+    # Accepted but not persisted — UPD_ESS_MST_EQUIPMENT has no columns for these.
     job_allow: Optional[bool] = False
     is_active: Optional[bool] = True
-    is_delete: Optional[bool] = False
-    is_remove_device: Optional[bool] = False
     is_manual_breakdown: Optional[bool] = False
-    modified_by: Optional[int] = 1
     height_settings: Optional[List[HeightSettingRequest]] = []
 
 class EquipmentDeleteRequest(BaseModel):
     eqp_id: int
-    modified_by: Optional[int] = 1
+    modified_by: Optional[str] = ''
 
 
 class EquipmentTransactionAddRequest(BaseModel):

@@ -45,6 +45,16 @@ async def login(request: Request, login_request: LoginRequest):
         lname    = user.get("LName") or ""
         email    = user.get("EmailId") or ""
 
+        role_name = "User"
+        if role_id:
+            role_response = db.execute_query(
+                "SELECT RoleName FROM IND_MST_ROLE WHERE RoleID = ?",
+                (role_id,),
+            )
+            role_data = role_response.get("data") or []
+            if role_data and role_data[0].get("RoleName"):
+                role_name = role_data[0]["RoleName"]
+
         access_token  = create_access_token(user_id=user_id, username=login_request.username, plant_id=plant_id)
         refresh_token = create_refresh_token(user_id=user_id)
 
@@ -63,7 +73,7 @@ async def login(request: Request, login_request: LoginRequest):
                 "last_name": lname,
                 "email": email,
                 "role_id": role_id,
-                "role": "User",
+                "role": role_name,
                 "plant_id": plant_id
             }
         }

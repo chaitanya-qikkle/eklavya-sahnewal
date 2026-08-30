@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
-import json
 from utils.db_utils import SQLManager
 from models.master_model import EquipmentAddRequest, EquipmentUpdateRequest, EquipmentDeleteRequest
 from middleware.auth_middleware import get_current_user
@@ -8,76 +7,71 @@ from middleware.auth_middleware import get_current_user
 equipment_router = APIRouter()
 
 
-def _normalize_date(date_value: Optional[str]) -> Optional[str]: 
+def _normalize_date(date_value: Optional[str]) -> Optional[str]:
     if not date_value:
         return None
     # Accept "YYYY-MM-DD", "YYYY-MM-DDTHH:MM", "YYYY-MM-DD HH:MM:SS"; keep date part.
     return str(date_value).strip()[:10]
 
+
+def _exec_with_output(db: SQLManager, query: str, params: tuple) -> int:
+    """Execute SP with OUTPUT param, return the issuccess int value."""
+    conn = db.conn
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    result = 0
+    while True:
+        try:
+            if cursor.description:
+                row = cursor.fetchone()
+                if row is not None:
+                    result = int(row[0])
+                    break
+        except Exception:
+            pass
+        try:
+            if not cursor.nextset():
+                break
+        except Exception:
+            break
+    conn.commit()
+    cursor.close()
+    return result
+
+
 @equipment_router.post("/add-equipment")
 def add_equipment(request: EquipmentAddRequest, current_user: dict = Depends(get_current_user)):
     db = SQLManager()
     try:
-        height_settings = request.height_settings or []
-        height_settings_json = (
-            json.dumps(
-                [
-                    {
-                        "equipment_name": request.equipment_name,
-                        "height": setting.height,
-                        "min_value": setting.min_value,
-                        "max_value": setting.max_value,
-                    }
-                    for setting in height_settings
-                ]
-            )
-            if height_settings
-            else None
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.INS_ESS_MST_EQUIPMENT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
+        params = (
+            0,  # @EqpID — SP ignores this on insert (identity column)
+            request.plant_id or current_user["plant_id"],
+            request.equipment_code or '',
+            request.equipment_name,
+            request.device_id or '',
+            _normalize_date(request.installation_date),
+            request.owner_name or '',
+            request.equipment_type or '',
+            request.equipment_maker or '',
+            request.sim_id or '',
+            request.vtm_imei_no or '',
+            int(bool(request.is_remove_device)),
+            request.created_by or current_user["user_id"],
         )
 
-        query = "EXEC dbo.SP_EQUIPMENT_ADD ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
-        
-        params = (
-            current_user["plant_id"], 
-            request.equipment_name, 
-            request.device_id,
-            _normalize_date(request.installation_date), 
-            request.owner_name,
-            request.equipment_type, 
-            request.equipment_maker, 
-            request.sim_id,
-            request.vtm_imei_no, 
-            int(bool(request.job_allow)),
-            int(bool(request.is_active)), 
-            int(bool(request.is_remove_device)),
-            int(bool(request.is_manual_breakdown)), 
-            current_user["user_id"],
-            height_settings_json,
-        )
-        
-        response = db.execute_query(query, params, commit=True, fetch_all=True)
-        
-        if response.get("status") == "success" and response.get("data"):
-            result_sets = response["data"]
-            result = result_sets[0][0] if result_sets else {}
-            
-            if result.get("Status") == 1:
-                return {
-                    "status": "success",
-                    "message": result.get("Message", "Equipment added successfully"),
-                    "data": {
-                        "equipment_id": result.get("EquipmentID"),
-                        "equipment_name": request.equipment_name,
-                        "height_settings_added": len(height_settings)
-                    }
-                }
-            else:
-                return {
-                    "status": "error",
-                    "message": result.get("Message", "Failed to add equipment")
-                }
-        
-        return response
+        result = _exec_with_output(db, query, params)
+        if result == 1:
+            return {
+                "status": "success",
+                "message": "Equipment added successfully",
+                "data": {"equipment_name": request.equipment_name},
+            }
+        return {"status": "error", "message": "Failed to add equipment"}
 
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
@@ -148,67 +142,35 @@ def get_current_equipment_status(current_user: dict = Depends(get_current_user))
 def update_equipment(request: EquipmentUpdateRequest, current_user: dict = Depends(get_current_user)):
     db = SQLManager()
     try:
-        height_settings = request.height_settings or []
-        height_settings_json = (
-            json.dumps(
-                [
-                    {
-                        "equipment_name": request.equipment_name,
-                        "height": setting.height,
-                        "min_value": setting.min_value,
-                        "max_value": setting.max_value,
-                    }
-                    for setting in height_settings
-                ]
-            )
-            if height_settings
-            else None
-        )
-
-        query = "EXEC dbo.SP_EQUIPMENT_UPDATE ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
-
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.UPD_ESS_MST_EQUIPMENT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
         params = (
             request.eqp_id,
-            current_user["plant_id"],
+            request.plant_id or current_user["plant_id"],
+            request.equipment_code or '',
             request.equipment_name,
-            request.device_id,
+            request.device_id or '',
             _normalize_date(request.installation_date),
-            request.owner_name,
-            request.equipment_type,
-            request.equipment_maker,
-            request.sim_id,
-            request.vtm_imei_no,
-            int(bool(request.job_allow)),
-            int(bool(request.is_active)),
+            request.owner_name or '',
+            request.equipment_type or '',
+            request.equipment_maker or '',
+            request.sim_id or '',
+            request.vtm_imei_no or '',
             int(bool(request.is_remove_device)),
-            int(bool(request.is_manual_breakdown)),
-            current_user["user_id"],
-            height_settings_json,
+            request.modified_by or current_user["user_id"],
         )
 
-        response = db.execute_query(query, params, commit=True, fetch_all=True)
-
-        if response.get("status") == "success" and response.get("data"):
-            result_sets = response["data"]
-            result = result_sets[0][0] if result_sets else {}
-
-            if result.get("Status") == 1:
-                return {
-                    "status": "success",
-                    "message": result.get("Message", "Equipment updated successfully"),
-                    "data": {
-                        "equipment_id": request.eqp_id,
-                        "equipment_name": request.equipment_name,
-                        "height_settings_updated": len(height_settings)
-                    }
-                }
-            else:
-                return {
-                    "status": "error",
-                    "message": result.get("Message", "Failed to update equipment")
-                }
-
-        return response
+        result = _exec_with_output(db, query, params)
+        if result == 1:
+            return {
+                "status": "success",
+                "message": "Equipment updated successfully",
+                "data": {"equipment_id": request.eqp_id, "equipment_name": request.equipment_name},
+            }
+        return {"status": "error", "message": "Failed to update equipment"}
 
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
@@ -220,49 +182,25 @@ async def delete_equipment(request: EquipmentDeleteRequest, current_user: dict =
     """
     Soft delete equipment by ID
     """
-    sql_manager = SQLManager()
-    
+    db = SQLManager()
+
     try:
-        # Execute the stored procedure with COMMIT enabled
-        query = "EXEC dbo.TBL_MST_EQUIPMENT_DELETE @Equipment_ID = ?, @DeletedBy = ?, @Plant_ID = ?"
-        params = (request.eqp_id, current_user["user_id"], current_user["plant_id"])
-        
-        response = sql_manager.execute_query(
-            sql_query=query,
-            params=params,
-            fetch_all=True,
-            commit=True,
-        )
-        if response['status'] == 'success':
-            # Extract the result from stored procedure
-            if response['data'] and len(response['data']) > 0:
-                result = response['data'][0][0]  # First result set, first row
-                
-                if result.get('Status') == 1:
-                    return {
-                        "status": "success",
-                        "message": result.get('Message', 'Equipment deleted successfully'),
-                        "data": {
-                            "eqp_id": request.eqp_id,
-                            "deleted_by": current_user["user_id"]
-                        }
-                    }
-                else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=result.get('Message', 'Failed to delete equipment')
-                    )
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="No response from stored procedure"
-                )
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=response.get('message', 'Database error occurred')
-            )
-            
+        deleted_by = request.modified_by or current_user["user_id"]
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.DEL_ESS_MST_EQUIPMENT ?, 0, '', '', '', NULL, '', '', '', '', '', 0, ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
+        result = _exec_with_output(db, query, (request.eqp_id, deleted_by))
+
+        if result == 1:
+            return {
+                "status": "success",
+                "message": "Equipment deleted successfully",
+                "data": {"eqp_id": request.eqp_id, "deleted_by": deleted_by},
+            }
+        raise HTTPException(status_code=400, detail="Failed to delete equipment")
+
     except HTTPException:
         raise
     except Exception as e:
@@ -271,4 +209,4 @@ async def delete_equipment(request: EquipmentDeleteRequest, current_user: dict =
             detail=f"An error occurred: {str(e)}"
         )
     finally:
-        sql_manager.close_connection()
+        db.close_connection()
