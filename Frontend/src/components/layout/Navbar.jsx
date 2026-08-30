@@ -575,8 +575,8 @@ const Navbar = ({ brand = "Qikkle" }) => {
                               <div
                                 className={
                                   denseLayout
-                                    ? "grid grid-cols-5 min-h-[190px] w-full gap-x-2 gap-y-0.5 content-start"
-                                    : "flex flex-col flex-wrap content-start min-h-[190px] w-full gap-x-4 gap-y-1"
+                                    ? "grid grid-cols-5 h-[190px] w-full gap-x-2 gap-y-0.5 content-start"
+                                    : "flex flex-col flex-wrap content-start h-[190px] w-full gap-x-4 gap-y-1"
                                 }
                               >
                                 {item.submenus.map((submenu) => {
