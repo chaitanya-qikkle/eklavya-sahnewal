@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { FiMapPin, FiPackage, FiGrid, FiLayers, FiCheckCircle, FiRefreshCw } from 'react-icons/fi'
 import { notify } from '../../../utils/notify'
 import {
   useGetInventoryEntryBlockListQuery,
-  useGetInventoryEntryListQuery,
+  useLazySearchContainerQuery,
   useUpdatePhysicalLocationMutation,
 } from '../../../store/api/ymsApi'
 
@@ -37,8 +37,8 @@ const FieldLabel = ({ icon: Icon, children }) => (
 
 const InventoryMapping = () => {
   const { data: blockListData, isFetching: isBlockListLoading } = useGetInventoryEntryBlockListQuery()
-  const { data: inventoryListData } = useGetInventoryEntryListQuery()
   const [updateLocation, { isLoading: isSubmitting }] = useUpdatePhysicalLocationMutation()
+  const [searchContainer, { data: searchData, isFetching: isSearching }] = useLazySearchContainerQuery()
 
   const [containerNo, setContainerNo] = useState('')
   const [blockName, setBlockName] = useState('')
@@ -46,19 +46,25 @@ const InventoryMapping = () => {
   const [columnNo, setColumnNo] = useState('')
   const [height, setHeight] = useState(1)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const debounceRef = useRef(null)
 
-  const allContainerNos = useMemo(() => {
-    const rows = Array.isArray(inventoryListData?.data) ? inventoryListData.data : []
-    return rows
-      .map((r) => String(r?.CONTAINER_NO ?? r?.container_no ?? '').trim().toUpperCase())
-      .filter(Boolean)
-  }, [inventoryListData])
+  useEffect(() => {
+    const term = containerNo.trim()
+    clearTimeout(debounceRef.current)
+    if (!term) return
+    debounceRef.current = setTimeout(() => {
+      searchContainer(term)
+    }, 250)
+    return () => clearTimeout(debounceRef.current)
+  }, [containerNo, searchContainer])
 
   const containerSuggestions = useMemo(() => {
-    const q = containerNo.trim().toUpperCase()
-    if (!q) return []
-    return allContainerNos.filter((c) => c.includes(q)).slice(0, 8)
-  }, [allContainerNos, containerNo])
+    if (!containerNo.trim()) return []
+    const rows = Array.isArray(searchData?.data) ? searchData.data : []
+    return rows
+      .map((r) => String(r?.Cont_No ?? r?.cont_no ?? '').trim().toUpperCase())
+      .filter(Boolean)
+  }, [searchData, containerNo])
 
   const blocks = useMemo(() => {
     const apiList = Array.isArray(blockListData?.data) ? blockListData.data : []
@@ -185,22 +191,28 @@ const InventoryMapping = () => {
                   className="w-full px-3 py-2 rounded-lg border-2 border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-semibold text-slate-800 uppercase tracking-wide transition-colors shadow-sm"
                 />
 
-                {showSuggestions && containerSuggestions.length > 0 && (
+                {showSuggestions && containerNo.trim() && (isSearching || containerSuggestions.length > 0) && (
                   <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border-2 border-[#0e4a78]/20 rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-                    {containerSuggestions.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setContainerNo(c)
-                          setShowSuggestions(false)
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm font-mono font-semibold text-slate-700 hover:bg-[#0e4a78]/5 border-b border-slate-100 last:border-b-0 transition-colors"
-                      >
-                        {c}
-                      </button>
-                    ))}
+                    {isSearching ? (
+                      <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-500">
+                        <FiRefreshCw className="animate-spin text-xs" /> Searching…
+                      </div>
+                    ) : (
+                      containerSuggestions.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setContainerNo(c)
+                            setShowSuggestions(false)
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm font-mono font-semibold text-slate-700 hover:bg-[#0e4a78]/5 border-b border-slate-100 last:border-b-0 transition-colors"
+                        >
+                          {c}
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
