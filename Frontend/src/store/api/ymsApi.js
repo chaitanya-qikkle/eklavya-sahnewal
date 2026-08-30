@@ -121,10 +121,10 @@ export const ymsApi = createApi({
     }),
 
     createUser: builder.mutation({
-      query: ({ role_id, first_name, last_name, username, password, email_id, created_by = 1 }) => ({
+      query: ({ role_id, plant_id = 1, client_id = 1, first_name, last_name, username, password, email_id, created_by }) => ({
         url: API_ENDPOINTS.AUTH.CREATE_USER,
         method: 'POST',
-        body: { role_id, first_name, last_name, username, password, email_id, created_by },
+        body: { role_id, plant_id, client_id, first_name, last_name, username, password, email_id, created_by },
       }),
       invalidatesTags: [{ type: 'Users', id: 'LIST' }],
     }),
