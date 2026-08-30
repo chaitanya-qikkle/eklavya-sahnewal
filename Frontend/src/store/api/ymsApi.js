@@ -139,16 +139,16 @@ export const ymsApi = createApi({
     }),
 
     updateRole: builder.mutation({
-      query: ({ role_id, role, plant_id, modified_by = 1, is_active = 1, is_delete = 0 }) => ({
+      query: ({ role_id, role, plant_id, modified_by = '' }) => ({
         url: API_ENDPOINTS.AUTH.UPDATE_ROLE,
         method: 'POST',
-        body: { role_id, role, plant_id, modified_by, is_active, is_delete },
+        body: { role_id, role, plant_id, modified_by },
       }),
       invalidatesTags: ['Roles'],
     }),
 
     deleteRole: builder.mutation({
-      query: ({ role_id, deleted_by = 1 }) => ({
+      query: ({ role_id, deleted_by = '' }) => ({
         url: API_ENDPOINTS.AUTH.DELETE_ROLE,
         method: 'POST',
         body: { role_id, deleted_by },
