@@ -143,7 +143,7 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
         // Field names from ESS_MST_SLOT: SLOTNAME, BLOCK, [COLUMN], [ROW],
         // YARDID, status, LATLONG, POLYGON (geometry stored as WKT string by SP)
         const slotName = row.SLOTNAME ?? row.SlotName ?? row.slotname ?? `Slot-${idx}`;
-        const block    = row.BLOCK    ?? row.Block    ?? row.BlockId  ?? "";
+        const block    = row.BlockName ?? row.BLOCK   ?? row.Block    ?? row.BlockId ?? "";
         const rowLabel = row.ROW      ?? row.Row      ?? row.row      ?? "";
         const col      = row.COLUMN   ?? row.Column   ?? row.column   ?? row.COL ?? "";
         const slotId   = row.SlotId   ?? row.SLOTID   ?? row.SlotID   ?? `slot-${idx}`;

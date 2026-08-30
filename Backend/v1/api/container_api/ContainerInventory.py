@@ -151,21 +151,12 @@ def get_container_gate_report(
 
 
 @router.get("/location-slots")
-def get_location_slots():
+def get_location_slots(current_user: dict = Depends(get_current_user)):
     db = SQLManager()
     try:
         result = db.execute_query(
-            """
-            SELECT
-                SlotID    AS SlotId,
-                SlotName  AS SLOTNAME,
-                LatLong   AS LATLONG,
-                [Row]     AS [ROW],
-                [Column]  AS [COLUMN],
-                YardId    AS YARDID,
-                BlockId   AS BLOCK
-            FROM ESS_MST_SLOT
-            """
+            "EXEC dbo.GET_ESS_MST_SLOT_LIST ?",
+            (current_user["plant_id"],),
         )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}

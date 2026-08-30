@@ -98,3 +98,30 @@ def get_master_lists(current_user: dict = Depends(get_current_user)):
             "blocks": blocks,
         },
     }
+
+
+@yard_router.get("/get-slot-list")
+def get_slot_list(current_user: dict = Depends(get_current_user)):
+    """
+    All georeferenced yard slots (SlotID, BlockName, Row, Column, LatLong polygon)
+    for the 3D yard view — GET_ESS_MST_SLOT_LIST.
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query(
+            "EXEC dbo.GET_ESS_MST_SLOT_LIST ?",
+            params=(current_user["plant_id"],),
+            fetch_all=True,
+        )
+        if response.get("status") != "success":
+            return response
+
+        data = response.get("data") or []
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        return {"status": "success", "total_records": len(data), "data": data}
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()

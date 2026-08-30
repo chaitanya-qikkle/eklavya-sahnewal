@@ -20,8 +20,74 @@ import Navbar from "../../../components/layout/Navbar";
 import {
   useGetContainerLiveStatusQuery,
   useGetYard3dSlotListQuery,
+  useGetLocationSlotsQuery,
 } from "../../../store/api/ymsApi";
 import { useLiveEquipment } from "../live/useLiveEquipment";
+
+// Parse "lat lng,lat lng,..." (ESS_MST_SLOT.LatLong format) into [{lat,lng}, ...]
+function parseSlotLatLong(raw) {
+  if (!raw || typeof raw !== "string") return [];
+  return raw
+    .trim()
+    .split(",")
+    .map((tok) => {
+      const parts = tok.trim().split(/\s+/);
+      if (parts.length < 2) return null;
+      const a = parseFloat(parts[0]);
+      const b = parseFloat(parts[1]);
+      if (!isFinite(a) || !isFinite(b)) return null;
+      return Math.abs(a) < Math.abs(b) ? { lat: a, lng: b } : { lat: b, lng: a };
+    })
+    .filter(Boolean);
+}
+
+// Build the { blocks: { [blockName]: { id, minLat, maxLat, minLng, maxLng,
+// rows, cols, slotCount } } } shape YardMap2D.jsx expects, from raw
+// GET_ESS_MST_SLOT_LIST rows — replaces the old static slot-geofence-mumbai.json.
+function buildGeofenceFromSlots(slotRows) {
+  if (!Array.isArray(slotRows) || slotRows.length === 0) return null;
+
+  const byBlock = new Map();
+  slotRows.forEach((row) => {
+    const blockName = String(row?.BlockName ?? row?.BLOCKNAME ?? "").trim();
+    const rowLabel = String(row?.Row ?? row?.ROW ?? "").trim();
+    const colDigits = String(row?.Column ?? row?.COLUMN ?? "").replace(/\D/g, "");
+    const colNum = colDigits ? Number(colDigits) : NaN;
+    const polygon = parseSlotLatLong(String(row?.LatLong ?? row?.LATLONG ?? ""));
+    if (!blockName || polygon.length < 3) return;
+    if (!byBlock.has(blockName)) byBlock.set(blockName, []);
+    byBlock.get(blockName).push({ rowLabel, colNum, polygon });
+  });
+
+  if (!byBlock.size) return null;
+
+  const blocks = {};
+  byBlock.forEach((slots, blockName) => {
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    const rowSet = new Set();
+    const colSet = new Set();
+    slots.forEach((s) => {
+      if (s.rowLabel) rowSet.add(s.rowLabel);
+      if (Number.isFinite(s.colNum)) colSet.add(s.colNum);
+      s.polygon.forEach((p) => {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      });
+    });
+
+    blocks[blockName] = {
+      id: blockName,
+      minLat, maxLat, minLng, maxLng,
+      rows: Array.from(rowSet).sort(),
+      cols: Array.from(colSet).sort((a, b) => a - b),
+      slotCount: slots.length,
+    };
+  });
+
+  return { blocks };
+}
 
 import { T } from "../command/theme";
 import { Dot, Panel } from "../command/primitives";
@@ -90,7 +156,6 @@ function mapLiveRow(row, idx) {
 
 export default function YardCommandCenter() {
   const [searchParams] = useSearchParams();
-  const [geofence, setGeofence] = useState(null);
 
   const [query, setQuery] = useState(() => searchParams.get("highlight") ?? "");
   const [filters, setFilters] = useState({ status: "All", size: "All", dwell: "All" });
@@ -101,13 +166,11 @@ export default function YardCommandCenter() {
   const [rightOpen, setRightOpen] = useState(true);
   const [showLabels, setShowLabels] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setGeofence(null);
-    fetch("/slot-geofence-mumbai.json").then((r) => r.json()).catch(() => null)
-      .then((gf) => { if (!cancelled && gf) setGeofence(gf); });
-    return () => { cancelled = true; };
-  }, []);
+  const { data: geofenceSourceResp } = useGetLocationSlotsQuery();
+  const geofence = useMemo(
+    () => buildGeofenceFromSlots(geofenceSourceResp?.data),
+    [geofenceSourceResp]
+  );
 
   const { data: liveResp, isFetching, refetch } = useGetContainerLiveStatusQuery("", {
     pollingInterval: 30_000, refetchOnFocus: true, refetchOnReconnect: true,
@@ -347,27 +410,29 @@ export default function YardCommandCenter() {
               </div>
             )}
             {geofence && (
-              <YardMap2D
-                geofence={geofence}
-                containers={visible}
-                activeStatus={filters.status}
-                selectedId={selected?.id}
-                onSelectContainer={setSelected}
-                showLabels={showLabels}
-              />
-              {/* Block label toggle */}
-              <button
-                onClick={() => setShowLabels((v) => !v)}
-                className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all hover:shadow-md text-[11px] font-bold"
-                style={{
-                  background: showLabels ? T.cyan + "33" : T.card + "ee",
-                  borderColor: showLabels ? T.cyan : T.border,
-                  color: showLabels ? T.cyan : T.textDim,
-                  backdropFilter: "blur(8px)",
-                }}
-              >
-                {showLabels ? "Hide Labels" : "Show Labels"}
-              </button>
+              <>
+                <YardMap2D
+                  geofence={geofence}
+                  containers={visible}
+                  activeStatus={filters.status}
+                  selectedId={selected?.id}
+                  onSelectContainer={setSelected}
+                  showLabels={showLabels}
+                />
+                {/* Block label toggle */}
+                <button
+                  onClick={() => setShowLabels((v) => !v)}
+                  className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all hover:shadow-md text-[11px] font-bold"
+                  style={{
+                    background: showLabels ? T.cyan + "33" : T.card + "ee",
+                    borderColor: showLabels ? T.cyan : T.border,
+                    color: showLabels ? T.cyan : T.textDim,
+                    backdropFilter: "blur(8px)",
+                  }}
+                >
+                  {showLabels ? "Hide Labels" : "Show Labels"}
+                </button>
+              </>
             )}
 
             {/* Bottom-right floating action: jump to realistic 3D yard */}

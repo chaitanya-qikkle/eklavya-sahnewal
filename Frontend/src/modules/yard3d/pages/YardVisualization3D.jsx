@@ -1,8 +1,98 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Navbar from "../../../components/layout/Navbar";
 import YardOverview3D from "./YardOverview3D";
-import { useGetYard3dInventoryQuery, useGetEquipmentQuery } from "../../../store/api/ymsApi";
+import { useGetYard3dInventoryQuery, useGetEquipmentQuery, useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
 import { realContainerColor } from "../scene/realContainerColor";
+
+// Parse "lat lng,lat lng,..." (ESS_MST_SLOT.LatLong format) into [{lat,lng}, ...]
+function parseSlotLatLong(raw) {
+  if (!raw || typeof raw !== "string") return [];
+  return raw
+    .trim()
+    .split(",")
+    .map((tok) => {
+      const parts = tok.trim().split(/\s+/);
+      if (parts.length < 2) return null;
+      const a = parseFloat(parts[0]);
+      const b = parseFloat(parts[1]);
+      if (!isFinite(a) || !isFinite(b)) return null;
+      // lat is the smaller-magnitude coordinate (~30 here), lng the larger (~75)
+      return Math.abs(a) < Math.abs(b) ? { lat: a, lng: b } : { lat: b, lng: a };
+    })
+    .filter(Boolean);
+}
+
+// Build CAD-style block geometry (cx, cy, w, h in local metres) from raw
+// GET_ESS_MST_SLOT_LIST rows, replacing the old static yard-layout-sahnewal.json.
+// Projection: simple equirectangular, anchored at the overall slot-set centroid —
+// good enough for a schematic yard canvas (not survey-grade).
+function buildBlocksFromSlots(slotRows) {
+  if (!Array.isArray(slotRows) || slotRows.length === 0) return [];
+
+  const parsed = slotRows
+    .map((row) => {
+      const blockName = String(row?.BlockName ?? row?.BLOCKNAME ?? "").trim();
+      const rowLabel = String(row?.Row ?? row?.ROW ?? "").trim();
+      const colLabel = String(row?.Column ?? row?.COLUMN ?? "").trim();
+      const polygon = parseSlotLatLong(String(row?.LatLong ?? row?.LATLONG ?? ""));
+      if (!blockName || polygon.length < 3) return null;
+      return { blockName, rowLabel, colLabel, polygon };
+    })
+    .filter(Boolean);
+
+  if (!parsed.length) return [];
+
+  // Anchor for the projection = centroid of every slot vertex across the whole yard.
+  let sumLat = 0, sumLng = 0, count = 0;
+  parsed.forEach((s) => s.polygon.forEach((p) => { sumLat += p.lat; sumLng += p.lng; count++; }));
+  const anchorLat = sumLat / count;
+  const anchorLng = sumLng / count;
+  const cosLat = Math.cos((anchorLat * Math.PI) / 180);
+  const M_PER_DEG_LAT = 110540; // metres per degree latitude (~constant)
+  const M_PER_DEG_LNG = 111320 * cosLat; // metres per degree longitude at this latitude
+
+  const project = (lat, lng) => ({
+    x: (lng - anchorLng) * M_PER_DEG_LNG,
+    y: (lat - anchorLat) * M_PER_DEG_LAT,
+  });
+
+  // Group by block name.
+  const byBlock = new Map();
+  parsed.forEach((s) => {
+    if (!byBlock.has(s.blockName)) byBlock.set(s.blockName, []);
+    byBlock.get(s.blockName).push(s);
+  });
+
+  return Array.from(byBlock.entries()).map(([blockName, slots]) => {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const rowSet = new Set();
+    const colSet = new Set();
+    slots.forEach((s) => {
+      if (s.rowLabel) rowSet.add(s.rowLabel);
+      if (s.colLabel) colSet.add(s.colLabel);
+      s.polygon.forEach((p) => {
+        const { x, y } = project(p.lat, p.lng);
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      });
+    });
+
+    return {
+      id: blockName,
+      name: blockName,
+      zone: "Import",
+      cx: (minX + maxX) / 2,
+      cy: (minY + maxY) / 2,
+      w: Math.max(maxX - minX, 1),
+      h: Math.max(maxY - minY, 1),
+      angle: 0,
+      slotRowCount: rowSet.size || 1,
+      slotColCount: colSet.size || 1,
+    };
+  });
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
@@ -79,8 +169,9 @@ const CUSTOMERS = Array.from({ length: 12 }, (_, i) => `Shipper ${String.fromCha
 
 const CANVAS_W = 920, CANVAS_H = 520;
 
-// Capacity/spec defaults (layout & zones come from yard-layout-sahnewal.json;
-// per-block rows/slots/tiers are derived dynamically from CAD dimensions).
+// Capacity/spec defaults (block geometry now comes from GET_ESS_MST_SLOT_LIST
+// via buildBlocksFromSlots(); rows/slots counts are derived from distinct
+// Row/Column values per block, maxTiers falls back to 4 when not specified here).
 const BLOCK_SPECS = {};
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -250,14 +341,12 @@ function YardOverviewCanvas({ layoutData, containers, filterStatus, filterZone, 
       const centerY = (maxY - b.cy) * s + oy; // invert Y for canvas
       const bw = Math.max(6, b.w * s);
       const bd = Math.max(6, b.h * s);
-      const dSlots = Math.max(1, Math.round(b.w / 6.25));
-      const dRows = Math.max(1, Math.round(b.h / 2.6));
       return {
         id: b.id,
         name: b.name || `BLOCK-${b.id}`,
         zone: b.zone || "Import",
-        rows: dRows,
-        slots: dSlots,
+        rows: b.slotRowCount || 1,
+        slots: b.slotColCount || 1,
         maxTiers: spec.maxTiers || 4,
         centerX,
         centerY,
@@ -809,15 +898,12 @@ export default function YardVisualization3D() {
   const [containers, setContainers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContainer, setSelectedContainer] = useState(null);
-  const [layoutData, setLayoutData] = useState(null);
-
-  useEffect(() => {
-    setLayoutData(null);
-    fetch(`/yard-layout-sahnewal.json?t=${Date.now()}`)
-      .then(res => res.json())
-      .then(data => setLayoutData(data))
-      .catch(err => console.error("Failed to load CAD layout", err));
-  }, []);
+  const { data: slotListResp } = useGetLocationSlotsQuery();
+  const layoutData = useMemo(() => {
+    const rows = Array.isArray(slotListResp?.data) ? slotListResp.data : [];
+    if (!rows.length) return null;
+    return { blocks: buildBlocksFromSlots(rows) };
+  }, [slotListResp]);
   const [maxTier, setMaxTier] = useState(4);
   const [filterZone, setFilterZone] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -839,16 +925,12 @@ export default function YardVisualization3D() {
     if (!Array.isArray(cadBlocks) || cadBlocks.length === 0) return [];
     return cadBlocks.map(b => {
       const spec = BLOCK_SPECS[b.id] || { maxTiers: 4 };
-      // Dynamically calculate realistic slots and rows based on CAD dimensions
-      // Assuming typical slot pitch 6.25m (1x20ft) and row pitch 2.6m
-      const dSlots = Math.max(1, Math.round(b.w / 6.25));
-      const dRows = Math.max(1, Math.round(b.h / 2.6));
       return {
         id: b.id,
         name: b.name || `BLOCK-${b.id}`,
         zone: b.zone || "Import",
-        rows: dRows,
-        slots: dSlots,
+        rows: b.slotRowCount || 1,
+        slots: b.slotColCount || 1,
         maxTiers: spec.maxTiers || 4,
       };
     });
