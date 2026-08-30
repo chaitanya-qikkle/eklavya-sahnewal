@@ -5,7 +5,16 @@ import {
   useGetInventoryEntryBlockListQuery,
   useLazySearchContainerQuery,
   useUpdatePhysicalLocationMutation,
+  useLazyGetPhysicalInventoryLogQuery,
 } from '../../../store/api/ymsApi'
+
+const fmtLogDate = (val) => {
+  if (!val) return '—'
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
 
 const HEIGHTS = [1, 2, 3, 4]
 
@@ -39,6 +48,7 @@ const InventoryMapping = () => {
   const { data: blockListData, isFetching: isBlockListLoading } = useGetInventoryEntryBlockListQuery()
   const [updateLocation, { isLoading: isSubmitting }] = useUpdatePhysicalLocationMutation()
   const [searchContainer, { data: searchData, isFetching: isSearching }] = useLazySearchContainerQuery()
+  const [fetchLog, { data: logData, isFetching: isLogLoading }] = useLazyGetPhysicalInventoryLogQuery()
 
   const [containerNo, setContainerNo] = useState('')
   const [blockName, setBlockName] = useState('')
@@ -57,6 +67,13 @@ const InventoryMapping = () => {
     }, 250)
     return () => clearTimeout(debounceRef.current)
   }, [containerNo, searchContainer])
+
+  useEffect(() => { fetchLog({}) }, [] ) // eslint-disable-line
+
+  const recentUpdates = useMemo(
+    () => (Array.isArray(logData?.data) ? logData.data.slice(0, 15) : []),
+    [logData]
+  )
 
   const containerSuggestions = useMemo(() => {
     if (!containerNo.trim()) return []
@@ -135,7 +152,10 @@ const InventoryMapping = () => {
       }
 
       notify.success('Saved', result?.message || 'Container location mapped successfully')
-      resetForm()
+      // Keep Block/Row/Column/Height as-is so the user can quickly map the
+      // next container to the same or nearby spot — only clear the container no.
+      setContainerNo('')
+      fetchLog({})
     } catch (err) {
       notify.error('Save failed', err?.data?.detail || err?.data?.message || err?.message || 'Something went wrong')
     }
@@ -161,13 +181,13 @@ const InventoryMapping = () => {
           </div>
         </div>
 
-        {/* Form Card — fills remaining space, no internal scroll */}
-        <div className="flex-1 min-h-0 flex flex-col mx-3 mb-3 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        {/* Form Card — sized to its content; Recent Updates below takes the rest */}
+        <div className="shrink-0 flex flex-col mx-3 mb-3 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-4 py-2 shrink-0">
             <h2 className="text-white font-bold text-xs tracking-wide uppercase">Mapping</h2>
           </div>
 
-          <div className="flex-1 min-h-0 flex flex-col justify-between px-4 py-3 gap-2.5">
+          <div className="flex flex-col px-4 py-3 gap-2.5">
 
             <div className="space-y-2.5">
               {/* Container No */}
@@ -302,6 +322,37 @@ const InventoryMapping = () => {
                 {isSubmitting ? 'Saving…' : 'Save Mapping'}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Recent Updates — same data as reports/physical-inventory-log (GET_PHYSICAL_INVENTORY_LOG) */}
+        <div className="flex-1 min-h-0 flex flex-col mx-3 mb-3 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-4 py-2 shrink-0 flex items-center justify-between">
+            <h2 className="text-white font-bold text-xs tracking-wide uppercase">Recent Updates</h2>
+            {isLogLoading && <FiRefreshCw className="animate-spin text-white text-xs" />}
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100">
+            {recentUpdates.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-slate-400">
+                {isLogLoading ? 'Loading…' : 'No updates yet today'}
+              </div>
+            ) : (
+              recentUpdates.map((r, i) => (
+                <div key={i} className="px-4 py-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-mono font-bold text-slate-800 truncate">
+                      {r.ContainerNo || '—'}
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      {r.Location || '—'}
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-slate-400 shrink-0 tabular-nums">
+                    {fmtLogDate(r.UpdatedDate)}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
