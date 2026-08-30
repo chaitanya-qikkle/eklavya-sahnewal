@@ -264,16 +264,19 @@ const DailyEquipmentUtilization = () => {
 
           {/* ── Summary Cards ───────────────────────────────────────────── */}
           {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: 'Avg Utilization',  value: `${summary.avgUtil}%`  },
                 { label: 'Total Moves',       value: summary.totalMoves     },
                 { label: 'Avg Work Hours',    value: `${summary.avgWork}h`  },
                 { label: 'Avg Hourly Moves',  value: summary.avgHourly      },
               ].map(({ label, value }) => (
-                <div key={label} className="bg-white rounded-lg shadow border border-slate-200 px-5 py-4">
-                  <div className="text-[10px] font-bold text-[#0e4a78] uppercase tracking-widest mb-1">{label}</div>
-                  <div className="text-2xl font-black text-slate-800">{value}</div>
+                <div
+                  key={label}
+                  className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
+                  <p className="text-3xl font-bold text-slate-800 mt-2">{value}</p>
                 </div>
               ))}
             </div>
