@@ -122,10 +122,6 @@ const InventoryMapping = () => {
       notify.warning('Validation', 'Column is required')
       return
     }
-    if (selectedBlock && (colNum < selectedBlock.minColumn || colNum > selectedBlock.maxColumn)) {
-      notify.warning('Validation', `Column must be between ${selectedBlock.minColumn} and ${selectedBlock.maxColumn} for block ${blockName}`)
-      return
-    }
 
     try {
       const location = `${blockName}:${rowNo}:${columnNo}:${height}`
@@ -253,21 +249,13 @@ const InventoryMapping = () => {
 
               {/* Column */}
               <div>
-                <FieldLabel icon={FiGrid}>
-                  Column {selectedBlock && (
-                    <span className="normal-case text-slate-400 font-medium">
-                      ({selectedBlock.minColumn}–{selectedBlock.maxColumn})
-                    </span>
-                  )}
-                </FieldLabel>
+                <FieldLabel icon={FiGrid}>Column</FieldLabel>
                 <input
                   type="number"
                   value={columnNo}
                   onChange={(e) => setColumnNo(e.target.value)}
-                  min={selectedBlock?.minColumn}
-                  max={selectedBlock?.maxColumn}
                   disabled={!blockName}
-                  placeholder={selectedBlock ? `${selectedBlock.minColumn}–${selectedBlock.maxColumn}` : 'Select a block first'}
+                  placeholder={blockName ? 'Enter column' : 'Select a block first'}
                   className="w-full px-3 py-2 rounded-lg border-2 border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-medium text-slate-800 transition-colors shadow-sm disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
               </div>
