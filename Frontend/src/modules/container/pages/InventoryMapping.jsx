@@ -1,14 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { FiMapPin, FiPackage, FiGrid, FiLayers, FiCheckCircle, FiRefreshCw } from 'react-icons/fi'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
 import {
-  useLazyGetInventoryEntryDropdownQuery,
-  useSubmitInventoryEntryMutation,
+  useGetInventoryEntryBlockListQuery,
+  useUpdatePhysicalLocationMutation,
 } from '../../../store/api/ymsApi'
 
 const HEIGHTS = [1, 2, 3, 4]
+
+const letterRange = (min, max) => {
+  const start = String(min || 'A').toUpperCase().charCodeAt(0)
+  const end = String(max || 'A').toUpperCase().charCodeAt(0)
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return []
+  const out = []
+  for (let c = start; c <= end; c++) out.push(String.fromCharCode(c))
+  return out
+}
 
 const FieldLabel = ({ icon: Icon, children }) => (
   <label className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-[0.12em] mb-2">
@@ -18,50 +27,49 @@ const FieldLabel = ({ icon: Icon, children }) => (
 )
 
 const InventoryMapping = () => {
-  const [fetchDropdown, { data: dropdownData, isFetching: isDropdownLoading }] = useLazyGetInventoryEntryDropdownQuery()
-  const [submitEntry, { isLoading: isSubmitting }] = useSubmitInventoryEntryMutation()
+  const { data: blockListData, isFetching: isBlockListLoading } = useGetInventoryEntryBlockListQuery()
+  const [updateLocation, { isLoading: isSubmitting }] = useUpdatePhysicalLocationMutation()
 
   const [containerNo, setContainerNo] = useState('')
   const [blockName, setBlockName] = useState('')
   const [rowNo, setRowNo] = useState('')
-  const [columnName, setColumnName] = useState('')
+  const [columnNo, setColumnNo] = useState('')
   const [height, setHeight] = useState(1)
 
   const blocks = useMemo(() => {
-    const rows = dropdownData?.data?.blocks || []
-    return rows
-      .map((r) => String(r?.BlockName ?? r?.blockName ?? '').trim())
-      .filter(Boolean)
-  }, [dropdownData])
-
-  const rows = useMemo(() => {
-    const list = dropdownData?.data?.rows || []
+    const list = Array.isArray(blockListData?.data) ? blockListData.data : []
     return list
-      .map((r) => String(r?.RowNo ?? r?.rowNo ?? '').trim())
-      .filter(Boolean)
-  }, [dropdownData])
+      .map((b) => ({
+        block: String(b?.Block ?? b?.block ?? '').trim(),
+        minRow: b?.MinRow ?? b?.minRow,
+        maxRow: b?.MaxRow ?? b?.maxRow,
+        minColumn: Number(b?.MinColumn ?? b?.minColumn) || 1,
+        maxColumn: Number(b?.MaxColumn ?? b?.maxColumn) || 1,
+      }))
+      .filter((b) => b.block)
+  }, [blockListData])
 
-  const columns = useMemo(() => {
-    const list = dropdownData?.data?.columns || []
-    return list
-      .map((r) => String(r?.ColumnName ?? r?.columnName ?? '').trim())
-      .filter(Boolean)
-  }, [dropdownData])
+  const selectedBlock = useMemo(
+    () => blocks.find((b) => b.block === blockName) || null,
+    [blocks, blockName]
+  )
 
-  useEffect(() => { fetchDropdown() }, []) // eslint-disable-line
+  const rowOptions = useMemo(
+    () => (selectedBlock ? letterRange(selectedBlock.minRow, selectedBlock.maxRow) : []),
+    [selectedBlock]
+  )
 
   const handleBlockChange = (value) => {
     setBlockName(value)
     setRowNo('')
-    setColumnName('')
-    if (value) fetchDropdown(value)
+    setColumnNo('')
   }
 
   const resetForm = () => {
     setContainerNo('')
     setBlockName('')
     setRowNo('')
-    setColumnName('')
+    setColumnNo('')
     setHeight(1)
   }
 
@@ -78,18 +86,21 @@ const InventoryMapping = () => {
       notify.warning('Validation', 'Please select a Row')
       return
     }
-    if (!columnName.trim()) {
+    const colNum = Number(columnNo)
+    if (!columnNo || !Number.isFinite(colNum)) {
       notify.warning('Validation', 'Column is required')
+      return
+    }
+    if (selectedBlock && (colNum < selectedBlock.minColumn || colNum > selectedBlock.maxColumn)) {
+      notify.warning('Validation', `Column must be between ${selectedBlock.minColumn} and ${selectedBlock.maxColumn} for block ${blockName}`)
       return
     }
 
     try {
-      const result = await submitEntry({
+      const location = `${blockName}:${rowNo}:${columnNo}:${height}`
+      const result = await updateLocation({
         container_no: containerNo.trim().toUpperCase(),
-        block_name: blockName,
-        row_no: rowNo,
-        column_name: columnName.trim(),
-        height,
+        location,
       }).unwrap()
 
       if (result?.status !== 'success') {
@@ -99,7 +110,7 @@ const InventoryMapping = () => {
       notify.success('Saved', result?.message || 'Container location mapped successfully')
       resetForm()
     } catch (err) {
-      notify.error('Save failed', err?.data?.message || err?.message || 'Something went wrong')
+      notify.error('Save failed', err?.data?.detail || err?.data?.message || err?.message || 'Something went wrong')
     }
   }
 
@@ -154,12 +165,12 @@ const InventoryMapping = () => {
                     <select
                       value={blockName}
                       onChange={(e) => handleBlockChange(e.target.value)}
-                      disabled={isDropdownLoading && !blocks.length}
+                      disabled={isBlockListLoading}
                       className="w-full px-4 py-3 rounded-lg border-2 border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-medium text-slate-800 transition-colors shadow-sm disabled:bg-slate-100"
                     >
-                      <option value="">— Select Block —</option>
+                      <option value="">{isBlockListLoading ? 'Loading blocks…' : '— Select Block —'}</option>
                       {blocks.map((b) => (
-                        <option key={b} value={b}>{b}</option>
+                        <option key={b.block} value={b.block}>{b.block}</option>
                       ))}
                     </select>
                   </div>
@@ -170,11 +181,11 @@ const InventoryMapping = () => {
                     <select
                       value={rowNo}
                       onChange={(e) => setRowNo(e.target.value)}
-                      disabled={!blockName || isDropdownLoading}
+                      disabled={!blockName}
                       className="w-full px-4 py-3 rounded-lg border-2 border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-medium text-slate-800 transition-colors shadow-sm disabled:bg-slate-100 disabled:cursor-not-allowed"
                     >
                       <option value="">{blockName ? '— Select Row —' : 'Select a block first'}</option>
-                      {rows.map((r) => (
+                      {rowOptions.map((r) => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
@@ -183,28 +194,23 @@ const InventoryMapping = () => {
 
                 {/* Column */}
                 <div>
-                  <FieldLabel icon={FiGrid}>Column</FieldLabel>
-                  {columns.length > 0 ? (
-                    <select
-                      value={columnName}
-                      onChange={(e) => setColumnName(e.target.value)}
-                      disabled={!blockName || isDropdownLoading}
-                      className="w-full px-4 py-3 rounded-lg border-2 border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-medium text-slate-800 transition-colors shadow-sm disabled:bg-slate-100"
-                    >
-                      <option value="">— Select Column —</option>
-                      {columns.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={columnName}
-                      onChange={(e) => setColumnName(e.target.value)}
-                      placeholder="Enter column"
-                      className="w-full px-4 py-3 rounded-lg border-2 border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-medium text-slate-800 transition-colors shadow-sm"
-                    />
-                  )}
+                  <FieldLabel icon={FiGrid}>
+                    Column {selectedBlock && (
+                      <span className="normal-case text-slate-400 font-medium">
+                        (range {selectedBlock.minColumn}–{selectedBlock.maxColumn})
+                      </span>
+                    )}
+                  </FieldLabel>
+                  <input
+                    type="number"
+                    value={columnNo}
+                    onChange={(e) => setColumnNo(e.target.value)}
+                    min={selectedBlock?.minColumn}
+                    max={selectedBlock?.maxColumn}
+                    disabled={!blockName}
+                    placeholder={selectedBlock ? `${selectedBlock.minColumn}–${selectedBlock.maxColumn}` : 'Select a block first'}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-medium text-slate-800 transition-colors shadow-sm disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  />
                 </div>
 
                 {/* Height */}

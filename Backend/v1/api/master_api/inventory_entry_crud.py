@@ -1,4 +1,5 @@
 import os
+import json
 from fastapi import APIRouter, Query
 from typing import Optional
 
@@ -11,55 +12,30 @@ inventory_entry_router = APIRouter()
 _PLANT_ID = int(os.getenv("MOBILE_PLANT_ID", "1"))
 
 
-@inventory_entry_router.get("/get-dropdown-data")
-def get_dropdown_data(block_name: Optional[str] = None):
+@inventory_entry_router.get("/get-block-list")
+def get_block_list():
     """
-    API 1 — Dropdown data for the Inventory Entry screen (no token required).
+    Block list with Row/Column ranges for the Inventory Mapping screen — GET_BLOCK_LIST.
 
-    Returns:
-      - blocks  : distinct BlockName values from ESS_MST_LOCATION
-      - rows    : distinct RowNo values for the given block_name (empty if not provided)
-      - columns : distinct ColumnName values for the given block_name (empty if not provided)
-
-    Usage:
-      GET /v1/inventory-entry/get-dropdown-data
-      GET /v1/inventory-entry/get-dropdown-data?block_name=P1-L-4
+    Returns one row per block: { Block, MinRow, MaxRow, MinColumn, MaxColumn }.
+    The SP returns its result as a single JSON string (FOR JSON PATH), so it's
+    parsed here rather than treated as normal tabular rows.
     """
     db = SQLManager()
     try:
-        blocks_response = db.execute_query(
-            "SELECT DISTINCT BlockName FROM ESS_MST_LOCATION WHERE BlockName IS NOT NULL AND BlockName <> '' ORDER BY BlockName"
+        response = db.execute_query("EXEC dbo.GET_BLOCK_LIST")
+        if response.get("status") != "success":
+            return response
+
+        data = response.get("data") or []
+        # FOR JSON PATH comes back as a single column/row containing the JSON text,
+        # split across multiple rows if long — concatenate before parsing.
+        json_text = "".join(
+            next(iter(row.values()), "") for row in data if isinstance(row, dict)
         )
-        if blocks_response.get("status") != "success":
-            return blocks_response
-        blocks = blocks_response.get("data") or []
+        blocks = json.loads(json_text) if json_text else []
 
-        rows, columns = [], []
-        if block_name:
-            rows_response = db.execute_query(
-                "SELECT DISTINCT RowNo FROM ESS_MST_LOCATION WHERE BlockName = ? AND RowNo IS NOT NULL AND RowNo <> '' ORDER BY RowNo",
-                (block_name,),
-            )
-            if rows_response.get("status") != "success":
-                return rows_response
-            rows = rows_response.get("data") or []
-
-            columns_response = db.execute_query(
-                "SELECT DISTINCT ColumnName FROM ESS_MST_LOCATION WHERE BlockName = ? AND ColumnName IS NOT NULL AND ColumnName <> '' ORDER BY ColumnName",
-                (block_name,),
-            )
-            if columns_response.get("status") != "success":
-                return columns_response
-            columns = columns_response.get("data") or []
-
-        return {
-            "status": "success",
-            "data": {
-                "blocks":  blocks,
-                "rows":    rows,
-                "columns": columns,
-            },
-        }
+        return {"status": "success", "data": blocks}
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
     finally:

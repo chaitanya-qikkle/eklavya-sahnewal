@@ -126,9 +126,9 @@ export const API_ENDPOINTS = {
     GET_EQUIPMENT_DAILY_UTILIZATION_COUNT: buildUrl('/v1/equipment-transaction/daily-utilization-count'),
 
     // Inventory Entry (Container-Yard-Row-Column-Height Mapping)
-    INVENTORY_ENTRY_DROPDOWN: buildUrl('/v1/inventory-entry/get-dropdown-data'),
+    INVENTORY_ENTRY_BLOCK_LIST: buildUrl('/v1/inventory-entry/get-block-list'),
     INVENTORY_ENTRY_LIST: buildUrl('/v1/inventory-entry/get-inventory-list'),
-    INVENTORY_ENTRY_SUBMIT: buildUrl('/v1/inventory-entry/submit'),
+    UPDATE_PHYSICAL_LOCATION: buildUrl('/v1/container/update-physical-location'),
 
     // Device Data (EKDEVICE)
     GET_DEVICE_DATA: buildUrl('/v1/device-data/get-device-data'),
