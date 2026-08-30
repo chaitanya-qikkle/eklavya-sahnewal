@@ -174,8 +174,9 @@ const UserPage = () => {
 
       const payload = {
         ...basePayload,
+        plant_id:  Number(formData.plantId)  || 1,
+        client_id: Number(formData.clientId) || 1,
         password: formData.password,
-        created_by: 1,
       }
 
       const result = await createUserMutation(payload).unwrap()

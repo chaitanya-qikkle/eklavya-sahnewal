@@ -46,28 +46,30 @@ def create_user_sp(user: UserCreateRequest, current_user: dict = Depends(get_cur
         if chk_data and chk_data[0].get("cnt", 0) > 0:
             return {"status": "error", "message": "Username already exists"}
 
-        logger.info(f"Creating user: username={user.username}, role={user.role_id}, by={current_user.get('user_id')}")
-        response = db.execute_query(
-            """
-            INSERT INTO IND_MST_USER
-                (UserID, RoleID, PlantID, ClientID, FName, LName, UserName, Password, EmailId, CreatedDate, IsDelete)
-            VALUES
-                (NEWID(), ?, 1, 1, ?, ?, ?, ?, ?, GETDATE(), 0)
-            """,
-            (
-                user.role_id,
-                user.first_name,
-                user.last_name,
-                user.username,
-                user.password,
-                str(user.email_id),
-            ),
-            commit=True,
-        )
+        created_by = user.created_by or current_user.get("user_id")
 
-        if response.get("status") == "success":
+        logger.info(f"Creating user: username={user.username}, role={user.role_id}, by={current_user.get('user_id')}")
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.INS_IND_MST_USER ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
+        params = (
+            "00000000-0000-0000-0000-000000000000",  # @UserID — SP always assigns NEWID() internally, value is ignored
+            user.role_id,
+            user.plant_id,
+            user.client_id,
+            user.first_name,
+            user.last_name,
+            user.username,
+            user.password,
+            str(user.email_id),
+            created_by,
+        )
+        result = _exec_with_output(db, query, params)
+        if result == 1:
             return {"status": "success", "message": "User created successfully"}
-        return {"status": "error", "message": response.get("message", "Failed to create user")}
+        return {"status": "error", "message": "Failed to create user"}
 
     except Exception as e:
         logger.error(f"create-user error: {str(e)}")
@@ -120,7 +122,17 @@ def delete_user(request: UserDeleteRequest, current_user: dict = Depends(get_cur
 def update_user(request: UserUpdateRequest, current_user: dict = Depends(get_current_user)):
     db = SQLManager()
     try:
-        password_param = request.password if request.password else ''
+        password_param = request.password
+        if not password_param:
+            # UPD_IND_MST_USER always overwrites Password with @Password (no blank/NULL check),
+            # so a blank edit-form password must be backfilled with the current one to preserve it.
+            existing = db.execute_query(
+                "SELECT Password FROM IND_MST_USER WHERE UserID = ?",
+                (request.user_id,),
+            )
+            existing_data = existing.get("data") or []
+            password_param = existing_data[0].get("Password", "") if existing_data else ""
+
         created_by = request.created_by or request.user_id
 
         query = """

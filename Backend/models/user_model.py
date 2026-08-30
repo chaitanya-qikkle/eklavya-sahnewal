@@ -4,6 +4,8 @@ from typing import Optional
 
 class UserCreateRequest(BaseModel):
     role_id: int = Field(..., gt=0, description="Role ID")
+    plant_id: int = Field(default=1, description="Plant ID")
+    client_id: int = Field(default=1, description="Client ID")
     first_name: str = Field(..., min_length=1, max_length=100, description="First name")
     last_name: str = Field(default="", max_length=100, description="Last name")
     username: str = Field(..., min_length=3, max_length=50, description="Username")
