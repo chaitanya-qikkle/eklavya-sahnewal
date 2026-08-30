@@ -6,7 +6,8 @@ import Navbar from "../../../components/layout/Navbar";
 import YardScene from "../scene/YardScene";
 import { CameraSwitcher, RouteProgress } from "../nav/CameraSwitcher";
 import DownloadDesktopApp, { DesktopBadge } from "../components/DownloadDesktopApp";
-import { useGetContainerLiveStatusQuery } from "../../../store/api/ymsApi";
+import { useGetContainerLiveStatusQuery, useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
+import { buildGeofenceFromSlotList } from "../scene/buildGeofenceFromSlotList";
 import {
   FiSearch, FiX, FiRefreshCw, FiPackage, FiMapPin,
   FiActivity, FiLayers, FiBox, FiClock,
@@ -337,14 +338,20 @@ const Sidebar = ({ side = "left", open, onToggle, tabs, activeTab, onTabChange, 
 };
 
 // ── main page ────────────────────────────────────────────────────────────
-// NOTE: geofence lat/lng are synthetic (projected from the DXF's local
-// metre coordinates), not a real GPS survey — see parse-geofence-sahnewal.mjs.
-const SAHNEWAL_SITE = { key: "sahnewal", label: "Sahnewal", geofence: "/slot-geofence-sahnewal.json", layout: "/yard-layout-sahnewal.json" };
+// NOTE: dxfLayout (buildings/roads/walls) still comes from the static DXF
+// export — GET_ESS_MST_SLOT_LIST has no equivalent for those. geofence
+// (block/slot boundaries) now comes from the live DB via buildGeofenceFromSlotList.
+const SAHNEWAL_SITE = { key: "sahnewal", label: "Sahnewal", layout: "/yard-layout-sahnewal.json" };
 
 export default function YardLiveStatus3D() {
   const [searchParams] = useSearchParams();
-  const [geofence, setGeofence] = useState(null);
   const [dxfLayout, setDxfLayout] = useState(null);
+
+  const { data: slotListResp } = useGetLocationSlotsQuery();
+  const geofence = useMemo(
+    () => buildGeofenceFromSlotList(slotListResp?.data),
+    [slotListResp]
+  );
 
   // Road Painter
   const [roadPainterActive, setRoadPainterActive] = useState(false);
@@ -504,16 +511,9 @@ export default function YardLiveStatus3D() {
   useEffect(() => {
     let cancelled = false;
     const site = SAHNEWAL_SITE;
-    setGeofence(null);
     setDxfLayout(null);
-    Promise.all([
-      fetch(site.geofence).then(r => r.json()).catch(() => null),
-      fetch(site.layout).then(r => r.json()).catch(() => null),
-    ]).then(([gf, dxf]) => {
-      if (cancelled) return;
-      if (gf) setGeofence(gf);
-      if (dxf) setDxfLayout(dxf);
-    });
+    fetch(site.layout).then(r => r.json()).catch(() => null)
+      .then((dxf) => { if (!cancelled && dxf) setDxfLayout(dxf); });
     return () => { cancelled = true; };
   }, []);
 
