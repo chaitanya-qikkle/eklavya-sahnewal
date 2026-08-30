@@ -10,6 +10,16 @@ import {
 
 const HEIGHTS = [1, 2, 3, 4]
 
+// Used only if the get-block-list API call fails or returns no data.
+const FALLBACK_BLOCKS = [
+  { Block: 'RAIL',   MinRow: 'A', MaxRow: 'C', MinColumn: '1', MaxColumn: '99' },
+  { Block: 'EXP-EX', MinRow: 'C', MaxRow: 'I', MinColumn: '1', MaxColumn: '9' },
+  { Block: 'EMT',    MinRow: 'A', MaxRow: 'V', MinColumn: '1', MaxColumn: '9' },
+  { Block: 'IMP',    MinRow: 'A', MaxRow: 'H', MinColumn: '1', MaxColumn: '9' },
+  { Block: 'IMP-EX', MinRow: 'A', MaxRow: 'R', MinColumn: '1', MaxColumn: '9' },
+  { Block: 'TG',     MinRow: 'A', MaxRow: 'D', MinColumn: '1', MaxColumn: '9' },
+]
+
 const letterRange = (min, max) => {
   const start = String(min || 'A').toUpperCase().charCodeAt(0)
   const end = String(max || 'A').toUpperCase().charCodeAt(0)
@@ -37,7 +47,8 @@ const InventoryMapping = () => {
   const [height, setHeight] = useState(1)
 
   const blocks = useMemo(() => {
-    const list = Array.isArray(blockListData?.data) ? blockListData.data : []
+    const apiList = Array.isArray(blockListData?.data) ? blockListData.data : []
+    const list = apiList.length > 0 ? apiList : FALLBACK_BLOCKS
     return list
       .map((b) => ({
         block: String(b?.Block ?? b?.block ?? '').trim(),
