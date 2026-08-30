@@ -35,7 +35,8 @@
       "Bash(grep -ri \"if __name__\" \"d:\\\\Qikkle\\\\Application\\\\YMS_Eklavya\\\\YMS_Eklavya\\\\Backend\" --include=\"*.py\" ! -path \"*/env/*\" ! -path \"*/__pycache__/*\")",
       "Bash(npx eslint *)",
       "Bash(node -e \"const c=require\\('Q:/Web Applications/YMS_MAIN/Frontend/package.json'\\); console.log\\(JSON.stringify\\(c.scripts\\)\\)\")",
-      "PowerShell(Set-Location \"D:\\\\GDL Sahnewal Main\\\\Backend\"; $env:PYTHONPATH=\"D:\\\\GDL Sahnewal Main\\\\Backend\"; & \".\\\\env\\\\Scripts\\\\python.exe\" tools\\\\_scratch_insert_test_data.py)"
+      "PowerShell(Set-Location \"D:\\\\GDL Sahnewal Main\\\\Backend\"; $env:PYTHONPATH=\"D:\\\\GDL Sahnewal Main\\\\Backend\"; & \".\\\\env\\\\Scripts\\\\python.exe\" tools\\\\_scratch_insert_test_data.py)",
+      "PowerShell(cd \"d:\\\\GDL Sahnewal Main\\\\Backend\"; $env:PYTHONPATH=\"d:\\\\GDL Sahnewal Main\\\\Backend\"; python \"C:\\\\Users\\\\CHAITA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--GDL-Sahnewal-Main\\\\63323a76-4612-4dfa-bb11-f916c7027214\\\\scratchpad\\\\test_menu_sps.py\")"
     ]
   }
 }

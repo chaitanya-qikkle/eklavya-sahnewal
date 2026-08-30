@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 import logging
+from datetime import datetime
 
 from utils.db_utils import SQLManager
 from middleware.auth_middleware import get_current_user
@@ -15,22 +16,29 @@ from models.menu_model import (
 menu_router = APIRouter()
 
 
-def _unwrap_sp_status(response: dict):
-    """Normalize SP responses that return STATUS/ERRORMSG."""
-    if response.get("status") != "success" or not response.get("data"):
-        return response
-
-    sp_result = response["data"][0]
-    status = sp_result.get("STATUS")
-
-    if status == "Failure":
-        return {"status": "error", "message": sp_result.get("ERRORMSG", "Operation failed")}
-
-    if status == "Success":
-        return {"status": "success", "message": sp_result.get("ERRORMSG", "Success"), "data": sp_result}
-
-    # Unknown shape, return raw
-    return response
+def _exec_with_output(db: SQLManager, query: str, params: tuple) -> int:
+    """Execute SP with OUTPUT param, return the issuccess int value."""
+    conn = db.conn
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    result = 0
+    while True:
+        try:
+            if cursor.description:
+                row = cursor.fetchone()
+                if row is not None:
+                    result = int(row[0])
+                    break
+        except Exception:
+            pass
+        try:
+            if not cursor.nextset():
+                break
+        except Exception:
+            break
+    conn.commit()
+    cursor.close()
+    return result
 
 
 @menu_router.get("/get-menus")
@@ -64,22 +72,28 @@ def create_menu(request: MenuCreateRequest, current_user: dict = Depends(get_cur
     db = SQLManager()
 
     try:
-        query = "EXEC dbo.SP_MENU_ADD ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+        created_by = request.created_by or str(current_user.get("user_id", ""))
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.INS_IND_MST_MENU ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
         params = (
+            0,  # @MenuID — SP ignores this on insert (identity column)
             request.menu_name,
-            request.parent_menu_id,
-            request.menu_url,
-            request.menu_icon,
-            request.area,
-            request.controller,
-            request.action_result,
-            request.plant_name,
-            request.sort_order,
-            request.created_by,
+            request.parent_menu_id or 0,
+            request.plant_id or 1,
+            request.menu_url or '',
+            request.menu_icon or '',
+            request.area or '',
+            request.controller or '',
+            request.action_result or '',
+            created_by,
         )
-
-        response = db.execute_query(query, params, commit=True)
-        return _unwrap_sp_status(response)
+        result = _exec_with_output(db, query, params)
+        if result == 1:
+            return {"status": "success", "message": "Menu created successfully"}
+        return {"status": "error", "message": "Failed to create menu"}
 
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
@@ -93,24 +107,28 @@ def update_menu(request: MenuUpdateRequest, current_user: dict = Depends(get_cur
     db = SQLManager()
 
     try:
-        query = "EXEC dbo.SP_MENU_MODIFY ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+        modified_by = request.modified_by or str(current_user.get("user_id", ""))
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.UPD_IND_MST_MENU ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
         params = (
             request.menu_id,
             request.menu_name,
-            request.parent_menu_id,
-            request.menu_url,
-            request.menu_icon,
-            request.area,
-            request.controller,
-            request.action_result,
-            request.plant_name,
-            request.sort_order,
-            request.is_active,
-            request.modified_by,
+            request.parent_menu_id or 0,
+            request.plant_id or 1,
+            request.menu_url or '',
+            request.menu_icon or '',
+            request.area or '',
+            request.controller or '',
+            request.action_result or '',
+            modified_by,
         )
-
-        response = db.execute_query(query, params, commit=True)
-        return _unwrap_sp_status(response)
+        result = _exec_with_output(db, query, params)
+        if result == 1:
+            return {"status": "success", "message": "Menu updated successfully"}
+        return {"status": "error", "message": "Failed to update menu"}
 
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
@@ -124,11 +142,16 @@ def delete_menu(request: MenuDeleteRequest, current_user: dict = Depends(get_cur
     db = SQLManager()
 
     try:
-        query = "EXEC dbo.SP_MENU_DELETE ?, ?"
-        params = (request.menu_id, request.deleted_by)
-
-        response = db.execute_query(query, params, commit=True)
-        return _unwrap_sp_status(response)
+        deleted_by = request.deleted_by or str(current_user.get("user_id", ""))
+        query = """
+            DECLARE @issuccess INT = 0;
+            EXEC dbo.DEL_IND_MST_MENU ?, '', 0, 1, '', '', '', '', '', ?, @issuccess OUTPUT;
+            SELECT @issuccess AS result;
+        """
+        result = _exec_with_output(db, query, (request.menu_id, deleted_by))
+        if result == 1:
+            return {"status": "success", "message": "Menu deleted successfully"}
+        return {"status": "error", "message": "Failed to delete menu"}
 
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
@@ -142,23 +165,27 @@ def set_role_menus(request: RoleMenuSetRequest, current_user: dict = Depends(get
     db = SQLManager()
     try:
         role_id = request.role_id
-        menu_ids = [str(int(mid)) for mid in (request.menu_ids or []) if mid]
-        menu_ids_str = ",".join(menu_ids)
-
+        menu_ids = [int(mid) for mid in (request.menu_ids or []) if mid]
         created_by = request.created_by or "00000000-0000-0000-0000-000000000000"
+        now = datetime.now()
 
-        response = db.execute_query(
-            "EXEC dbo.SP_SET_ROLE_MENUS ?, ?, ?",
-            (role_id, menu_ids_str, created_by),
-            commit=True,
-        )
+        # sp_BulkInsertRoleMenu takes @RoleID and a RoleMenu-typed table parameter
+        # (RoleID, MenuID, CreatedBy, CreatedDate) — pyodbc passes TVPs as a list of tuples.
+        tvp_rows = [(role_id, mid, created_by, now) for mid in menu_ids]
 
-        data = response.get("data") or []
-        if response.get("status") == "success":
-            return {"status": "success", "message": f"Saved {len(menu_ids)} menu permissions"}
-        return {"status": "error", "message": response.get("message", "Failed to save")}
+        cursor = db.conn.cursor()
+        cursor.execute("{CALL sp_BulkInsertRoleMenu (?, ?)}", role_id, tvp_rows)
+        while cursor.description is None:
+            if not cursor.nextset():
+                break
+        db.conn.commit()
+        cursor.close()
+
+        return {"status": "success", "message": f"Saved {len(menu_ids)} menu permissions"}
 
     except Exception as e:
+        if db.conn:
+            db.conn.rollback()
         return {"status": "error", "message": f"Server Error: {str(e)}"}
 
     finally:
