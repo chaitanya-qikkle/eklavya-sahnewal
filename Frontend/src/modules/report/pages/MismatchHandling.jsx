@@ -114,9 +114,9 @@ const MismatchHandling = () => {
                     >
                       {isFetching
                         ? <FiRefreshCw className="animate-spin text-base" />
-                        : <FiRefreshCw className="text-base" />
+                        : <FiSearch className="text-base" />
                       }
-                      {isFetching ? 'Loading…' : 'Refresh'}
+                      {isFetching ? 'Loading…' : 'Search'}
                     </button>
                   </div>
                 </div>
@@ -125,24 +125,27 @@ const MismatchHandling = () => {
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-white font-bold text-lg tracking-wide uppercase">Inventory Mismatch Report</h2>
-                  {!isFetching && <p className="text-white/60 text-xs mt-0.5">{filteredData.length} record{filteredData.length === 1 ? '' : 's'} found</p>}
-                </div>
-                <button
-                  onClick={handleExport}
-                  disabled={!filteredData.length}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-semibold hover:bg-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Export to Excel"
-                >
-                  <FaFileExcel className="text-base" />
-                  Export
-                </button>
+              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center justify-between">
+                <h2 className="text-white font-bold text-lg tracking-wide uppercase">
+                  Inventory Mismatch Report
+                  {!isFetching && <span className="ml-2 text-xs font-normal text-white/60">({filteredData.length} records)</span>}
+                </h2>
               </div>
 
-              <div className="p-6">
-                <div className="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
+              <div className="px-6 py-6 space-y-4">
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExport}
+                    disabled={!filteredData.length}
+                    className="p-1 disabled:opacity-40"
+                    title="Export to Excel"
+                  >
+                    <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-sm shadow-sm">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
                     <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
                       <tr>
