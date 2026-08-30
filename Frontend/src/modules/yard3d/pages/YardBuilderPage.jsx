@@ -22,12 +22,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import YardScene from "../scene/YardScene";
 import { buildProjection, computeDxfAlignment } from "../scene/geofence";
+import { buildGeofenceFromSlotList } from "../scene/buildGeofenceFromSlotList";
 import WallEditor, { EMPTY_EDITS, MODES, applyEdits, wallSegments, obstacleRings } from "../tools/WallEditor";
 import PropsEditor, { newPropId } from "../tools/PropsEditor";
 import { PROP_CATEGORIES, PROP_SPECS } from "../tools/PropKit";
 import useUndoable from "../tools/useUndoable";
+import { useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
 
-const SAHNEWAL_SITE = { geofence: "/slot-geofence-sahnewal.json", layout: "/yard-layout-sahnewal.json" };
+const SAHNEWAL_SITE = { layout: "/yard-layout-sahnewal.json" };
 
 const smallBtn = {
   padding: "5px 9px", borderRadius: 5, cursor: "pointer", fontSize: 11,
@@ -438,23 +440,24 @@ function PropsTab({
 }
 
 export default function YardBuilderPage() {
-  const [geofence, setGeofence] = useState(null);
   const [dxfLayout, setDxfLayout] = useState(null);
+
+  // Same live slot source as YardLiveStatus3D.jsx (GET_ESS_MST_SLOT_LIST via
+  // /location-slots) — keeps this tool showing the exact same slots as the
+  // production 3D view, instead of the old static slot-geofence-sahnewal.json.
+  const { data: slotListResp } = useGetLocationSlotsQuery();
+  const geofence = useMemo(
+    () => buildGeofenceFromSlotList(slotListResp?.data),
+    [slotListResp]
+  );
 
   useEffect(() => {
     let cancelled = false;
-    // Cache-bust — plain static-file fetches, no HMR involvement, and stale
-    // slot/layout JSON served across reloads has bitten this exact pattern
-    // before (see YardLiveStatus3D.jsx's loader).
+    // Cache-bust — plain static-file fetch, no HMR involvement, and stale
+    // layout JSON served across reloads has bitten this exact pattern before.
     const v = `?v=${Date.now()}`;
-    Promise.all([
-      fetch(SAHNEWAL_SITE.geofence + v).then(r => r.json()).catch(() => null),
-      fetch(SAHNEWAL_SITE.layout + v).then(r => r.json()).catch(() => null),
-    ]).then(([gf, dxf]) => {
-      if (cancelled) return;
-      setGeofence(gf);
-      setDxfLayout(dxf);
-    });
+    fetch(SAHNEWAL_SITE.layout + v).then(r => r.json()).catch(() => null)
+      .then((dxf) => { if (!cancelled) setDxfLayout(dxf); });
     return () => { cancelled = true; };
   }, []);
 
@@ -468,6 +471,20 @@ export default function YardBuilderPage() {
   const [moveArm, setMoveArm] = useState(false);
   const [breakArm, setBreakArm] = useState(false);
   const [pendingModelUrl, setPendingModelUrl] = useState(null); // custom_model: which uploaded .glb the next placement uses
+
+  // Manual rotation + pan control — nudges the whole slot/geofence
+  // projection (rotation in degrees, offset in metres) so slots visually
+  // line up with the DXF boundary. Session state only; note the final
+  // values down and set YARD_ROTATION_DEG / YARD_OFFSET_X / YARD_OFFSET_Z
+  // in live/equipmentCoordinateMapper.js to make them permanent everywhere else.
+  const [rotationDeg, setRotationDeg] = useState(0);
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetZ, setOffsetZ] = useState(0);
+  const nudgeRotation = (delta) => setRotationDeg((d) => Math.round((d + delta) * 100) / 100);
+  const nudgeOffset = (dx, dz) => {
+    if (dx) setOffsetX((v) => Math.round((v + dx) * 100) / 100);
+    if (dz) setOffsetZ((v) => Math.round((v + dz) * 100) / 100);
+  };
 
   // One shared undo/redo history across both tools.
   const [edits, setEditsRaw, history] = useUndoable(EMPTY_EDITS);
@@ -498,12 +515,36 @@ export default function YardBuilderPage() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
+
+  // Arrow keys pan the slot layer (↑ north/−Z, ↓ south/+Z, ← west/−X, → east/+X).
+  // Step is 1m, Shift+arrow is 5m, Alt+arrow is 0.1m. Ignored while typing in
+  // an input/textarea so it doesn't fight normal text editing/slider dragging.
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const step = e.shiftKey ? 5 : e.altKey ? 0.1 : 1;
+      switch (e.key) {
+        case "ArrowUp":    e.preventDefault(); nudgeOffset(0, -step); break;
+        case "ArrowDown":  e.preventDefault(); nudgeOffset(0, step); break;
+        case "ArrowLeft":  e.preventDefault(); nudgeOffset(-step, 0); break;
+        case "ArrowRight": e.preventDefault(); nudgeOffset(step, 0); break;
+        default: return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const smartUndo = () => {
     if (drawPtsRef.current.length) setDrawPts(drawPtsRef.current.slice(0, -1));
     else history.undo();
   };
 
-  const projection = useMemo(() => (geofence ? buildProjection(geofence.bounds) : null), [geofence]);
+  const projection = useMemo(
+    () => (geofence ? buildProjection(geofence.bounds, rotationDeg, offsetX, offsetZ) : null),
+    [geofence, rotationDeg, offsetX, offsetZ]
+  );
   const alignment = useMemo(
     () => (dxfLayout && geofence && projection ? computeDxfAlignment(dxfLayout, geofence, projection) : null),
     [dxfLayout, geofence, projection],
@@ -620,6 +661,69 @@ export default function YardBuilderPage() {
           use Export below to download the edit list.
         </div>
 
+        <div style={{ padding: 10, borderRadius: 6, marginBottom: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(140,175,210,.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: "#8fa5bb", fontWeight: 600 }}>Slot Rotation</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#eaf4ff" }}>{rotationDeg.toFixed(1)}°</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 4 }}>
+            <button onClick={() => nudgeRotation(-15)} style={smallBtn} title="Rotate 15° left">⟲15°</button>
+            <button onClick={() => nudgeRotation(-1)} style={smallBtn} title="Rotate 1° left">⟲1°</button>
+            <button onClick={() => nudgeRotation(1)} style={smallBtn} title="Rotate 1° right">1°⟳</button>
+            <button onClick={() => nudgeRotation(15)} style={smallBtn} title="Rotate 15° right">15°⟳</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 8 }}>
+            <button onClick={() => nudgeRotation(-90)} style={smallBtn} title="Rotate 90° left">⟲90°</button>
+            <button onClick={() => nudgeRotation(-0.1)} style={smallBtn} title="Rotate 0.1° left">⟲.1°</button>
+            <button onClick={() => nudgeRotation(0.1)} style={smallBtn} title="Rotate 0.1° right">.1°⟳</button>
+            <button onClick={() => nudgeRotation(90)} style={smallBtn} title="Rotate 90° right">90°⟳</button>
+          </div>
+          <input
+            type="range" min={-180} max={180} step={0.1} value={rotationDeg}
+            onChange={(e) => setRotationDeg(Number(e.target.value))}
+            style={{ width: "100%", marginBottom: 6 }}
+          />
+          <button onClick={() => setRotationDeg(0)} style={{ ...smallBtn, width: "100%" }}>Reset to 0°</button>
+          <div style={{ fontSize: 9.5, color: "#7d94ab", marginTop: 6, lineHeight: 1.4 }}>
+            Note this value down — it's session-only here. To apply it everywhere
+            (production 3D view included), set it as YARD_ROTATION_DEG in
+            live/equipmentCoordinateMapper.js.
+          </div>
+        </div>
+
+        <div style={{ padding: 10, borderRadius: 6, marginBottom: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(140,175,210,.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: "#8fa5bb", fontWeight: 600 }}>Slot Position</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#eaf4ff" }}>
+              X {offsetX.toFixed(1)}m · Z {offsetZ.toFixed(1)}m
+            </span>
+          </div>
+
+          {/* D-pad: Up = north (−Z), Down = south (+Z), Left = west (−X), Right = east (+X) */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4, marginBottom: 4 }}>
+            <div />
+            <button onClick={() => nudgeOffset(0, -1)} style={smallBtn} title="Move up (north) 1m">↑</button>
+            <div />
+            <button onClick={() => nudgeOffset(-1, 0)} style={smallBtn} title="Move left (west) 1m">←</button>
+            <button onClick={() => nudgeOffset(0, 0)} style={{ ...smallBtn, cursor: "default", opacity: 0.4 }} title="Centre">•</button>
+            <button onClick={() => nudgeOffset(1, 0)} style={smallBtn} title="Move right (east) 1m">→</button>
+            <div />
+            <button onClick={() => nudgeOffset(0, 1)} style={smallBtn} title="Move down (south) 1m">↓</button>
+            <div />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 8 }}>
+            <button onClick={() => nudgeOffset(-0.1, 0)} style={smallBtn} title="Move left 0.1m">←.1m</button>
+            <button onClick={() => nudgeOffset(0.1, 0)} style={smallBtn} title="Move right 0.1m">.1m→</button>
+            <button onClick={() => nudgeOffset(-5, 0)} style={smallBtn} title="Move left 5m">←5m</button>
+            <button onClick={() => nudgeOffset(5, 0)} style={smallBtn} title="Move right 5m">5m→</button>
+          </div>
+          <button onClick={() => { setOffsetX(0); setOffsetZ(0); }} style={{ ...smallBtn, width: "100%" }}>Reset position</button>
+          <div style={{ fontSize: 9.5, color: "#7d94ab", marginTop: 6, lineHeight: 1.4 }}>
+            Note these values down — session-only here. To apply everywhere, set
+            YARD_OFFSET_X / YARD_OFFSET_Z in live/equipmentCoordinateMapper.js.
+          </div>
+        </div>
+
         <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
           {[["walls", "Walls"], ["props", "Props / Buildings"]].map(([k, label]) => (
             <button key={k} onClick={() => switchTab(k)} style={{
@@ -652,6 +756,9 @@ export default function YardBuilderPage() {
       <YardScene
         geofence={geofence}
         dxfLayout={editedLayout}
+        rotationDeg={rotationDeg}
+        offsetX={offsetX}
+        offsetZ={offsetZ}
         containers={[]}
         selectedId={null}
         highlightedIds={null}

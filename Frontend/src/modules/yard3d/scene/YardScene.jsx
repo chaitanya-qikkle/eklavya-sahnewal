@@ -1055,11 +1055,24 @@ export default function YardScene({
   // instead of standing up a second <Canvas>. Purely additive: omitting it
   // changes nothing about the existing scene.
   children,
+  // Optional live rotation/offset override for aligning slots/geofence to the
+  // DXF drawing — omit to use the YARD_ROTATION_DEG/YARD_OFFSET_X/Z defaults
+  // baked into buildProjection(). Passed explicitly by YardBuilderPage's
+  // rotation + move tools. offsetX/offsetZ are metres, applied after rotation.
+  rotationDeg,
+  offsetX,
+  offsetZ,
 }) {
   const hoveredRef   = useRef(null);
   const controlsRef  = useRef(null);
 
-  const projection = useMemo(() => buildProjection(geofence.bounds), [geofence.bounds]);
+  const projection = useMemo(() => {
+    const args = [geofence.bounds];
+    if (rotationDeg != null) {
+      args.push(rotationDeg, offsetX ?? 0, offsetZ ?? 0);
+    }
+    return buildProjection(...args);
+  }, [geofence.bounds, rotationDeg, offsetX, offsetZ]);
   const blocks     = useMemo(() => buildBlockGeometry(geofence, projection), [geofence, projection]);
   const slotIndex  = useMemo(() => buildSlotIndex(geofence), [geofence]);
   const spatial    = useMemo(() => buildSlotSpatialIndex(geofence.slots, projection, 4), [geofence.slots, projection]);

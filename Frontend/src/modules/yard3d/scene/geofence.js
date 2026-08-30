@@ -7,20 +7,38 @@
 // • DXF features (in survey coords) are aligned to the geofence by
 //   translating their centroid → origin.
 
+// Must match YARD_ROTATION_DEG/YARD_OFFSET_X/YARD_OFFSET_Z in
+// live/equipmentCoordinateMapper.js — both projections need the same
+// rotation + offset so slots and live equipment agree.
+import { YARD_ROTATION_DEG, YARD_OFFSET_X, YARD_OFFSET_Z } from "../live/equipmentCoordinateMapper";
+
 const M_PER_DEG_LAT = 111_320;
 const M_PER_DEG_LNG = (lat) => 111_320 * Math.cos((lat * Math.PI) / 180);
 
-export function buildProjection(bounds) {
+function rotateXZ(x, z, degrees) {
+  if (!degrees) return { x, z };
+  const rad = (degrees * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    x: x * cos - z * sin,
+    z: x * sin + z * cos,
+  };
+}
+
+export function buildProjection(bounds, rotationDeg = YARD_ROTATION_DEG, offsetX = YARD_OFFSET_X, offsetZ = YARD_OFFSET_Z) {
   const cLat = (bounds.minLat + bounds.maxLat) / 2;
   const cLng = (bounds.minLng + bounds.maxLng) / 2;
   const mLng = M_PER_DEG_LNG(cLat);
-  const toXZ = (lat, lng) => ({
-    x: (lng - cLng) * mLng,
-    z: -(lat - cLat) * M_PER_DEG_LAT,
-  });
+  const toXZ = (lat, lng) => {
+    const x = (lng - cLng) * mLng;
+    const z = -(lat - cLat) * M_PER_DEG_LAT;
+    const rotated = rotateXZ(x, z, rotationDeg);
+    return { x: rotated.x + offsetX, z: rotated.z + offsetZ };
+  };
   const yardW = (bounds.maxLng - bounds.minLng) * mLng;
   const yardD = (bounds.maxLat - bounds.minLat) * M_PER_DEG_LAT;
-  return { toXZ, yardW, yardD, cLat, cLng, mLng };
+  return { toXZ, yardW, yardD, cLat, cLng, mLng, rotationDeg, offsetX, offsetZ };
 }
 
 export function buildBlockGeometry(geofence, projection) {
