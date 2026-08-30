@@ -3,6 +3,7 @@ import { FiMapPin, FiPackage, FiGrid, FiLayers, FiCheckCircle, FiRefreshCw } fro
 import { notify } from '../../../utils/notify'
 import {
   useGetInventoryEntryBlockListQuery,
+  useGetInventoryEntryListQuery,
   useUpdatePhysicalLocationMutation,
 } from '../../../store/api/ymsApi'
 
@@ -36,6 +37,7 @@ const FieldLabel = ({ icon: Icon, children }) => (
 
 const InventoryMapping = () => {
   const { data: blockListData, isFetching: isBlockListLoading } = useGetInventoryEntryBlockListQuery()
+  const { data: inventoryListData } = useGetInventoryEntryListQuery()
   const [updateLocation, { isLoading: isSubmitting }] = useUpdatePhysicalLocationMutation()
 
   const [containerNo, setContainerNo] = useState('')
@@ -43,6 +45,20 @@ const InventoryMapping = () => {
   const [rowNo, setRowNo] = useState('')
   const [columnNo, setColumnNo] = useState('')
   const [height, setHeight] = useState(1)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  const allContainerNos = useMemo(() => {
+    const rows = Array.isArray(inventoryListData?.data) ? inventoryListData.data : []
+    return rows
+      .map((r) => String(r?.CONTAINER_NO ?? r?.container_no ?? '').trim().toUpperCase())
+      .filter(Boolean)
+  }, [inventoryListData])
+
+  const containerSuggestions = useMemo(() => {
+    const q = containerNo.trim().toUpperCase()
+    if (!q) return []
+    return allContainerNos.filter((c) => c.includes(q)).slice(0, 8)
+  }, [allContainerNos, containerNo])
 
   const blocks = useMemo(() => {
     const apiList = Array.isArray(blockListData?.data) ? blockListData.data : []
@@ -153,16 +169,40 @@ const InventoryMapping = () => {
 
             <div className="space-y-2.5">
               {/* Container No */}
-              <div>
+              <div className="relative">
                 <FieldLabel icon={FiPackage}>Container No</FieldLabel>
                 <input
                   type="text"
                   value={containerNo}
-                  onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setContainerNo(e.target.value.toUpperCase())
+                    setShowSuggestions(true)
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   placeholder="e.g. MSDU8022011"
                   autoComplete="off"
                   className="w-full px-3 py-2 rounded-lg border-2 border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] text-sm font-semibold text-slate-800 uppercase tracking-wide transition-colors shadow-sm"
                 />
+
+                {showSuggestions && containerSuggestions.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border-2 border-[#0e4a78]/20 rounded-lg shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                    {containerSuggestions.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setContainerNo(c)
+                          setShowSuggestions(false)
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm font-mono font-semibold text-slate-700 hover:bg-[#0e4a78]/5 border-b border-slate-100 last:border-b-0 transition-colors"
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

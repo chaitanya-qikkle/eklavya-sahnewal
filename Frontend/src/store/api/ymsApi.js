@@ -769,6 +769,13 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getInventoryEntryList: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.MASTER.INVENTORY_ENTRY_LIST,
+        method: 'GET',
+      }),
+    }),
+
     updatePhysicalLocation: builder.mutation({
       query: (body) => ({
         url: API_ENDPOINTS.MASTER.UPDATE_PHYSICAL_LOCATION,
@@ -1173,6 +1180,7 @@ export const {
   useLazyGetRailJourneyByDocumentQuery,
   useLazyGetMismatchHandlingQuery,
   useGetInventoryEntryBlockListQuery,
+  useGetInventoryEntryListQuery,
   useUpdatePhysicalLocationMutation,
   useGetLifecycleDetailsQuery,
   useLazyGetLifecycleDetailsQuery,
