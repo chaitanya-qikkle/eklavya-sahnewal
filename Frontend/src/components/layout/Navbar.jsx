@@ -331,6 +331,7 @@ const Navbar = ({ brand = "Qikkle" }) => {
     const allowed = new Set(allowedIds);
 
     return allNavItems
+      .filter((item) => String(item.label || "").toUpperCase() !== "APPLICATION")
       .map((item) => {
         const parentAllowed = allowed.has(Number(item.id));
         const submenus = (item.submenus || []).filter((submenu) =>
