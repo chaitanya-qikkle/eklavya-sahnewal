@@ -21,6 +21,7 @@ import {
   useGetEquipmentTransactionLatestQuery,
   useLazyGetEquipmentDailyUtilizationQuery,
   useGetContainerStatusReportQuery,
+  useGetContainerInOut24hQuery,
 } from "../../../store/api/ymsApi";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1058,10 +1059,11 @@ const AdminDashboard = () => {
     { refetchOnFocus: true }
   );
 
-  // Filter-window gate-outs — for Gate Throughput chart (tracks filterRange)
-  const { data: gateOutReportApi } = useGetContainerStatusReportQuery(
-    { from_date: filters.from.slice(0, 10), to_date: filters.to.slice(0, 10) },
-    { refetchOnFocus: true }
+  // Last-24h gate in/out throughput — ContainerInOut_24Hours SP, pre-bucketed
+  // hourly server-side (EKL_TRN_INVENTORY.GateInDate/GateOutDate).
+  const { data: gateInOut24hApi, isFetching: gateInOut24hLoading } = useGetContainerInOut24hQuery(
+    undefined,
+    { pollingInterval: 60000 }
   );
 
   const { data: latestTxApi } = useGetDeviceDataLatestQuery(undefined, { pollingInterval: 15000 });
@@ -1266,65 +1268,26 @@ const AdminDashboard = () => {
       .sort((a, b) => b.count - a.count);
   }, [containers]);
 
+  // Last-24h gate in/out throughput — ContainerInOut_24Hours SP, already
+  // hourly-bucketed and zero-filled server-side. Fixed rolling 24h window
+  // (SP uses GETDATE()), independent of the dashboard's date-range filter.
   const hourlyThroughput = useMemo(() => {
-    const spanMs = filterRange.toMs - filterRange.fromMs;
-    const useDays = spanMs > 25 * 3600 * 1000; // >25h → bucket by day
-
-    const bucketMap = new Map();
-
-    const getKey = (dt) => {
-      if (useDays) {
-        return dt.toISOString().slice(0, 10); // YYYY-MM-DD
-      }
-      return String(dt.getHours()).padStart(2, "0") + "h";
-    };
-
-    const ensureBucket = (key, dt) => {
-      if (!bucketMap.has(key)) {
-        const label = useDays
-          ? dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-          : key;
-        bucketMap.set(key, { key, label, in: 0, out: 0, net: 0 });
-      }
-      return bucketMap.get(key);
-    };
-
-    // Seed all buckets so axis is continuous even with 0 counts
-    if (useDays) {
-      const cur = new Date(filterRange.fromMs);
-      cur.setHours(0, 0, 0, 0);
-      const end = new Date(filterRange.toMs);
-      while (cur <= end) {
-        const key = cur.toISOString().slice(0, 10);
-        ensureBucket(key, new Date(cur));
-        cur.setDate(cur.getDate() + 1);
-      }
-    } else {
-      for (let h = 0; h < 24; h++) {
-        const key = String(h).padStart(2, "0") + "h";
-        bucketMap.set(key, { key, label: key, in: 0, out: 0, net: 0 });
-      }
-    }
-
-    // Gate-in: live inventory (SP_CONTAINER_LIVE_STATUS — containers currently in yard)
-    containers.forEach((c) => {
-      const gIn = parseDateTime(get(c, "GATE_IN_DATE", "gate_in_date"));
-      if (gIn && gIn.getTime() >= filterRange.fromMs && gIn.getTime() <= filterRange.toMs)
-        ensureBucket(getKey(gIn), gIn).in++;
+    const rows = Array.isArray(gateInOut24hApi?.data) ? gateInOut24hApi.data : [];
+    return rows.map((r) => {
+      const hourStart = get(r, "HourStart", "hourstart");
+      const dt = parseDateTime(hourStart);
+      const label = dt ? String(dt.getHours()).padStart(2, "0") + "h" : (get(r, "HourSlot", "hourslot") || "—");
+      const inCount = Number(get(r, "ContainerIn", "containerin") || 0);
+      const outCount = Number(get(r, "ContainerOut", "containerout") || 0);
+      return {
+        key: hourStart || label,
+        label,
+        in: inCount,
+        out: outCount,
+        net: Number(get(r, "NetMovement", "netmovement") ?? (inCount - outCount)),
+      };
     });
-
-    // Gate-out: departed containers from the filter-window report
-    const reportRows = Array.isArray(gateOutReportApi?.data) ? gateOutReportApi.data : [];
-    reportRows.forEach((c) => {
-      const gOut = parseDateTime(get(c, "GATE_OUT_DATE", "gate_out_date"));
-      if (gOut && gOut.getTime() >= filterRange.fromMs && gOut.getTime() <= filterRange.toMs)
-        ensureBucket(getKey(gOut), gOut).out++;
-    });
-
-    const sorted = Array.from(bucketMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-    sorted.forEach((b) => { b.net = b.in - b.out; });
-    return sorted;
-  }, [containers, gateOutReportApi, filterRange]);
+  }, [gateInOut24hApi]);
 
   const ageingBuckets = useMemo(() => {
     const buckets = [
@@ -2123,8 +2086,8 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             {/* Throughput with chart type switcher */}
             <Panel
-              title={`Gate Throughput · ${filters.preset === "custom" ? "Range" : filters.preset.toUpperCase()}`}
-              subtitle={filterRange.toMs - filterRange.fromMs > 25 * 3600 * 1000 ? "Daily in/out — driven by current filters" : "Hourly in/out — driven by current filters"}
+              title="Gate Throughput · Last 24h"
+              subtitle={gateInOut24hLoading ? "Loading…" : "Hourly gate-in vs gate-out — rolling last 24 hours"}
               icon={FiActivity}
               accent={T.cyan}
               className="xl:col-span-12 h-[380px]"

@@ -213,6 +213,24 @@ def get_container_live_status_3d():
         db.close_connection()
 
 
+@router.get("/container-inout-24h")
+def get_container_inout_24h():
+    """Hourly gate-in / gate-out throughput for the last 24h — ContainerInOut_24Hours.
+
+    Pre-bucketed and gap-filled server-side (one row per hour, zero-filled),
+    driven by EKL_TRN_INVENTORY.GateInDate/GateOutDate. Powers the admin
+    dashboard's Gate Throughput chart.
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.ContainerInOut_24Hours")
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/container-info")
 def get_container_info(container_no: str = ""):
     db = SQLManager()

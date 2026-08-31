@@ -866,6 +866,13 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    getContainerInOut24h: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.CONTAINER.GET_CONTAINER_INOUT_24H,
+        method: 'GET',
+      }),
+    }),
+
     getTrailerGateInList: builder.query({
       query: () => ({
         url: API_ENDPOINTS.CONTAINER.GET_TRAILER_GATE_IN_LIST,
@@ -1228,6 +1235,7 @@ export const {
   useGetGateNamesQuery,
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
+  useGetContainerInOut24hQuery,
   useGetContainerStatusReportQuery,
   useLazyGetContainerStatusReportQuery,
   useGetContainerGateReportQuery,
