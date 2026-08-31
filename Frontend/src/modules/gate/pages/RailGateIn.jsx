@@ -100,16 +100,16 @@ function ImageLightbox({ url, label, onClose }) {
 /* ─── Detail field row ───────────────────────────────────────────────────── */
 function DetailField({ icon: Icon, label, children, accent = "#0e4a78" }) {
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-b-0">
+    <div className="flex items-start gap-2.5 py-1.5 border-b border-slate-100 last:border-b-0">
       <span
-        className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center mt-0.5"
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
         style={{ background: `${accent}12`, color: accent }}
       >
-        {Icon && <Icon size={15} />}
+        {Icon && <Icon size={12} />}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">{label}</p>
-        <div className="text-sm font-semibold text-slate-800 break-words">{children}</div>
+        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 leading-tight">{label}</p>
+        <div className="text-[13px] font-semibold text-slate-800 break-words leading-tight">{children}</div>
       </div>
     </div>
   )
@@ -129,7 +129,7 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
     >
       <div
         className="relative w-full max-w-[1600px] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5"
-        style={{ maxHeight: '95vh' }}
+        style={{ height: '95vh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -183,14 +183,16 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
           </div>
         </div>
 
-        {/* Body — details on top (2-row grid), images below */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-100">
+        {/* Body — details on top (compact, natural height), images fill the
+            rest — flex-col with the images pane as flex-1 so everything
+            fits in the modal's fixed height with no page-level scroll. */}
+        <div className="flex-1 min-h-0 flex flex-col bg-slate-100">
 
           {/* Top — details */}
-          <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
-            <div className="p-6">
+          <div className="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
+            <div className="px-6 py-4">
 
-              <div className="mb-5 flex flex-wrap gap-2.5">
+              <div className="mb-3 flex flex-wrap gap-2.5">
                 {row.ContainerNo && (
                   <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-[#1364a4] to-[#0a3b61] text-white font-black font-mono text-base shadow-lg shadow-[#0e4a78]/25">
                     <FiPackage size={15} /> {row.ContainerNo}
@@ -253,18 +255,18 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
             </div>
           </div>
 
-          {/* Bottom — dual camera images */}
-          <div>
-            <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Bottom — dual camera images, fills remaining modal height */}
+          <div className="flex-1 min-h-0">
+            <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
               {[
                 { url: cam1Url, label: 'Camera 1', icon: FiImage, accent: '#0e4a78' },
                 { url: cam2Url, label: 'Camera 2', icon: FiImage, accent: '#0e4a78' },
               ].map(({ url, label, icon: Icon, accent }) => (
-                <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/60">
+                <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
+                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
                     <span className="flex items-center gap-2">
-                      <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
-                        <Icon size={13} />
+                      <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
+                        <Icon size={12} />
                       </span>
                       <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{label}</span>
                     </span>
@@ -273,18 +275,18 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                         href={url}
                         download
                         onClick={e => e.stopPropagation()}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
+                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
                         title="Download image"
                       >
-                        <FiDownloadIcon size={13} />
+                        <FiDownloadIcon size={12} />
                       </a>
                     )}
                   </div>
                   {url ? (
                     <button
                       onClick={() => onZoom(url, label)}
-                      className="group relative flex items-center justify-center overflow-hidden w-full"
-                      style={{ height: 380, background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
+                      className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
+                      style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
                     >
                       <img src={url} alt={label} className="max-w-full max-h-full object-contain p-2" />
                       <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
@@ -294,7 +296,7 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                       </span>
                     </button>
                   ) : (
-                    <div className="flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full" style={{ height: 380 }}>
+                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
                       <span className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
                         <FiImage size={28} />
                       </span>
