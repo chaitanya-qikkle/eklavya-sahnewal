@@ -923,6 +923,10 @@ export const ymsApi = createApi({
       query: () => ({ url: API_ENDPOINTS.CONTAINER.GET_GATE_NAMES, method: 'GET' }),
     }),
 
+    getVehicleContainerDetection: builder.query({
+      query: () => ({ url: API_ENDPOINTS.CONTAINER.GET_VEHICLE_CONTAINER_DETECTION, method: 'GET' }),
+    }),
+
     getPreGateSurvey: builder.query({
       query: ({ gate_type, gate_name, from_date, to_date, container_no, plant_id, page = 1, page_size = 20 } = {}) => {
         const params = new URLSearchParams()
@@ -1245,6 +1249,7 @@ export const {
   useCloseBreakdownMutation,
   useDeleteBreakdownMutation,
   useGetGateNamesQuery,
+  useGetVehicleContainerDetectionQuery,
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
   useGetContainerInOut24hQuery,

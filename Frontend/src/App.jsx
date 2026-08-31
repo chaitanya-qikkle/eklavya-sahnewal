@@ -78,6 +78,7 @@ const routeDefinitions = [
   { path: '/gate/trailer-in', Component: lazyPage(() => import('./modules/gate/pages/TrailerGateIn')) },
   { path: '/gate/trailer-out', Component: lazyPage(() => import('./modules/gate/pages/TrailerGateOut')) },
   { path: '/gate/pre-gate-in-out', Component: lazyPage(() => import('./modules/gate/pages/PreGateInOut')) },
+  { path: '/gate/main-gate', Component: lazyPage(() => import('./modules/gate/pages/MainGate')) },
 
   { path: '/machine/breakdown', Component: lazyPage(() => import('./modules/machine/pages/Breakdown')) },
   { path: '/machine/equipment', Component: lazyPage(() => import('./modules/machine/pages/Equipment')) },
