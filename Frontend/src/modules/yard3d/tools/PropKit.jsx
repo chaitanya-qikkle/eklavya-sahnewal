@@ -40,6 +40,47 @@ import {
 import WarehouseModel from "../scene/WarehouseModel";
 import IndustrialWallPanel, { WALL_TOTAL_H } from "../scene/IndustrialWallPanel";
 
+// Known custom-model uploads whose scale has been set — maps a model's
+// /models/custom filename fragment to the props[].scaleX/scaleY/scaleZ that
+// make it render at a sensible size, accounting for CustomModelGlb's
+// internal TARGET_H=3m auto-normalisation. `elevY` (metres above ground) is
+// only set where the piece is meant to sit raised (e.g. a container on a
+// wagon deck). `realLength`/`realWidth`/`realHeight` are the resulting
+// world-space metres at this scale (back-derived from each model's measured
+// local bounding box, NOT a real BLC wagon/ISO container's true spec — the
+// AI-generated wagon in particular doesn't match real aspect ratios, so
+// these were tuned visually in Yard Builder against the other placed
+// pieces rather than to an exact real-world figure); kept here so
+// train-building code can compute wagon spacing / deck height without
+// re-deriving them.
+export const KNOWN_MODEL_SCALE = {
+  "container_flat_wagon_3d_model": {
+    scaleX: 0.73, scaleY: 0.55, scaleZ: 0.6,
+    realLength: 12.28, realWidth: 6.71, realHeight: 1.65,
+  },
+  "shipping_container_3d_model_2": {
+    scaleX: 0.89, scaleY: 0.8637, scaleZ: 1.0,
+    realLength: 6.165, realWidth: 2.471, realHeight: 2.591,
+    elevY: 1.2,
+  },
+  "diesel_freight_locomotive_3d_model": {
+    scaleX: 1.2342, scaleY: 1.4333, scaleZ: 2.3373,
+    realLength: 19.6, realWidth: 3.4, realHeight: 4.3,
+  },
+};
+
+// Looks up KNOWN_MODEL_SCALE by matching the model's filename fragment
+// against a GLB url like "/models/custom/container_flat_wagon_3d_model-e3d9f6f6.glb"
+// (the trailing "-<8 hex chars>.glb" upload-uniqueness suffix is stripped).
+export function knownModelScaleFor(modelUrl) {
+  if (!modelUrl) return null;
+  const filename = modelUrl.split("/").pop() || "";
+  for (const key of Object.keys(KNOWN_MODEL_SCALE)) {
+    if (filename.startsWith(key)) return KNOWN_MODEL_SCALE[key];
+  }
+  return null;
+}
+
 // Each generator draws its canvas once and is reused everywhere; every call
 // site clones it (cheap — shares the canvas, not the GPU upload) and sets its
 // own `.repeat` so the pattern tiles at true scale whether it's stretched
@@ -85,6 +126,7 @@ export const PROP_CATEGORIES = [
     },
     {
         id: "rail", label: "Rail wagons (place along rail line)", items: [
+            { type: "locomotive", label: "Locomotive (diesel-electric)", footprint: "point" },
             { type: "wagon", label: "Wagon — loaded (1× 40ft container)", footprint: "point" },
             { type: "wagon_double", label: "Wagon — loaded (2× 20ft containers)", footprint: "point" },
             { type: "wagon_empty", label: "Wagon — empty flatcar", footprint: "point" },
@@ -1054,15 +1096,18 @@ function WagonChassis({ frameLen = 13.7, children }) {
                 <boxGeometry args={[frameLen - 0.4, 0.05, 2.3]} />
                 <meshStandardMaterial color="#5b5348" roughness={0.85} />
             </mesh>
-            {/* bogies */}
+            {/* bogies — wheel z matches RailSegment's actual rail spacing
+                (±0.72m, see RailSegment's two rail meshes) exactly, so
+                wheels sit on the visible rails instead of straddling wider
+                or narrower than the track itself. */}
             {[-frameLen / 2 + 1.9, frameLen / 2 - 1.9].map((x, bi) => (
                 <group key={bi} position={[x, 0, 0]}>
                     <mesh position={[0, 0.55, 0]}>
-                        <boxGeometry args={[2.2, 0.3, 1.9]} />
+                        <boxGeometry args={[2.2, 0.3, 1.6]} />
                         <meshStandardMaterial color="#2b2e33" roughness={0.7} metalness={0.4} />
                     </mesh>
                     {[-0.75, 0.75].flatMap((dx, wi) =>
-                        [-0.95, 0.95].map((z, zi) => (
+                        [-0.72, 0.72].map((z, zi) => (
                             <mesh key={`${wi}-${zi}`} position={[dx, 0.46, z]} rotation={[Math.PI / 2, 0, 0]}>
                                 <cylinderGeometry args={[0.46, 0.46, 0.16, 16]} />
                                 <meshStandardMaterial color="#23262b" roughness={0.4} metalness={0.7} />
@@ -1110,6 +1155,96 @@ function WagonDouble({ seed = 0 }) {
 
 function WagonEmpty() {
     return <WagonChassis />;
+}
+
+// Diesel-electric freight locomotive (WDG/WDP-class proportions) — real
+// dimensions: ~19.6m long, 3.4m wide, 4.3m tall over the roof. Bogies reuse
+// WagonChassis's wheel geometry (3 axles per bogie instead of 2, since a
+// real loco bogie carries more weight than a flatcar's).
+function Locomotive({ livery = "#1f5fa8" }) {
+    const LEN = 19.6, W = 3.4, BODY_H = 3.5, CAB_H = 4.3;
+    const bodyY = 0.95; // rail-top to underframe/body base
+    return (
+        <group>
+            {/* underframe */}
+            <mesh position={[0, bodyY - 0.15, 0]}>
+                <boxGeometry args={[LEN - 1, 0.3, W - 0.3]} />
+                <meshStandardMaterial color="#2b2e33" roughness={0.75} metalness={0.35} />
+            </mesh>
+            {/* main body/hood */}
+            <mesh position={[0, bodyY + BODY_H / 2 - 0.15, 0]} castShadow receiveShadow>
+                <boxGeometry args={[LEN - 1.6, BODY_H, W - 0.4]} />
+                <meshStandardMaterial color={livery} roughness={0.4} metalness={0.25} />
+            </mesh>
+            {/* driver cabs — one at each end, slightly taller and wider than the hood */}
+            {[-1, 1].map((dir) => (
+                <group key={dir} position={[dir * (LEN / 2 - 2.1), 0, 0]}>
+                    <mesh position={[0, bodyY + (CAB_H - 0.15) / 2, 0]} castShadow>
+                        <boxGeometry args={[3.6, CAB_H - 0.15, W]} />
+                        <meshStandardMaterial color={livery} roughness={0.4} metalness={0.25} />
+                    </mesh>
+                    {/* windscreen band */}
+                    <mesh position={[dir * 1.5, bodyY + CAB_H - 0.9, 0]}>
+                        <boxGeometry args={[0.15, 0.7, W - 0.3]} />
+                        <meshStandardMaterial color="#1a2027" roughness={0.15} metalness={0.4} />
+                    </mesh>
+                    {/* headlight cluster */}
+                    {[0.85, -0.85].map((z, i) => (
+                        <mesh key={i} position={[dir * 1.85, bodyY + 1.6, z]}>
+                            <cylinderGeometry args={[0.18, 0.18, 0.12, 12]} rotation={[0, 0, Math.PI / 2]} />
+                            <meshStandardMaterial color="#fff6d8" emissive="#fff6d8" emissiveIntensity={0.6} roughness={0.3} />
+                        </mesh>
+                    ))}
+                </group>
+            ))}
+            {/* side louvered vents */}
+            {Array.from({ length: 8 }, (_, i) => (
+                <mesh key={i} position={[-LEN / 2 + 4.5 + i * 1.3, bodyY + BODY_H - 0.6, W / 2 + 0.01]}>
+                    <boxGeometry args={[0.9, 0.5, 0.02]} />
+                    <meshStandardMaterial color="#17191c" roughness={0.6} />
+                </mesh>
+            ))}
+            {/* six-axle bogies (2 bogies × 3 axles) — wheel z matches
+                RailSegment's actual rail spacing (±0.72m) exactly, same as
+                WagonChassis, so the loco's wheels sit on the visible rails
+                instead of straddling wider than the track. */}
+            {[-LEN / 2 + 3.4, LEN / 2 - 3.4].map((x, bi) => (
+                <group key={bi} position={[x, 0, 0]}>
+                    <mesh position={[0, 0.6, 0]}>
+                        <boxGeometry args={[3.2, 0.35, 1.6]} />
+                        <meshStandardMaterial color="#23262b" roughness={0.7} metalness={0.4} />
+                    </mesh>
+                    {[-1.1, 0, 1.1].flatMap((dx, wi) =>
+                        [-0.72, 0.72].map((z, zi) => (
+                            <mesh key={`${wi}-${zi}`} position={[dx, 0.5, z]} rotation={[Math.PI / 2, 0, 0]}>
+                                <cylinderGeometry args={[0.5, 0.5, 0.18, 16]} />
+                                <meshStandardMaterial color="#1d1f22" roughness={0.5} metalness={0.6} />
+                            </mesh>
+                        )))}
+                </group>
+            ))}
+            {/* buffers + coupling hooks */}
+            {[-LEN / 2 - 0.15, LEN / 2 + 0.15].map((x, i) => (
+                <group key={i} position={[x, bodyY + 0.05, 0]}>
+                    {[-1.05, 1.05].map((z, k) => (
+                        <mesh key={k} position={[0, 0, z]} rotation={[0, 0, Math.PI / 2]}>
+                            <cylinderGeometry args={[0.2, 0.2, 0.32, 10]} />
+                            <meshStandardMaterial color="#4c525a" roughness={0.5} metalness={0.6} />
+                        </mesh>
+                    ))}
+                    <mesh position={[0, -0.3, 0]}>
+                        <boxGeometry args={[0.35, 0.15, 0.15]} />
+                        <meshStandardMaterial color="#2b2e33" roughness={0.6} metalness={0.5} />
+                    </mesh>
+                </group>
+            ))}
+            {/* wagon number plate */}
+            <mesh position={[0, bodyY + 1.2, W / 2 + 0.015]}>
+                <boxGeometry args={[1.1, 0.3, 0.01]} />
+                <meshStandardMaterial color="#f4d35e" roughness={0.5} />
+            </mesh>
+        </group>
+    );
 }
 
 function Car({ seed = 0 }) {
@@ -1298,6 +1433,7 @@ const POINT_RENDERERS = {
     truck: Truck, car: Car, forklift: Forklift,
     container: Container, container_stack: ContainerStack,
     wagon: Wagon, wagon_double: WagonDouble, wagon_empty: WagonEmpty,
+    locomotive: Locomotive,
 };
 // These renderers accept a positional seed so instances vary between placements.
 const SEEDED_POINT_TYPES = new Set(["tree", "shrub", "container", "container_stack", "truck", "car", "wagon", "wagon_double"]);
@@ -2198,31 +2334,58 @@ export default function PropsLayer({ props, alignment, pickable = false, onPick,
                     const sw = p.scaleX ?? p.scale ?? 1;
                     const sh = p.scaleY ?? p.scale ?? 1;
                     const sd = p.scaleZ ?? p.scaleX ?? p.scale ?? 1;
+                    // Ground-level by default; a custom model can be raised
+                    // (e.g. a container sitting on a wagon deck) via elevY,
+                    // metres above ground — independent of its own internal
+                    // "sit flush with local y=0" normalisation below.
+                    const elevY = p.elevY || 0;
                     return (
                         <React.Fragment key={p.id ?? i}>
-                            <group position={[item.x, 0, item.z]} rotation={[0, item.rotY, 0]}
+                            <group position={[item.x, elevY, item.z]} rotation={[0, item.rotY, 0]}
                                 scale={[sw, sh, sd]} onClick={pick}>
                                 {isCustom
                                     ? <CustomModelProp url={p.modelUrl} color={p.color} />
                                     : PointComp && (seeded
                                         ? <PointComp seed={item.x * 0.71 + item.z * 1.13} nightOn={nightOn} />
                                         : <PointComp nightOn={nightOn} />)}
-                                {pickable && (
+                                {pickable && !isCustom && (
                                     <mesh position={[0, 3, 0]} visible={false} onClick={pick}>
                                         <cylinderGeometry args={[2.5, 2.5, 10, 8]} />
                                         <meshBasicMaterial />
                                     </mesh>
                                 )}
                             </group>
-                            {/* Unscaled sibling, not a child of the group above — a
-                                light nested inside a non-uniformly scaled group would
-                                have its position warped by that same scale (Three.js
-                                only transforms position by the parent matrix, not the
-                                light's own distance/intensity numbers), so it's placed
-                                here using the real-world height estimate directly. */}
+                            {/* Unscaled sibling, not a child of the group above — a light
+                                (or a click hit-target) nested inside a non-uniformly scaled
+                                group would have its position/size warped by that same scale
+                                (Three.js only transforms position by the parent matrix, not
+                                the light's own distance/intensity numbers, or a mesh's own
+                                geometry dimensions), so both are placed here using real
+                                world-space metres directly instead of fighting the
+                                scaleX/scaleY/scaleZ inheritance above. */}
                             {isCustom && (
-                                <group position={[item.x, 0, item.z]} rotation={[0, item.rotY, 0]}>
+                                <group position={[item.x, elevY, item.z]} rotation={[0, item.rotY, 0]}>
                                     <CustomModelBuildingLight url={p.modelUrl} scaleY={sh} nightOn={nightOn} />
+                                    {pickable && (() => {
+                                        // Real-world footprint for the click hit-target. For a
+                                        // measured model (wagon/container/engine — see
+                                        // KNOWN_MODEL_SCALE), scale its known real dimensions by
+                                        // however much the operator's scaleX/Y/Z differs from
+                                        // the auto-applied known scale (ratio 1 in the common
+                                        // case where it hasn't been touched). For an
+                                        // unrecognised model, fall back to a generous fixed box
+                                        // — big enough to cover most placed buildings/vehicles.
+                                        const known = knownModelScaleFor(p.modelUrl);
+                                        const w = known ? known.realWidth  * ((p.scaleX ?? known.scaleX) / known.scaleX) : 4;
+                                        const h = known ? known.realHeight * ((p.scaleY ?? known.scaleY) / known.scaleY) : 4;
+                                        const d = known ? known.realLength * ((p.scaleZ ?? known.scaleZ) / known.scaleZ) : 4;
+                                        return (
+                                            <mesh position={[0, h / 2, 0]} visible={false} onClick={pick}>
+                                                <boxGeometry args={[w, h, d]} />
+                                                <meshBasicMaterial />
+                                            </mesh>
+                                        );
+                                    })()}
                                 </group>
                             )}
                         </React.Fragment>

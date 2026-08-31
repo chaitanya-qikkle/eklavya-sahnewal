@@ -25,7 +25,7 @@
 
 import React from "react";
 import * as THREE from "three";
-import PropsLayer, { PROP_SPECS } from "./PropKit";
+import PropsLayer, { PROP_SPECS, knownModelScaleFor } from "./PropKit";
 import { sceneToDxf } from "./WallEditor";
 import { dxfPointToScene } from "../scene/geofence";
 
@@ -69,7 +69,21 @@ export default function PropsEditor({
         if (!activeType) return;
 
         if (spec.footprint === "point") {
-            const extra = activeType === "custom_model" ? { modelUrl: pendingModelUrl } : {};
+            // Known uploads (train wagon/container/engine, see
+            // PropKit.KNOWN_MODEL_SCALE) get their measured real-world
+            // scale applied automatically on placement, instead of landing
+            // at 100% and needing manual Width/Height/Depth entry every
+            // time the same model is placed again.
+            const known = activeType === "custom_model" ? knownModelScaleFor(pendingModelUrl) : null;
+            const extra = activeType === "custom_model"
+                ? {
+                    modelUrl: pendingModelUrl,
+                    ...(known ? {
+                        scaleX: known.scaleX, scaleY: known.scaleY, scaleZ: known.scaleZ,
+                        ...(known.elevY ? { elevY: known.elevY } : {}),
+                    } : {}),
+                }
+                : {};
             onEdits({
                 ...edits,
                 props: [...(edits.props || []), { id: newPropId(activeType), type: activeType, x, y, rot: 0, ...extra }],

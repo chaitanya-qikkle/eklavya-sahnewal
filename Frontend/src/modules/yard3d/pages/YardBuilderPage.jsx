@@ -21,7 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import YardScene from "../scene/YardScene";
-import { buildProjection, computeDxfAlignment } from "../scene/geofence";
+import { buildProjection, computeDxfAlignment, dxfPointToScene } from "../scene/geofence";
 import { buildGeofenceFromSlotList } from "../scene/buildGeofenceFromSlotList";
 import { YARD_ROTATION_DEG, YARD_OFFSET_X, YARD_OFFSET_Z } from "../live/equipmentCoordinateMapper";
 import WallEditor, { EMPTY_EDITS, MODES, applyEdits, wallSegments, obstacleRings } from "../tools/WallEditor";
@@ -259,7 +259,7 @@ function PropsTab({
   activeType, setActiveType, propMode, setPropMode,
   selectedIdx, setSelectedIdx, moveArm, setMoveArm,
   breakArm, setBreakArm, edits, setEdits, drawPts, setDrawPts,
-  setPendingModelUrl,
+  setPendingModelUrl, alignment,
 }) {
   const props = edits.props || [];
   const activeSpec = activeType ? PROP_SPECS[activeType] : null;
@@ -299,6 +299,60 @@ function PropsTab({
       });
       updateTarget({ points });
     }
+  };
+  // Auto-fills a selected "rail" polyline with evenly-spaced wagons (each
+  // WagonChassis is 13.7m long — see PropKit.jsx — plus a small coupling
+  // gap), following the drawn track's exact path/direction, so the operator
+  // only has to draw the rail line once instead of hand-placing every wagon.
+  const WAGON_SPACING = 13.7 + 0.4; // frame length + coupling gap, metres
+  const fillRailWithWagons = (wagonType = "wagon") => {
+    if (!target || target.type !== "rail" || !target.points?.length) return;
+    const pts = target.points;
+    // Cumulative length along the polyline in DXF/CAD metres.
+    const segLens = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+      const len = Math.hypot(bx - ax, by - ay);
+      segLens.push(len);
+      total += len;
+    }
+    if (total < WAGON_SPACING) return;
+
+    const count = Math.floor(total / WAGON_SPACING);
+    const newWagons = [];
+    for (let n = 0; n < count; n++) {
+      // Centre each wagon within its own WAGON_SPACING slot along the track.
+      let target_d = (n + 0.5) * WAGON_SPACING;
+      let seg = 0;
+      while (seg < segLens.length && target_d > segLens[seg]) {
+        target_d -= segLens[seg];
+        seg++;
+      }
+      if (seg >= segLens.length) break;
+      const [ax, ay] = pts[seg], [bx, by] = pts[seg + 1];
+      const segLen = segLens[seg] || 1;
+      const t = target_d / segLen;
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t;
+      // A point-prop's `rot` (degrees) is converted to scene rotationY as
+      // rotY = -rot*pi/180 (see PropKit.jsx's point-prop mapping), but
+      // `points` here are in DXF/CAD space, which goes through
+      // dxfPointToScene's full similarity transform (rotation + scale +
+      // translation) on its way to the scene — the same transform every
+      // wall/building already goes through. A raw atan2 on the DXF-space
+      // delta was off by the alignment's own rotation, which is why the
+      // first version of this scattered wagons instead of lining them up
+      // on the visible track. Transform both segment endpoints through
+      // dxfPointToScene first, take atan2 of THAT delta for the true
+      // on-screen heading, then negate to match the rot->rotY convention.
+      const sceneA = dxfPointToScene(ax, ay, alignment);
+      const sceneB = dxfPointToScene(bx, by, alignment);
+      const rot = (-Math.atan2(sceneB.z - sceneA.z, sceneB.x - sceneA.x) * 180) / Math.PI;
+      newWagons.push({ id: newPropId(wagonType), type: wagonType, x, y, rot });
+    }
+    if (!newWagons.length) return;
+    setEdits({ ...edits, props: [...props, ...newWagons] });
   };
   const isStructure = (s) => s && (s.footprint === "polygon" || s.footprint === "rect");
   const hasHeight = (t, s) => isStructure(s) || t?.type === "compound_wall" || t?.type === "security_wall";
@@ -340,6 +394,10 @@ function PropsTab({
   const setCustomModelUrl = (url) => {
     if (!target || !isCustomModel(target)) return;
     updateTarget({ modelUrl: url });
+  };
+  const setCustomModelElevM = (metres) => {
+    if (!target || !isCustomModel(target)) return;
+    updateTarget({ elevY: Math.max(0, Math.min(50, metres)) });
   };
   const nudgeMove = (dx, dy) => {
     if (!target) return;
@@ -477,8 +535,15 @@ function PropsTab({
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             {targetSpec.footprint !== "polyline" && (
               <>
-                <button onClick={() => rotateTarget(-15)} style={smallBtn}>⟲15°</button>
-                <button onClick={() => rotateTarget(15)} style={smallBtn}>⟳15°</button>
+                <button onClick={() => rotateTarget(-15)} style={smallBtn} title="Rotate 15° left">⟲15°</button>
+                <button onClick={() => rotateTarget(-1)} style={smallBtn} title="Rotate 1° left">⟲1°</button>
+                <button onClick={() => rotateTarget(-0.1)} style={smallBtn} title="Rotate 0.1° left">⟲.1°</button>
+                <button onClick={() => rotateTarget(0.1)} style={smallBtn} title="Rotate 0.1° right">.1°⟳</button>
+                <button onClick={() => rotateTarget(1)} style={smallBtn} title="Rotate 1° right">1°⟳</button>
+                <button onClick={() => rotateTarget(15)} style={smallBtn} title="Rotate 15° right">15°⟳</button>
+                {targetSpec.footprint === "point" && (
+                  <span style={{ fontSize: 10.5, color: "#7d94ab" }}>{((target.rot || 0) % 360).toFixed(1)}°</span>
+                )}
               </>
             )}
             {hasHeight(target, targetSpec) && (
@@ -492,6 +557,19 @@ function PropsTab({
             )}
             <button onClick={deleteTarget} style={{ ...smallBtn, color: "#ffb4b4" }}>Delete</button>
           </div>
+          {target.type === "rail" && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(140,175,210,.15)" }}>
+              <div style={{ fontSize: 10.5, color: "#7d94ab", marginBottom: 6 }}>
+                Auto-place wagons along this track (~{WAGON_SPACING.toFixed(1)}m apart, following its exact path):
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                <button onClick={() => fillRailWithWagons("wagon")} style={smallBtn}>Fill: loaded (40ft)</button>
+                <button onClick={() => fillRailWithWagons("wagon_double")} style={smallBtn}>Fill: loaded (2×20ft)</button>
+                <button onClick={() => fillRailWithWagons("wagon_empty")} style={smallBtn}>Fill: empty flatcars</button>
+                <button onClick={() => fillRailWithWagons("locomotive")} style={smallBtn}>Fill: locomotives</button>
+              </div>
+            </div>
+          )}
           {isStructure(targetSpec) && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
               <span style={{ fontSize: 11, color: "#8fa5bb" }}>Width / length</span>
@@ -565,6 +643,26 @@ function PropsTab({
                   }}
                 />
                 <span style={{ fontSize: 10.5, color: "#7d94ab" }}>%</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: "#8fa5bb", width: 44 }}>Elevate</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  step={0.1}
+                  value={target.elevY || 0}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setCustomModelElevM(v);
+                  }}
+                  style={{
+                    width: 64, padding: "4px 6px", borderRadius: 4, fontSize: 11.5,
+                    background: "rgba(255,255,255,.06)", color: "#eaf4ff",
+                    border: "1px solid rgba(140,175,210,.3)",
+                  }}
+                />
+                <span style={{ fontSize: 10.5, color: "#7d94ab" }}>m above ground</span>
               </div>
 
               <CustomModelsSection
@@ -927,6 +1025,7 @@ export default function YardBuilderPage() {
             edits={edits} setEdits={setEdits}
             drawPts={drawPts} setDrawPts={setDrawPts}
             setPendingModelUrl={setPendingModelUrl}
+            alignment={alignment}
           />
         )}
       </div>
