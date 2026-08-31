@@ -89,6 +89,7 @@ const LiveStatus = () => {
 
   const allRowsRef = useRef([]);          // full snapshot from the SP
   const activeFilterRef = useRef("all");  // current process filter
+  const containerFilterRef = useRef(null); // Set<containerNo> for comma-separated multi-container search, or null
 
   const isUCC = (r) => String(r.BLOCK_NAME || "").toUpperCase().includes("UCC");
 
@@ -105,13 +106,17 @@ const LiveStatus = () => {
     return { total, importCount, exportCount, emptyCount, uccCount };
   };
 
-  const applyClientSlice = (page, size, processType) => {
+  const applyClientSlice = (page, size, processType, containerFilterSet = null) => {
     const all = allRowsRef.current;
-    const filtered = processType === "all"
+    let filtered = processType === "all"
       ? all
       : processType === "Domestic"
         ? all.filter((r) => isUCC(r))
         : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(processType).toLowerCase());
+
+    if (containerFilterSet && containerFilterSet.size > 0) {
+      filtered = filtered.filter((r) => containerFilterSet.has(String(r.CONTAINER_NO || "").toUpperCase()));
+    }
 
     const totalRecords = filtered.length;
     const totalPages = Math.max(1, Math.ceil(totalRecords / size));
@@ -140,7 +145,7 @@ const LiveStatus = () => {
     const all = Array.isArray(apiData?.data) ? apiData.data : [];
     allRowsRef.current = all;
     if (updateStats) setTotalStats(computeStats(all));
-    applyClientSlice(page, size, activeFilterRef.current);
+    applyClientSlice(page, size, activeFilterRef.current, containerFilterRef.current);
   }, []);
 
 
@@ -156,6 +161,7 @@ const LiveStatus = () => {
 
         if (result?.status === "success") {
           activeFilterRef.current = "all";
+          containerFilterRef.current = null;
           processApiResponse(
             result,
             page || backendPagination.currentPage,
@@ -185,7 +191,7 @@ const LiveStatus = () => {
   const fetchDataByProcess = useCallback(
     (processType, page = 1, size = null) => {
       activeFilterRef.current = processType;
-      applyClientSlice(page, size || backendPagination.pageSize, processType);
+      applyClientSlice(page, size || backendPagination.pageSize, processType, containerFilterRef.current);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [backendPagination.pageSize]
@@ -333,11 +339,14 @@ const LiveStatus = () => {
     setContainerNo(selectedContainer);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
+    containerFilterRef.current = null;
     setSearch(selectedContainer);
     notify.success("Selected", `Searching for container ${selectedContainer}`);
   };
 
   const handleRefresh = async () => {
+    setContainerNo("");
+    containerFilterRef.current = null;
     setSearch("");
     setFilter("all");
     setSortConfig({ key: null, direction: null });
@@ -375,14 +384,35 @@ const LiveStatus = () => {
     notify.success("Exported", `${source.length} records exported`);
   };
 
-  const handleContainerSubmit = () => {
+  const handleContainerSubmit = async () => {
     if (!containerNo.trim()) {
       notify.warning("Required", "Please enter a container number");
       return;
     }
-    setSearch(containerNo.trim());
     setShowSuggestions(false);
-    notify.success("Searching", `Searching for container ${containerNo}...`);
+
+    const terms = containerNo
+      .split(",")
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (terms.length > 1) {
+      // Multi-container search: filter client-side over the full in-yard
+      // snapshot (the SP's @SearchFor is a single-term filter, not comma-aware).
+      containerFilterRef.current = new Set(terms);
+      activeFilterRef.current = "all";
+      setFilter("all");
+      setSearch("");
+      if (allRowsRef.current.length === 0) {
+        await fetchData(1, backendPagination.pageSize, "");
+      }
+      applyClientSlice(1, backendPagination.pageSize, "all", containerFilterRef.current);
+      notify.success("Searching", `Searching for ${terms.length} containers...`);
+    } else {
+      containerFilterRef.current = null;
+      setSearch(containerNo.trim());
+      notify.success("Searching", `Searching for container ${containerNo}...`);
+    }
   };
 
   const handleShowMap = () => {
@@ -437,11 +467,11 @@ const LiveStatus = () => {
 
   // Page / size changes are pure client slicing — no server hit.
   const handlePageChange = (newPage) => {
-    applyClientSlice(newPage, backendPagination.pageSize, activeFilterRef.current);
+    applyClientSlice(newPage, backendPagination.pageSize, activeFilterRef.current, containerFilterRef.current);
   };
 
   const handlePageSizeChange = (newSize) => {
-    applyClientSlice(1, newSize, activeFilterRef.current);
+    applyClientSlice(1, newSize, activeFilterRef.current, containerFilterRef.current);
   };
 
   return (
@@ -519,6 +549,10 @@ const LiveStatus = () => {
                             setContainerNo("");
                             setSuggestions([]);
                             setShowSuggestions(false);
+                            containerFilterRef.current = null;
+                            setSearch("");
+                            setFilter("all");
+                            fetchData(1, backendPagination.pageSize, "");
                           }}
                           className="px-2.5 text-slate-400 hover:text-[#0e4a78] transition"
                           title="Clear"

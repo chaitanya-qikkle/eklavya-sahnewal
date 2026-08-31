@@ -19,13 +19,19 @@ const fmtLogDate = (val) => {
 const HEIGHTS = [1, 2, 3, 4]
 
 // Used only if the get-block-list API call fails or returns no data.
+// NOTE: OWH and EXP have inconsistent/swapped Row-Column axes in the source
+// SP data (OWH: Row is numeric 1-9, Column is letters A-D — opposite of every
+// other block; EXP: MinColumn "16" vs MaxColumn "G" don't form a valid range)
+// — kept as-is per the real GET_BLOCK_LIST output, not corrected here.
 const FALLBACK_BLOCKS = [
-  { Block: 'RAIL',   MinRow: 'A', MaxRow: 'C', MinColumn: '1', MaxColumn: '99' },
-  { Block: 'EXP-EX', MinRow: 'C', MaxRow: 'I', MinColumn: '1', MaxColumn: '9' },
-  { Block: 'EMT',    MinRow: 'A', MaxRow: 'V', MinColumn: '1', MaxColumn: '9' },
-  { Block: 'IMP',    MinRow: 'A', MaxRow: 'H', MinColumn: '1', MaxColumn: '9' },
-  { Block: 'IMP-EX', MinRow: 'A', MaxRow: 'R', MinColumn: '1', MaxColumn: '9' },
-  { Block: 'TG',     MinRow: 'A', MaxRow: 'D', MinColumn: '1', MaxColumn: '9' },
+  { Block: 'RAIL',   MinRow: 'A', MaxRow: 'C', MinColumn: '1',  MaxColumn: '99' },
+  { Block: 'EXP-EX', MinRow: 'C', MaxRow: 'I', MinColumn: '1',  MaxColumn: '9' },
+  { Block: 'EMT',    MinRow: 'A', MaxRow: 'V', MinColumn: '1',  MaxColumn: '9' },
+  { Block: 'EXP',    MinRow: '1', MaxRow: 'G', MinColumn: '16', MaxColumn: 'G' },
+  { Block: 'IMP',    MinRow: 'A', MaxRow: 'H', MinColumn: '1',  MaxColumn: '9' },
+  { Block: 'OWH',    MinRow: '1', MaxRow: '9', MinColumn: 'A',  MaxColumn: 'D' },
+  { Block: 'IMP-EX', MinRow: 'A', MaxRow: 'R', MinColumn: '1',  MaxColumn: '9' },
+  { Block: 'TG',     MinRow: 'A', MaxRow: 'D', MinColumn: '1',  MaxColumn: '9' },
 ]
 
 const letterRange = (min, max) => {
