@@ -788,58 +788,77 @@ export default function YardLiveStatus3D() {
               {selected.tat && <span className="ml-auto text-[9px] font-bold text-slate-400 font-mono">{selected.tat}</span>}
             </div>
 
-            {/* Data grid */}
+            {/* Data grid — only fields with real data are shown */}
             <div className="px-3 py-2.5 bg-white space-y-2">
-              {/* Row 1: Size/Type + Dwell */}
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  ["Size / Type", `${selected.size || "—"} ${selected.type || ""}`.trim() || "—"],
-                  ["Dwell", selected.dwellDays ? `${selected.dwellDays}d` : "—"],
-                ].map(([lbl, val]) => (
-                  <div key={lbl} className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
-                    <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{lbl}</div>
-                    <div className="text-[10.5px] font-bold text-slate-800 truncate">{val}</div>
+              {(() => {
+                const sizeType = `${selected.size || ""} ${selected.type || ""}`.trim();
+                const row1 = [
+                  sizeType ? ["Size / Type", sizeType] : null,
+                  selected.dwellDays ? ["Dwell", `${selected.dwellDays}d`] : null,
+                ].filter(Boolean);
+                return row1.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {row1.map(([lbl, val]) => (
+                      <div key={lbl} className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                        <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{lbl}</div>
+                        <div className="text-[10.5px] font-bold text-slate-800 truncate">{val}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
-              {/* Row 2: Process + Gate In */}
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  ["Process", selected.process || "—"],
-                  ["Gate In", fmt(selected.gateInDate)],
-                ].map(([lbl, val]) => (
-                  <div key={lbl} className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
-                    <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{lbl}</div>
-                    <div className="text-[10.5px] font-bold text-slate-800 truncate">{val}</div>
+              {(() => {
+                const row2 = [
+                  selected.process ? ["Process", selected.process] : null,
+                  selected.gateInDate ? ["Gate In", fmt(selected.gateInDate)] : null,
+                ].filter(Boolean);
+                return row2.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {row2.map(([lbl, val]) => (
+                      <div key={lbl} className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                        <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">{lbl}</div>
+                        <div className="text-[10.5px] font-bold text-slate-800 truncate">{val}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
-              {/* Shipping Line — always shown */}
-              <div className="rounded-xl bg-blue-50 border border-blue-100 px-2.5 py-2">
-                <div className="text-[8px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Shipping Line</div>
-                <div className="text-[10px] font-bold text-blue-800 leading-snug whitespace-normal">{selected.lineName || "—"}</div>
-              </div>
-
-              {/* Commodity + IGM No — always shown */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
-                  <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Commodity</div>
-                  <div className="text-[10px] font-bold text-slate-800 truncate">{selected.commodity || "—"}</div>
+              {/* Shipping Line — only when available */}
+              {selected.lineName && (
+                <div className="rounded-xl bg-blue-50 border border-blue-100 px-2.5 py-2">
+                  <div className="text-[8px] font-bold uppercase tracking-wider text-blue-400 mb-0.5">Shipping Line</div>
+                  <div className="text-[10px] font-bold text-blue-800 leading-snug whitespace-normal">{selected.lineName}</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
-                  <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">IGM No</div>
-                  <div className="text-[10px] font-bold text-slate-800 font-mono truncate">{selected.igmNo || "—"}</div>
-                </div>
-              </div>
+              )}
 
-              {/* Equipment — always shown */}
-              <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl" style={{ background: "#0e4a7808", border: "1px solid #0e4a7818" }}>
-                <FiTruck size={10} style={{ color: "#0e4a78" }} className="shrink-0" />
-                <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Equipment</span>
-                <span className="text-[10px] font-bold font-mono ml-auto" style={{ color: selected.equipment ? "#0e4a78" : "#94a3b8" }}>{selected.equipment || "—"}</span>
-              </div>
+              {/* Commodity + IGM No — only when available */}
+              {(selected.commodity || selected.igmNo) && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {selected.commodity && (
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                      <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Commodity</div>
+                      <div className="text-[10px] font-bold text-slate-800 truncate">{selected.commodity}</div>
+                    </div>
+                  )}
+                  {selected.igmNo && (
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                      <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">IGM No</div>
+                      <div className="text-[10px] font-bold text-slate-800 font-mono truncate">{selected.igmNo}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Equipment — only when available */}
+              {selected.equipment && (
+                <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl" style={{ background: "#0e4a7808", border: "1px solid #0e4a7818" }}>
+                  <FiTruck size={10} style={{ color: "#0e4a78" }} className="shrink-0" />
+                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">Equipment</span>
+                  <span className="text-[10px] font-bold font-mono ml-auto" style={{ color: "#0e4a78" }}>{selected.equipment}</span>
+                </div>
+              )}
             </div>
             {/* ── Get Direction — only when GPS is active ── */}
             {myGpsPos ? (
@@ -1421,7 +1440,8 @@ export default function YardLiveStatus3D() {
                 </span>
               </button>
 
-              {/* Manual / Test Mode button */}
+              {/* Manual / Test Mode button — hidden from the 3D yard map per request (kept for easy restore) */}
+              {/*
               <button
                 onClick={() => setShowManual(p => !p)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all"
@@ -1433,6 +1453,7 @@ export default function YardLiveStatus3D() {
                 <FiMapPin size={11} />
                 <span className="text-[9px] font-bold uppercase tracking-wide">Test Pos</span>
               </button>
+              */}
 
               <button onClick={() => setLowPerfMode(p => !p)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all"

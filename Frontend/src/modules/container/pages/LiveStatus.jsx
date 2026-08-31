@@ -63,7 +63,8 @@ const LiveStatus = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [containerNo, setContainerNo] = useState("");
+  const [containerNo, setContainerNo] = useState(""); // text currently being typed (not yet committed to a chip)
+  const [containerChips, setContainerChips] = useState([]); // committed container numbers, shown as removable chips
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -87,9 +88,35 @@ const LiveStatus = () => {
   const [triggerFetch] = useLazyGetContainerLiveStatusQuery();
   const [triggerSuggestions] = useLazySearchContainerQuery();
 
+  // Commit the currently-typed text as a chip (splitting on comma in case of paste).
+  const commitContainerChip = (raw = containerNo) => {
+    const parts = raw.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean);
+    if (!parts.length) return;
+    setContainerChips((prev) => {
+      const next = [...prev];
+      parts.forEach((p) => { if (!next.includes(p)) next.push(p); });
+      return next;
+    });
+    setContainerNo("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const removeContainerChip = (chip) => {
+    setContainerChips((prev) => prev.filter((c) => c !== chip));
+  };
+
+  // All committed containers plus whatever's still being typed — used by
+  // Submit/Show-on-Map so an un-comma'd, un-Enter'd last entry still counts.
+  const allContainerTerms = () => {
+    const typed = containerNo.trim().toUpperCase();
+    const set = new Set(containerChips);
+    if (typed) set.add(typed);
+    return Array.from(set);
+  };
+
   const allRowsRef = useRef([]);          // full snapshot from the SP
   const activeFilterRef = useRef("all");  // current process filter
-  const containerFilterRef = useRef(null); // Set<containerNo> for comma-separated multi-container search, or null
 
   const isUCC = (r) => String(r.BLOCK_NAME || "").toUpperCase().includes("UCC");
 
@@ -106,17 +133,13 @@ const LiveStatus = () => {
     return { total, importCount, exportCount, emptyCount, uccCount };
   };
 
-  const applyClientSlice = (page, size, processType, containerFilterSet = null) => {
+  const applyClientSlice = (page, size, processType) => {
     const all = allRowsRef.current;
-    let filtered = processType === "all"
+    const filtered = processType === "all"
       ? all
       : processType === "Domestic"
         ? all.filter((r) => isUCC(r))
         : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(processType).toLowerCase());
-
-    if (containerFilterSet && containerFilterSet.size > 0) {
-      filtered = filtered.filter((r) => containerFilterSet.has(String(r.CONTAINER_NO || "").toUpperCase()));
-    }
 
     const totalRecords = filtered.length;
     const totalPages = Math.max(1, Math.ceil(totalRecords / size));
@@ -145,7 +168,7 @@ const LiveStatus = () => {
     const all = Array.isArray(apiData?.data) ? apiData.data : [];
     allRowsRef.current = all;
     if (updateStats) setTotalStats(computeStats(all));
-    applyClientSlice(page, size, activeFilterRef.current, containerFilterRef.current);
+    applyClientSlice(page, size, activeFilterRef.current);
   }, []);
 
 
@@ -161,7 +184,6 @@ const LiveStatus = () => {
 
         if (result?.status === "success") {
           activeFilterRef.current = "all";
-          containerFilterRef.current = null;
           processApiResponse(
             result,
             page || backendPagination.currentPage,
@@ -191,7 +213,7 @@ const LiveStatus = () => {
   const fetchDataByProcess = useCallback(
     (processType, page = 1, size = null) => {
       activeFilterRef.current = processType;
-      applyClientSlice(page, size || backendPagination.pageSize, processType, containerFilterRef.current);
+      applyClientSlice(page, size || backendPagination.pageSize, processType);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [backendPagination.pageSize]
@@ -305,8 +327,26 @@ const LiveStatus = () => {
   }, [records, sortConfig]);
 
   const handleKeyDown = (e) => {
+    // Comma always commits the current text as a chip, regardless of the
+    // suggestions dropdown state.
+    if (e.key === ",") {
+      e.preventDefault();
+      commitContainerChip();
+      return;
+    }
+    // Backspace on an empty field pops the last chip back for editing.
+    if (e.key === "Backspace" && !containerNo && containerChips.length > 0) {
+      const last = containerChips[containerChips.length - 1];
+      setContainerChips((prev) => prev.slice(0, -1));
+      setContainerNo(last);
+      return;
+    }
     if (!showSuggestions) {
-      if (e.key === "Enter") handleContainerSubmit();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (containerNo.trim()) commitContainerChip();
+        else handleContainerSubmit();
+      }
       return;
     }
     switch (e.key) {
@@ -323,7 +363,7 @@ const LiveStatus = () => {
         if (selectedSuggestionIndex >= 0 && suggestions[selectedSuggestionIndex]) {
           handleSuggestionClick(suggestions[selectedSuggestionIndex]);
         } else {
-          handleContainerSubmit();
+          commitContainerChip();
         }
         break;
       case "Escape":
@@ -336,17 +376,13 @@ const LiveStatus = () => {
   };
 
   const handleSuggestionClick = (selectedContainer) => {
-    setContainerNo(selectedContainer);
-    setShowSuggestions(false);
+    commitContainerChip(selectedContainer);
     setSelectedSuggestionIndex(-1);
-    containerFilterRef.current = null;
-    setSearch(selectedContainer);
-    notify.success("Selected", `Searching for container ${selectedContainer}`);
   };
 
   const handleRefresh = async () => {
     setContainerNo("");
-    containerFilterRef.current = null;
+    setContainerChips([]);
     setSearch("");
     setFilter("all");
     setSortConfig({ key: null, direction: null });
@@ -384,46 +420,31 @@ const LiveStatus = () => {
     notify.success("Exported", `${source.length} records exported`);
   };
 
-  const handleContainerSubmit = async () => {
-    if (!containerNo.trim()) {
+  const handleContainerSubmit = () => {
+    const terms = allContainerTerms();
+    if (!terms.length) {
       notify.warning("Required", "Please enter a container number");
       return;
     }
     setShowSuggestions(false);
+    setContainerChips(terms);
+    setContainerNo("");
 
-    const terms = containerNo
-      .split(",")
-      .map((t) => t.trim().toUpperCase())
-      .filter(Boolean);
-
-    if (terms.length > 1) {
-      // Multi-container search: filter client-side over the full in-yard
-      // snapshot (the SP's @SearchFor is a single-term filter, not comma-aware).
-      containerFilterRef.current = new Set(terms);
-      activeFilterRef.current = "all";
-      setFilter("all");
-      setSearch("");
-      if (allRowsRef.current.length === 0) {
-        await fetchData(1, backendPagination.pageSize, "");
-      }
-      applyClientSlice(1, backendPagination.pageSize, "all", containerFilterRef.current);
-      notify.success("Searching", `Searching for ${terms.length} containers...`);
-    } else {
-      containerFilterRef.current = null;
-      setSearch(containerNo.trim());
-      notify.success("Searching", `Searching for container ${containerNo}...`);
-    }
+    // GET_CONTAINERLIVESTATUS splits @SearchFor on commas itself
+    // (dbo.Split_String) and matches g.ContNo IN (...), so a raw
+    // comma-joined string is valid input.
+    setSearch(terms.join(","));
+    notify.success("Searching", terms.length > 1
+      ? `Searching for ${terms.length} containers...`
+      : `Searching for container ${terms[0]}...`);
   };
 
   const handleShowMap = () => {
-    if (!containerNo.trim()) {
+    const containerNumbers = allContainerTerms();
+    if (!containerNumbers.length) {
       notify.warning("Container Required", "Enter container number(s) to view on map.");
       return;
     }
-    const containerNumbers = containerNo
-      .split(",")
-      .map((num) => num.trim().toUpperCase())
-      .filter((num) => num.length > 0);
 
     const foundContainers = containerNumbers
       .map((num) => records.find((record) => record.CONTAINER_NO === num))
@@ -467,11 +488,11 @@ const LiveStatus = () => {
 
   // Page / size changes are pure client slicing — no server hit.
   const handlePageChange = (newPage) => {
-    applyClientSlice(newPage, backendPagination.pageSize, activeFilterRef.current, containerFilterRef.current);
+    applyClientSlice(newPage, backendPagination.pageSize, activeFilterRef.current);
   };
 
   const handlePageSizeChange = (newSize) => {
-    applyClientSlice(1, newSize, activeFilterRef.current, containerFilterRef.current);
+    applyClientSlice(1, newSize, activeFilterRef.current);
   };
 
   return (
@@ -528,8 +549,24 @@ const LiveStatus = () => {
                 </label>
                 <div className="mt-2 flex flex-col lg:flex-row gap-3">
                   <div className="relative flex-1">
-                    <div className="flex items-center rounded-xl border border-slate-300 bg-white focus-within:border-[#0e4a78] focus-within:ring-2 focus-within:ring-[#0e4a78]/15 transition">
-                      <FiSearch className="ml-3 text-slate-400 text-base" />
+                    <div className="flex items-center flex-wrap gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 focus-within:border-[#0e4a78] focus-within:ring-2 focus-within:ring-[#0e4a78]/15 transition">
+                      <FiSearch className="text-slate-400 text-base shrink-0" />
+                      {containerChips.map((chip) => (
+                        <span
+                          key={chip}
+                          className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-bold font-mono"
+                        >
+                          {chip}
+                          <button
+                            type="button"
+                            onClick={() => removeContainerChip(chip)}
+                            className="p-0.5 rounded hover:bg-[#0e4a78]/10 text-[#0e4a78]/60 hover:text-red-500 transition"
+                            title={`Remove ${chip}`}
+                          >
+                            <FiX className="text-[10px]" />
+                          </button>
+                        </span>
+                      ))}
                       <input
                         ref={inputRef}
                         value={containerNo}
@@ -538,24 +575,24 @@ const LiveStatus = () => {
                         onFocus={() => {
                           if (suggestions.length > 0) setShowSuggestions(true);
                         }}
-                        placeholder="Enter container number(s) — comma separated"
-                        className="flex-1 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                        placeholder={containerChips.length ? "Add another…" : "Enter container number(s) — comma or Enter to add"}
+                        className="flex-1 min-w-[140px] px-1.5 py-1 text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
                         autoComplete="off"
                       />
-                      {containerNo && (
+                      {(containerNo || containerChips.length > 0) && (
                         <button
                           type="button"
                           onClick={() => {
                             setContainerNo("");
+                            setContainerChips([]);
                             setSuggestions([]);
                             setShowSuggestions(false);
-                            containerFilterRef.current = null;
                             setSearch("");
                             setFilter("all");
                             fetchData(1, backendPagination.pageSize, "");
                           }}
-                          className="px-2.5 text-slate-400 hover:text-[#0e4a78] transition"
-                          title="Clear"
+                          className="ml-auto px-2 text-slate-400 hover:text-[#0e4a78] transition shrink-0"
+                          title="Clear all"
                         >
                           <FiX />
                         </button>
