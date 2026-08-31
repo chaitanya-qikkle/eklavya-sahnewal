@@ -23,6 +23,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import YardScene from "../scene/YardScene";
 import { buildProjection, computeDxfAlignment } from "../scene/geofence";
 import { buildGeofenceFromSlotList } from "../scene/buildGeofenceFromSlotList";
+import { YARD_ROTATION_DEG, YARD_OFFSET_X, YARD_OFFSET_Z } from "../live/equipmentCoordinateMapper";
 import WallEditor, { EMPTY_EDITS, MODES, applyEdits, wallSegments, obstacleRings } from "../tools/WallEditor";
 import PropsEditor, { newPropId } from "../tools/PropsEditor";
 import { PROP_CATEGORIES, PROP_SPECS } from "../tools/PropKit";
@@ -259,6 +260,17 @@ function PropsTab({
     if (!target || !isStructure(targetSpec)) return;
     updateTarget({ scale: Math.max(SCALE_MIN, Math.min(SCALE_MAX, (target.scale || 1) * mult)) });
   };
+  const isCustomModel = (t) => t?.type === "custom_model";
+  const setCustomModelHeightPct = (pct) => {
+    if (!target || !isCustomModel(target)) return;
+    const clamped = Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct / 100));
+    updateTarget({ scaleY: clamped });
+  };
+  const setCustomModelWidthPct = (pct) => {
+    if (!target || !isCustomModel(target)) return;
+    const clamped = Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct / 100));
+    updateTarget({ scaleX: clamped });
+  };
   const nudgeMove = (dx, dy) => {
     if (!target) return;
     if (targetSpec.footprint === "point") { updateTarget({ x: target.x + dx, y: target.y + dy }); return; }
@@ -418,6 +430,50 @@ function PropsTab({
               <span style={{ fontSize: 10.5, color: "#7d94ab" }}>{Math.round((target.scale || 1) * 100)}%</span>
             </div>
           )}
+          {isCustomModel(target) && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: "#8fa5bb" }}>Width</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  step={1}
+                  value={Math.round((target.scaleX ?? target.scale ?? 1) * 100)}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setCustomModelWidthPct(v);
+                  }}
+                  style={{
+                    width: 64, padding: "4px 6px", borderRadius: 4, fontSize: 11.5,
+                    background: "rgba(255,255,255,.06)", color: "#eaf4ff",
+                    border: "1px solid rgba(140,175,210,.3)",
+                  }}
+                />
+                <span style={{ fontSize: 10.5, color: "#7d94ab" }}>%</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: "#8fa5bb" }}>Height</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  step={1}
+                  value={Math.round((target.scaleY ?? target.scale ?? 1) * 100)}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setCustomModelHeightPct(v);
+                  }}
+                  style={{
+                    width: 64, padding: "4px 6px", borderRadius: 4, fontSize: 11.5,
+                    background: "rgba(255,255,255,.06)", color: "#eaf4ff",
+                    border: "1px solid rgba(140,175,210,.3)",
+                  }}
+                />
+                <span style={{ fontSize: 10.5, color: "#7d94ab" }}>%</span>
+              </div>
+            </>
+          )}
           {hasColor(target, targetSpec) && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
               <span style={{ fontSize: 11, color: "#8fa5bb" }}>Colour</span>
@@ -474,12 +530,15 @@ export default function YardBuilderPage() {
 
   // Manual rotation + pan control — nudges the whole slot/geofence
   // projection (rotation in degrees, offset in metres) so slots visually
-  // line up with the DXF boundary. Session state only; note the final
-  // values down and set YARD_ROTATION_DEG / YARD_OFFSET_X / YARD_OFFSET_Z
-  // in live/equipmentCoordinateMapper.js to make them permanent everywhere else.
-  const [rotationDeg, setRotationDeg] = useState(0);
-  const [offsetX, setOffsetX] = useState(0);
-  const [offsetZ, setOffsetZ] = useState(0);
+  // line up with the DXF boundary. Starts from the same calibrated values
+  // production (YardLiveStatus3D) uses by default, so this tool shows slots
+  // aligned exactly like production out of the box — further nudges here are
+  // still session-only; note new final values down and update
+  // YARD_ROTATION_DEG / YARD_OFFSET_X / YARD_OFFSET_Z in
+  // live/equipmentCoordinateMapper.js to make them permanent everywhere else.
+  const [rotationDeg, setRotationDeg] = useState(YARD_ROTATION_DEG);
+  const [offsetX, setOffsetX] = useState(YARD_OFFSET_X);
+  const [offsetZ, setOffsetZ] = useState(YARD_OFFSET_Z);
   const nudgeRotation = (delta) => setRotationDeg((d) => Math.round((d + delta) * 100) / 100);
   const nudgeOffset = (dx, dz) => {
     if (dx) setOffsetX((v) => Math.round((v + dx) * 100) / 100);
@@ -683,10 +742,11 @@ export default function YardBuilderPage() {
             onChange={(e) => setRotationDeg(Number(e.target.value))}
             style={{ width: "100%", marginBottom: 6 }}
           />
-          <button onClick={() => setRotationDeg(0)} style={{ ...smallBtn, width: "100%" }}>Reset to 0°</button>
+          <button onClick={() => setRotationDeg(YARD_ROTATION_DEG)} style={{ ...smallBtn, width: "100%" }}>Reset to production ({YARD_ROTATION_DEG}°)</button>
           <div style={{ fontSize: 9.5, color: "#7d94ab", marginTop: 6, lineHeight: 1.4 }}>
-            Note this value down — it's session-only here. To apply it everywhere
-            (production 3D view included), set it as YARD_ROTATION_DEG in
+            Starts aligned to production's calibrated value. Note any new value
+            down — changes here are session-only. To apply a new value everywhere
+            (production 3D view included), update YARD_ROTATION_DEG in
             live/equipmentCoordinateMapper.js.
           </div>
         </div>
@@ -717,9 +777,10 @@ export default function YardBuilderPage() {
             <button onClick={() => nudgeOffset(-5, 0)} style={smallBtn} title="Move left 5m">←5m</button>
             <button onClick={() => nudgeOffset(5, 0)} style={smallBtn} title="Move right 5m">5m→</button>
           </div>
-          <button onClick={() => { setOffsetX(0); setOffsetZ(0); }} style={{ ...smallBtn, width: "100%" }}>Reset position</button>
+          <button onClick={() => { setOffsetX(YARD_OFFSET_X); setOffsetZ(YARD_OFFSET_Z); }} style={{ ...smallBtn, width: "100%" }}>Reset to production ({YARD_OFFSET_X}m, {YARD_OFFSET_Z}m)</button>
           <div style={{ fontSize: 9.5, color: "#7d94ab", marginTop: 6, lineHeight: 1.4 }}>
-            Note these values down — session-only here. To apply everywhere, set
+            Starts aligned to production's calibrated values. Note any new
+            values down — session-only here. To apply everywhere, set
             YARD_OFFSET_X / YARD_OFFSET_Z in live/equipmentCoordinateMapper.js.
           </div>
         </div>

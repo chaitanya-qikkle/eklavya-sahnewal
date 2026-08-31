@@ -42,7 +42,7 @@ export default function PostFX() {
 
   if (!anyEffect) return null;
   return (
-    <EffectComposer multisampling={settings.tier === "ultra" ? 4 : 0}>
+    <EffectComposer multisampling={settings.tier === "ultra" ? 4 : 0} enableNormalPass={px.ssao}>
       {effects}
     </EffectComposer>
   );

@@ -21443,5 +21443,58 @@
     ]
   ],
   "masts": [],
-  "props": []
+  "props": [
+    {
+      "id": "custom_model-1-78qs",
+      "type": "custom_model",
+      "x": -237.31802170427574,
+      "y": 254.84176873623574,
+      "rot": 270,
+      "modelUrl": "/models/custom/workshop_building_3d_model-9c2e4e2f.glb",
+      "scaleX": 9,
+      "scaleY": 7
+    },
+    {
+      "id": "custom_model-r-bem3",
+      "type": "custom_model",
+      "x": 105.18018144401799,
+      "y": -254.63580885688458,
+      "rot": 0,
+      "modelUrl": "/models/custom/warehouse_3d_model-1f73d0d4.glb",
+      "scaleX": 8,
+      "scaleY": 6,
+      "color": "#66b0ff"
+    },
+    {
+      "id": "custom_model-15-ednr",
+      "type": "custom_model",
+      "x": -17.580225817083107,
+      "y": -64.49436301915998,
+      "rot": 0,
+      "modelUrl": "/models/custom/warehouse_3d_model-1f73d0d4.glb",
+      "scaleY": 6,
+      "scaleX": 8,
+      "color": "#7abaff"
+    },
+    {
+      "id": "custom_model-18-ifdu",
+      "type": "custom_model",
+      "x": 5.737243297099534,
+      "y": -190.03637751192275,
+      "rot": 0,
+      "modelUrl": "/models/custom/toll_gate_barrier_3d_model-54721447.glb",
+      "scaleX": 8,
+      "scaleY": 4
+    },
+    {
+      "id": "custom_model-1b-jq5o",
+      "type": "custom_model",
+      "x": 44.16310524104363,
+      "y": -190.2778644414033,
+      "rot": 180,
+      "modelUrl": "/models/custom/toll_gate_barrier_3d_model-54721447.glb",
+      "scaleX": 8,
+      "scaleY": 4
+    }
+  ]
 }

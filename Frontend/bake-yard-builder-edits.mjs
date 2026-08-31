@@ -51,7 +51,10 @@ const result = {
     masts: [...(layout.masts || []), ...masts],
     warehouses: (layout.warehouses || []).filter((_, i) => !drop.has(key('w', i))),
     buildings: (layout.buildings || []).filter((_, i) => !drop.has(key('b', i))),
-    props: (layout.props || []).filter(p => !dropProps.has(p.id)),
+    props: [
+        ...(layout.props || []).filter(p => !dropProps.has(p.id)),
+        ...(edits.props || []),
+    ],
 };
 
 fs.writeFileSync(layoutFile, JSON.stringify(result, null, 2));
@@ -62,3 +65,4 @@ console.log(`  addedWalls applied: ${edits.addedWalls?.length || 0}`);
 console.log(`  masts: ${layout.masts?.length || 0} -> ${result.masts.length}`);
 console.log(`  warehouses: ${layout.warehouses?.length || 0} -> ${result.warehouses.length}`);
 console.log(`  buildings: ${layout.buildings?.length || 0} -> ${result.buildings.length}`);
+console.log(`  props: ${layout.props?.length || 0} -> ${result.props.length}`);
