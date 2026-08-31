@@ -16,8 +16,8 @@ function safeScale(v, fallback = 1) {
 // Real Kalmar RS46 footprint used elsewhere in this file's procedural rig —
 // keep the GLB sized to match so markers, selection rings, and click targets
 // still line up.
-const TARGET_LENGTH = 30.0; // boom included, along local Z (machine heading) — real Kalmar RS46 footprint
-const TARGET_WIDTH = 6.7;   // along local X
+const TARGET_LENGTH = 70.0; // boom included, along local Z (machine heading)
+const TARGET_WIDTH = 15.6;  // along local X — keeps RS46's real length:width ratio
 
 function ReachStackerGlbModel({ rotY = 0 }) {
   const { scene } = useGLTF(REACH_STACKER_GLB_PATH);
