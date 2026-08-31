@@ -899,11 +899,21 @@ export default function YardVisualization3D() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContainer, setSelectedContainer] = useState(null);
   const { data: slotListResp } = useGetLocationSlotsQuery();
+  // Static Sahnewal DXF layout — walls, warehouses, DXF buildings and
+  // yard-builder props (custom GLB models). Slot/block occupancy itself comes
+  // from useGetLocationSlotsQuery above, not this file.
+  const [dxfLayout, setDxfLayout] = useState(null);
+  useEffect(() => {
+    fetch(`/yard-layout-sahnewal.json?t=${Date.now()}`)
+      .then(r => r.json())
+      .then(setDxfLayout)
+      .catch(() => {});
+  }, []);
   const layoutData = useMemo(() => {
     const rows = Array.isArray(slotListResp?.data) ? slotListResp.data : [];
-    if (!rows.length) return null;
-    return { blocks: buildBlocksFromSlots(rows) };
-  }, [slotListResp]);
+    if (!rows.length && !dxfLayout) return null;
+    return { ...(dxfLayout || {}), blocks: buildBlocksFromSlots(rows) };
+  }, [slotListResp, dxfLayout]);
   const [maxTier, setMaxTier] = useState(4);
   const [filterZone, setFilterZone] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");

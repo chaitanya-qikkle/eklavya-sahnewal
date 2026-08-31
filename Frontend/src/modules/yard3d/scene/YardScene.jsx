@@ -7,6 +7,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Sky } from "@react-three/drei";
 import * as THREE from "three";
 import LiveEquipmentLayer from "../live/LiveEquipmentLayer";
+import PropsLayer from "../tools/PropKit";
 import PathNavigator from "./PathNavigator";
 import FpsAdaptor from "../perf/FpsAdaptor";
 import PostFX from "../perf/PostFX";
@@ -1367,6 +1368,13 @@ export default function YardScene({
           <WallCoping    fences={sceneFeatures.fences} alignment={alignment} />
 
           <DxfTrees trees={sceneFeatures.trees} alignment={alignment} />
+
+          {/* Baked yard-builder props (custom GLB models, hand-placed
+              buildings, etc.) — saved into dxfLayout.props by
+              bake-yard-builder-edits.mjs. */}
+          {dxfLayout?.props?.length > 0 && (
+            <PropsLayer props={dxfLayout.props} alignment={alignment} />
+          )}
         </>
       )}
 

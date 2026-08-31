@@ -15,6 +15,7 @@ import {
   CONTAINER_HEIGHT,
 } from "../scene/coords";
 import { containerAtlasTexture, containerUnitBoxGeometry } from "../scene/containerGeometry";
+import { CustomModelProp } from "../tools/PropKit";
 
 // ── constants ─────────────────────────────────────────────────────────────
 const M_PER_DEG_LAT = 111320;
@@ -277,6 +278,28 @@ function Warehouse({ ring, cx, cy }) {
         <meshLambertMaterial color="#7a8fa0" />
       </mesh>
     </group>
+  );
+}
+
+// Baked yard-builder props (custom GLB models) — layoutData.props, saved by
+// bake-yard-builder-edits.mjs. Same cx/cy world→scene convention as
+// Warehouse/Building above: x = worldX - cx, z = (worldY - cy) * -1.
+function CustomModelsLayer({ props, cx, cy }) {
+  const items = (props || []).filter(p => p.type === "custom_model" && p.modelUrl);
+  if (!items.length) return null;
+  return (
+    <>
+      {items.map((p) => {
+        const sw = p.scaleX ?? p.scale ?? 1;
+        const sh = p.scaleY ?? p.scale ?? 1;
+        const rotY = (-(p.rot || 0) * Math.PI) / 180;
+        return (
+          <group key={p.id} position={[p.x - cx, 0, (p.y - cy) * -1]} rotation={[0, rotY, 0]} scale={[sw, sh, sw]}>
+            <CustomModelProp url={p.modelUrl} color={p.color} />
+          </group>
+        );
+      })}
+    </>
   );
 }
 
@@ -1057,6 +1080,9 @@ export default function YardOverview3D({
         {supportRings.map((ring, i) => (
           <Building key={`b-${i}`} ring={ring} cx={cx} cy={cy} color="#465162" height={5} />
         ))}
+
+        {/* Custom GLB models placed via the yard builder */}
+        {layoutData && <CustomModelsLayer props={layoutData.props} cx={cx} cy={cy} />}
 
         {/* ── GEOFENCE-DRIVEN BLOCKS + SLOTS ── */}
         {geofence && geoProj ? (

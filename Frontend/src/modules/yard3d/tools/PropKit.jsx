@@ -1245,7 +1245,7 @@ function CustomModelGlb({ url, color }) {
     return <primitive object={instance} scale={[scale, scale, scale]} position={[0, liftY, 0]} />;
 }
 
-function CustomModelProp({ url, color }) {
+export function CustomModelProp({ url, color }) {
     if (!url) return null;
     const fallback = <CustomModelPlaceholder color={color} />;
     return (
