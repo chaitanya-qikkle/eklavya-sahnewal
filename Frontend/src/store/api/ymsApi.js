@@ -927,6 +927,16 @@ export const ymsApi = createApi({
       query: () => ({ url: API_ENDPOINTS.CONTAINER.GET_VEHICLE_CONTAINER_DETECTION, method: 'GET' }),
     }),
 
+    getRailIn: builder.query({
+      query: ({ from_date, to_date, container_no } = {}) => {
+        const params = new URLSearchParams()
+        if (from_date)    params.set('from_date',    from_date)
+        if (to_date)      params.set('to_date',      to_date)
+        if (container_no) params.set('container_no', container_no)
+        return { url: `${API_ENDPOINTS.CONTAINER.GET_RAIL_IN}?${params.toString()}`, method: 'GET' }
+      },
+    }),
+
     getPreGateSurvey: builder.query({
       query: ({ gate_type, gate_name, from_date, to_date, container_no, plant_id, page = 1, page_size = 20 } = {}) => {
         const params = new URLSearchParams()
@@ -1250,6 +1260,7 @@ export const {
   useDeleteBreakdownMutation,
   useGetGateNamesQuery,
   useGetVehicleContainerDetectionQuery,
+  useLazyGetRailInQuery,
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
   useGetContainerInOut24hQuery,

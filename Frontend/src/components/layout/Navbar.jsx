@@ -152,6 +152,7 @@ const Navbar = ({ brand = "Qikkle" }) => {
     "Gate/Trailer/Index":                        "/gate/trailer-in",
     "Gate/TrailerOut/Index":                     "/gate/trailer-out",
     "Gate/MainGate/Index":                       "/gate/main-gate",
+    "Gate/RailGateIn/Index":                     "/gate/rail-gate-in",
     "Gate/Rail/RailPlanUpload":                  "/container/rail-plan-upload",
     "Essential/Container/ContainerLiveStatus":   "/container/live-status",
     "Report/Report/ContainerHistoryReport":      "/container/history-status",
