@@ -194,6 +194,25 @@ def get_yard_3d_slot_list():
         db.close_connection()
 
 
+@router.get("/container-live-status-3d")
+def get_container_live_status_3d():
+    """In-yard container list for the realistic 3D scene — ContainerLiveStatus_3D.
+
+    Returns Cont_No/Cont_Size/Cont_Type/Last_Loc/LocationId/SlotId per container.
+    SlotId is a direct FK into ESS_MST_LOCATION, letting the frontend place each
+    container in its exact slot geometry instead of parsing the combined
+    Last_Loc string (which was causing overlap/misalignment in the 3D view).
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.ContainerLiveStatus_3D")
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/container-info")
 def get_container_info(container_no: str = ""):
     db = SQLManager()

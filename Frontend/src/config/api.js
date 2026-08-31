@@ -180,6 +180,7 @@ export const API_ENDPOINTS = {
     GET_YARD_3D_INVENTORY: buildUrl('/v1/container/yard-3d-inventory'),
     GET_YARD_3D_SLOT_LIST: buildUrl('/v1/container/yard-3d-slot-list'),
     GET_CONTAINER_LIVE_STATUS: buildUrl('/v1/container/container-live-status'),
+    GET_CONTAINER_LIVE_STATUS_3D: buildUrl('/v1/container/container-live-status-3d'),
     KIOSK_SEARCH: buildUrl('/v1/container/kiosk-search'),
     GET_LOCATION_SLOTS: buildUrl('/v1/container/location-slots'),
     GET_PRE_GATE_SURVEY: buildUrl('/v1/container/pre-gate-survey'),

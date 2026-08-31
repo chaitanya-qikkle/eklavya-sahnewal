@@ -66,9 +66,10 @@ export function buildBlockGeometry(geofence, projection) {
   return blocksOut;
 }
 
-// Slot lookup index. Keyed three ways so a container can match by whichever
+// Slot lookup index. Keyed four ways so a container can match by whichever
 // identifier the inventory row carries:
-//   • "@name:BLOCK-A-01A"  — the DB SlotName / key (most reliable join)
+//   • "@id:12345"          — the DB SlotID (exact FK join, most reliable)
+//   • "@name:BLOCK-A-01A"  — the DB SlotName / key
 //   • "BLOCK-A|A|01"       — block | row | col (zero-padded, as in geofence)
 export function buildSlotIndex(geofence) {
   const map = new Map();
@@ -76,6 +77,7 @@ export function buildSlotIndex(geofence) {
     map.set(`${s.block}|${s.row}|${s.col}`, s);
     if (s.slotName) map.set(`@name:${String(s.slotName).toUpperCase()}`, s);
     if (s.key && s.key !== s.slotName) map.set(`@name:${String(s.key).toUpperCase()}`, s);
+    if (s.slotId) map.set(`@id:${String(s.slotId)}`, s);
   }
   return map;
 }
@@ -151,10 +153,18 @@ export function findSlotByLatLng(lat, lng, projection, spatial, fallbackRadius =
 }
 
 // Multi-strategy container locator. Priority:
+//   0. SlotID (exact FK join, no string parsing — most reliable when present)
 //   1. Explicit BLOCK + ROW + COL columns
 //   2. Slot-name string ("E1:G:18" or "E1:18:G", with `:`/`-`/`/` separators)
 //   3. GPS (OFFLOAD_LAT, OFFLOAD_LON) → enclosing/nearest slot
 export function locateContainer(c, slotIndex, projection, spatial) {
+  // -1. Direct DB SlotID match — the most precise join available, avoids all
+  //     string-parsing ambiguity that causes containers to overlap/misplace.
+  if (c.slotId != null && c.slotId !== "") {
+    const hit = slotIndex.get(`@id:${String(c.slotId)}`);
+    if (hit) return hit;
+  }
+
   // 0. Direct DB SlotName match — both the inventory row (SLOT_NAME) and the
   //    geofence slot derive from ESS_MST_SLOT, so this is the exact join.
   const sname = String(c.slotName || c.location || "").trim().toUpperCase();

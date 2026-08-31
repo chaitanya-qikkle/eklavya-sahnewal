@@ -858,6 +858,14 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    getContainerLiveStatus3d: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.CONTAINER.GET_CONTAINER_LIVE_STATUS_3D,
+        method: 'GET',
+      }),
+      providesTags: ['ContainerInventory'],
+    }),
+
     getTrailerGateInList: builder.query({
       query: () => ({
         url: API_ENDPOINTS.CONTAINER.GET_TRAILER_GATE_IN_LIST,
@@ -1192,6 +1200,7 @@ export const {
   useLazyGetYard3dInventoryQuery,
   useGetYard3dSlotListQuery,
   useGetContainerLiveStatusQuery,
+  useGetContainerLiveStatus3dQuery,
   useLazyGetContainerLiveStatusQuery,
   useGetTrailerGateInListQuery,
   useGetTrailerGateOutListQuery,

@@ -6,7 +6,7 @@ import Navbar from "../../../components/layout/Navbar";
 import YardScene from "../scene/YardScene";
 import { CameraSwitcher, RouteProgress } from "../nav/CameraSwitcher";
 import DownloadDesktopApp, { DesktopBadge } from "../components/DownloadDesktopApp";
-import { useGetContainerLiveStatusQuery, useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
+import { useGetContainerLiveStatus3dQuery, useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
 import { buildGeofenceFromSlotList } from "../scene/buildGeofenceFromSlotList";
 import {
   FiSearch, FiX, FiRefreshCw, FiPackage, FiMapPin,
@@ -76,23 +76,40 @@ function mapLiveRow(row, idx) {
   // Prefer the slot-table values (SLOT_BLOCK, SLOT_ROW, SLOT_COL) which match
   // the geofence JSON exactly (alpha row, numeric col). Fall back to the
   // location-table values if the slot join is NULL.
+  const location = grab(row, "MASTERTABLE", "LOCATION_NAME", "LOCATION", "ContainerLocation", "Last_Loc") || "";
+
+  // Both GET_CONTAINERLIVESTATUS and ContainerLiveStatus_3D only return one
+  // combined location string ("BLOCK:ROW:COL:TIER", e.g. "RAIL:A:22:1") — no
+  // separate row/column columns. Parse it as the fallback when dedicated
+  // SLOT_ROW/SLOT_COL fields aren't present.
+  const locParts = String(location).split(":").map((p) => p.trim()).filter(Boolean);
+  const [locBlock, locRow, locCol, locTier] = locParts;
+
+  // ContainerLiveStatus_3D's SlotId is a direct FK into ESS_MST_LOCATION —
+  // when present, this is the exact placement join (see locateContainer),
+  // avoiding the overlap caused by ambiguous Last_Loc string parsing.
+  const slotId = grab(row, "SlotId", "SLOT_ID", "SlotID");
+
+  // Note: BLOCK_NAME/BlockName from GET_CONTAINERLIVESTATUS is the whole
+  // combined location string (see comment above), not a bare block code —
+  // parsed locBlock takes priority when a dedicated SLOT_BLOCK is absent.
   const block = String(
-    grab(row, "SLOT_BLOCK", "BLOCK_NAME", "BLOCK", "Block_Name", "BlockName") || ""
+    grab(row, "SLOT_BLOCK") || locBlock || grab(row, "BLOCK_NAME", "BLOCK", "Block_Name", "BlockName") || ""
   ).trim();
   const rowKey = String(
-    grab(row, "SLOT_ROW", "ROW_NO", "ROW", "Row_No", "RowNo") || ""
+    grab(row, "SLOT_ROW", "ROW_NO", "ROW", "Row_No", "RowNo") || locRow || ""
   ).trim();
   const colRaw = String(
-    grab(row, "SLOT_COL", "COLUMN_NAME", "SLOT", "Column_Name", "ColumnName", "SLOT_NO") || ""
+    grab(row, "SLOT_COL", "COLUMN_NAME", "SLOT", "Column_Name", "ColumnName", "SLOT_NO") || locCol || ""
   ).trim();
   const col = colRaw.replace(/\D/g, "") || colRaw;
-  const tier = parseInt(grab(row, "STACK_NO", "TIER", "Stack_No", "StackNo"), 10) || 1;
-  const location = grab(row, "MASTERTABLE", "LOCATION_NAME", "LOCATION", "ContainerLocation") || "";
+  const tier = parseInt(grab(row, "STACK_NO", "TIER", "Stack_No", "StackNo") ?? locTier, 10) || 1;
 
   return {
     id: `LS-${grab(row, "INVENTORY_ID", "ID") ?? idx}`,
     containerNo, block, row: rowKey, col, tier,
     status, size, type, process, location,
+    slotId,
     slotName: grab(row, "SLOTNAME", "SLOT_NAME"),
     gateInDate: grab(row, "GATE_IN_DATE"),
     lastMovedDate: grab(row, "LAST_MOVED_DATE", "TOSS_IN_DATE"),
@@ -554,11 +571,13 @@ export default function YardLiveStatus3D() {
     }, 15000);
   }, [myGpsPos, directionMode]);
 
-  // Primary source: same feed as the Container Live Status page —
-  // GET_ALLCONTAINER_LIVESTATUS (EKL_TRN_INVENTORY) → real ContainerLocation
-  // + Latitude/Longitude. Containers are placed by location name / GPS against
-  // the geofence slots (see locateContainer).
-  const { data: inventoryResp, isFetching, refetch } = useGetContainerLiveStatusQuery(undefined, {
+  // Primary source: ContainerLiveStatus_3D (EKL_TRN_INVENTORY) — includes
+  // SlotId, a direct FK into ESS_MST_LOCATION, so containers can be placed by
+  // exact slot match instead of parsing the combined Last_Loc string (which
+  // was the root cause of the overlap/misalignment seen in the 3D view).
+  // locateContainer() still falls back to location-string parsing / GPS when
+  // SlotId is unavailable for a given row.
+  const { data: inventoryResp, isFetching, refetch } = useGetContainerLiveStatus3dQuery(undefined, {
     pollingInterval: 60000,
     refetchOnFocus: true,
     refetchOnReconnect: true,

@@ -63,10 +63,13 @@ export function buildGeofenceFromSlotList(slotRows) {
 
     const slotNameRaw = String(row?.SlotName ?? row?.SLOTNAME ?? "").trim();
     const slotName = slotNameRaw || `${blockId}-${rowLabel}${colPadded}`;
+    const slotIdRaw = row?.SlotID ?? row?.SlotId ?? row?.SLOTID ?? null;
+    const slotId = slotIdRaw != null ? String(slotIdRaw) : null;
 
     slots.push({
       key: `${blockId}|${rowLabel}|${colPadded}`,
       slotName,
+      slotId,
       block: blockId,
       row: rowLabel,
       col: colPadded,
