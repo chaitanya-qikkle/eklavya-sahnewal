@@ -1373,16 +1373,7 @@ export default function YardScene({
               buildings, etc.) — saved into dxfLayout.props by
               bake-yard-builder-edits.mjs. */}
           {dxfLayout?.props?.length > 0 && (
-            <>
-              {/* TEMP DEBUG marker — proves this branch executed regardless
-                  of whether the GLB models themselves are visible. Remove
-                  once props are confirmed rendering. */}
-              <mesh position={[0, 30, 0]}>
-                <boxGeometry args={[20, 20, 20]} />
-                <meshBasicMaterial color="red" />
-              </mesh>
-              <PropsLayer props={dxfLayout.props} alignment={alignment} />
-            </>
+            <PropsLayer props={dxfLayout.props} alignment={alignment} />
           )}
         </>
       )}

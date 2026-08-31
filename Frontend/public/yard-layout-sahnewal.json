@@ -21452,7 +21452,7 @@
       "rot": 270,
       "modelUrl": "/models/custom/workshop_building_3d_model-9c2e4e2f.glb",
       "scaleX": 9,
-      "scaleY": 2.5
+      "scaleY": 4
     },
     {
       "id": "custom_model-r-bem3",
@@ -21484,7 +21484,7 @@
       "rot": 0,
       "modelUrl": "/models/custom/toll_gate_barrier_3d_model-54721447.glb",
       "scaleX": 8,
-      "scaleY": 2.5
+      "scaleY": 3.5
     },
     {
       "id": "custom_model-1b-jq5o",
@@ -21494,7 +21494,7 @@
       "rot": 180,
       "modelUrl": "/models/custom/toll_gate_barrier_3d_model-54721447.glb",
       "scaleX": 8,
-      "scaleY": 2.5
+      "scaleY": 3.5
     }
   ]
 }
