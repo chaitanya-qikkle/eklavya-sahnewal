@@ -1231,25 +1231,15 @@ export default function YardScene({
       resolved.push({ c, slot, x, z, rotY, contLen, contW, partnerKey });
     }
 
-    // Pass 2: render. The live-status feed has no STACK_NO, so we derive a
-    // tier per slot — honour a valid data tier when present, otherwise assign
-    // the lowest free tier so co-located containers stack instead of
-    // overlapping. maxTier slider still filters visibility.
+    // Pass 2: render. Tier comes straight from the SP's data (parsed from
+    // Last_Loc's 4th segment) — no guessing/auto-stacking. A container with
+    // no valid tier in the data defaults to tier 1; it is never bumped to a
+    // different tier to avoid a clash with another container.
     const MAX_TIER = 4;
-    const usedTiers = new Map(); // slotKey -> Set<tier>
-    const claimTier = (key, preferred) => {
-      let set = usedTiers.get(key);
-      if (!set) { set = new Set(); usedTiers.set(key, set); }
-      if (preferred && !set.has(preferred)) { set.add(preferred); return preferred; }
-      for (let t = 1; t <= MAX_TIER; t++) if (!set.has(t)) { set.add(t); return t; }
-      return MAX_TIER;
-    };
 
     for (const r of resolved) {
-      const slotKey = `${r.slot.block}|${r.slot.row}|${r.slot.col}`;
-      const dataTier = (Number.isFinite(r.c.tier) && r.c.tier >= 1)
-        ? Math.min(r.c.tier, MAX_TIER) : null;
-      const tier = claimTier(slotKey, dataTier);
+      const tier = (Number.isFinite(r.c.tier) && r.c.tier >= 1)
+        ? Math.min(r.c.tier, MAX_TIER) : 1;
 
       if (tier > maxTier) continue;
 
