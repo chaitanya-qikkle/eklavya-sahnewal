@@ -863,7 +863,7 @@ const MovesCountChart = ({ utilizationApi }) => {
 
   return (
     <Panel title="Daily Equipment Moves Count" subtitle="Moves per machine · utilization overlay" icon={FiBarChart2}
-      accent={T.blue} className="xl:col-span-4 h-[320px]"
+      accent={T.blue} className="xl:col-span-6 h-[320px]"
       right={chartData.length > 0 && (
         <ViewSwitch value={view} onChange={setView}
           options={[
@@ -2100,7 +2100,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* KPI Row — clickable cards with sparklines */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
             {kpis.map((k) => (
               <KpiCard
                 key={k.key}
@@ -2356,7 +2356,7 @@ const AdminDashboard = () => {
           {/* Ageing + In/Out + Moves Count side by side */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             <Panel title="Container Ageing" subtitle="Dwell time distribution" icon={FiClock}
-              accent={T.amber} className="xl:col-span-4 h-[320px]"
+              accent={T.amber} className="xl:col-span-6 h-[320px]"
               right={
                 <div className="flex items-center gap-2">
                   {ageingView === "table" && (
@@ -2472,52 +2472,6 @@ const AdminDashboard = () => {
               )}
             </Panel>
 
-            {/* Container In/Out Monthly */}
-            <Panel title="Container In / Out" subtitle="Monthly gate-in vs gate-out · last 6 months" icon={FiTrendingUp}
-              accent={T.blue} className="xl:col-span-4 h-[320px]"
-              right={
-                <ViewSwitch value={inOutView} onChange={setInOutView}
-                  options={[
-                    { value: "chart", label: "Chart", icon: FiBarChart2 },
-                    { value: "table", label: "Table", icon: FiList },
-                  ]}
-                />
-              }
-            >
-              {containerInOutData.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-xs" style={{ color: T.textMute }}>
-                  {statusReportLoading ? "Loading…" : "No gate-in/out data for the last 6 months"}
-                </div>
-              ) : inOutView === "table" ? (
-                <DataTable
-                  cols={[
-                    { label: "Month", key: "month", bold: true },
-                    { label: "Gate In", key: "in", align: "right", render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
-                    { label: "Gate Out", key: "out", align: "right", render: (v) => <span style={{ color: T.red }}>{fmtNumber(v)}</span> },
-                    { label: "Net", align: "right", render: (_, r) => {
-                      const net = r.in - r.out;
-                      return <span style={{ color: net >= 0 ? T.emerald : T.red, fontWeight: 800 }}>{net >= 0 ? "+" : ""}{fmtNumber(net)}</span>;
-                    }},
-                  ]}
-                  rows={containerInOutData}
-                />
-              ) : (
-                <div className="flex-1 min-h-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={containerInOutData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} />
-                      <Tooltip content={<Tip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                      <Bar dataKey="in" name="Gate In" fill={T.cyan} fillOpacity={0.9} radius={[4, 4, 0, 0]} barSize={18} />
-                      <Bar dataKey="out" name="Gate Out" fill={T.red} fillOpacity={0.7} radius={[4, 4, 0, 0]} barSize={18} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Panel>
-
             {/* Daily Equipment Moves Count */}
             <MovesCountChart utilizationApi={utilizationApi} />
           </div>
@@ -2627,123 +2581,6 @@ const AdminDashboard = () => {
               )}
             </Panel>
 
-          </div>
-
-          {/* Equipment Table + Top Performers + Live Activity */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
-            {/* Equipment table with search & sort */}
-            <Panel
-              title="Equipment Fleet"
-              subtitle={`${equipmentStats.active} active · ${equipmentStats.idle} idle · ${equipmentStats.breakdown} breakdown`}
-              icon={FiCpu}
-              accent={T.emerald}
-              className="xl:col-span-12 h-[440px]"
-              noPad
-              right={
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: T.textMute }} />
-                    <input
-                      type="text"
-                      placeholder="Search…"
-                      value={eqpSearch}
-                      onChange={(e) => setEqpSearch(e.target.value)}
-                      className="pl-7 pr-2 py-1 rounded-md text-[11px] w-32 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      style={{ background: "white", border: `1px solid ${T.border}` }}
-                    />
-                  </div>
-                  <ViewSwitch
-                    value={eqpView}
-                    onChange={setEqpView}
-                    options={[
-                      { value: "table", label: "Table", icon: FiList },
-                      { value: "cards", label: "Cards", icon: FiGrid },
-                    ]}
-                  />
-                </div>
-              }
-            >
-              {eqpView === "table" ? (
-                <div className="flex-1 overflow-auto">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 z-10" style={{ background: "#f8fafc", backdropFilter: "blur(8px)" }}>
-                      <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-                        {[
-                          { k: "name", label: "Equipment" },
-                          { k: "status", label: "Status" },
-                          { k: "owner", label: "Owner" },
-                          { k: "container", label: "Container" },
-                          { k: "lastAt", label: "Last Tx (filter range)" },
-                        ].map((c) => (
-                          <th key={c.k}
-                            onClick={() => handleEqpSort(c.k)}
-                            className="px-3 py-2.5 text-left font-black uppercase tracking-wider text-[10px] cursor-pointer hover:bg-indigo-50 select-none transition-colors"
-                            style={{ color: T.textMute }}>
-                            <div className="flex items-center gap-1">
-                              {c.label}
-                              <SortIcon col={c.k} />
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedEquipment.length === 0 ? (
-                        <tr><td colSpan={5} className="text-center py-8 text-xs" style={{ color: T.textMute }}>No equipment</td></tr>
-                      ) : sortedEquipment.map((e) => (
-                        <tr key={e.id} className="hover:bg-indigo-50/50 transition-colors" style={{ borderBottom: `1px solid ${T.border}` }}>
-                          <td className="px-3 py-2.5 font-black" style={{ color: T.text }}>{e.name}</td>
-                          <td className="px-3 py-2.5">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
-                              style={{
-                                background: `${statusColor(e.status)}15`,
-                                color: statusColor(e.status),
-                                border: `1px solid ${statusColor(e.status)}40`,
-                              }}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${e.status === "active" || e.status === "breakdown" ? "animate-pulse" : ""}`}
-                                style={{ background: statusColor(e.status) }} />
-                              {e.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5" style={{ color: T.textDim }}>{e.owner || "—"}</td>
-                          <td className="px-3 py-2.5 font-mono font-bold" style={{ color: e.container ? T.cyan : T.textMute }}>
-                            {e.container || "—"}
-                          </td>
-                          <td className="px-3 py-2.5 tabular-nums text-[10px]" style={{ color: e.lastTx ? T.emerald : T.textMute }}>
-                            {e.lastTx ?? fmtRelative(e.lastAt)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 lg:grid-cols-3 gap-2 content-start">
-                  {sortedEquipment.length === 0 ? (
-                    <div className="col-span-full text-center py-8 text-xs" style={{ color: T.textMute }}>No equipment</div>
-                  ) : sortedEquipment.map((e) => {
-                    const col = statusColor(e.status);
-                    return (
-                      <div key={e.id} className="rounded-xl p-2.5 transition-all hover:scale-[1.02]"
-                        style={{ background: "white", border: `1px solid ${col}30`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-black truncate" style={{ color: T.text }}>{e.name}</span>
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${e.status === "active" || e.status === "breakdown" ? "animate-pulse" : ""}`}
-                            style={{ background: col }} />
-                        </div>
-                        <div className="text-[10px] truncate" style={{ color: T.textDim }}>{e.owner || "—"}</div>
-                        <div className="flex items-center justify-between mt-1.5 text-[10px]">
-                          <span className="font-mono font-bold truncate" style={{ color: e.container ? T.cyan : T.textMute }}>
-                            {e.container || "—"}
-                          </span>
-                          <span className="shrink-0 ml-2 tabular-nums" style={{ color: T.textMute }}>{fmtRelative(e.lastAt)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Panel>
           </div>
 
           {/* Footer status bar */}
