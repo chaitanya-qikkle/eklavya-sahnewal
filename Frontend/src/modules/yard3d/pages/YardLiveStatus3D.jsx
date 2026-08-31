@@ -1485,7 +1485,8 @@ export default function YardLiveStatus3D() {
                 <span className="text-[9px] font-bold uppercase tracking-wide">{lowPerfMode ? "Low Q" : "Hi-Q"}</span>
               </button>
 
-              {/* Yard Builder toggle */}
+              {/* Yard Builder toggle — hidden from the 3D yard view per request (kept for easy restore) */}
+              {/*
               <button onClick={() => setYardBuilderMode(m => m === "off" ? "edit" : "off")}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all"
                 style={{
@@ -1497,6 +1498,7 @@ export default function YardLiveStatus3D() {
                 <FiSliders size={11} />
                 <span className="text-[9px] font-bold uppercase tracking-wide">Yard Builder</span>
               </button>
+              */}
 
               {/* Block label toggle */}
               <button onClick={() => setShowBlockLabels(p => !p)}

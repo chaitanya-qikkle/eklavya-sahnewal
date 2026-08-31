@@ -424,9 +424,12 @@ const DrillModal = ({ open, onClose, kpi }) => {
           </button>
         </div>
 
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Big value + sparkline */}
-          <div className="lg:col-span-1 rounded-2xl p-5" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
+        <div className="p-6 grid grid-cols-1 gap-4">
+          {/* Big value — Min/Max/Avg and the "Session Trend" chart were removed:
+              `history` is a client-side buffer that only accumulates from page
+              load (empty session), not a real historical series from the DB,
+              so Min/Max/Avg/trend over it were not meaningful. */}
+          <div className="rounded-2xl p-5" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
             <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: T.textMute }}>Current</div>
             <div className="flex items-baseline gap-2 mb-1">
               <div className="text-5xl font-black tabular-nums" style={{ color: T.text }}>
@@ -434,47 +437,12 @@ const DrillModal = ({ open, onClose, kpi }) => {
               </div>
               {suffix && <span className="text-2xl font-bold" style={{ color: accent }}>{suffix}</span>}
             </div>
-            <div className="text-xs mb-4" style={{ color: T.textDim }}>{sub}</div>
-            <div className="h-24">
-              <Sparkline data={history} color={accent} height={96} />
-            </div>
-            <div className="grid grid-cols-3 gap-2 mt-4">
-              <Stat label="Min" value={history?.length ? Math.min(...history) : 0} decimals={decimals} color={accent} />
-              <Stat label="Max" value={history?.length ? Math.max(...history) : 0} decimals={decimals} color={accent} />
-              <Stat label="Avg" value={history?.length ? history.reduce((a, b) => a + b, 0) / history.length : 0} decimals={decimals} color={accent} />
-            </div>
-          </div>
-
-          {/* Trend chart */}
-          <div className="lg:col-span-2 rounded-2xl p-5 h-72" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
-            <div className="text-[10px] uppercase tracking-widest font-black mb-3" style={{ color: T.textMute }}>Session Trend</div>
-            {history?.length >= 2 ? (
-              <ResponsiveContainer width="100%" height="90%">
-                <AreaChart data={history.map((v, i) => ({ i, v }))}>
-                  <defs>
-                    <linearGradient id={`dm-${accent.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={accent} stopOpacity={0.5} />
-                      <stop offset="100%" stopColor={accent} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                  <XAxis dataKey="i" tick={{ fontSize: 10, fill: T.textMute }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: T.textMute }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip content={<Tip />} />
-                  <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2.5}
-                    fill={`url(#dm-${accent.replace("#", "")})`} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm" style={{ color: T.textMute }}>
-                Collecting data… check back in a few seconds.
-              </div>
-            )}
+            <div className="text-xs" style={{ color: T.textDim }}>{sub}</div>
           </div>
 
           {/* Breakdown */}
           {breakdown && breakdown.length > 0 && (
-            <div className="lg:col-span-3 rounded-2xl p-5" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
+            <div className="rounded-2xl p-5" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
               <div className="text-[10px] uppercase tracking-widest font-black mb-3" style={{ color: T.textMute }}>Breakdown</div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {breakdown.map((b, i) => (
@@ -492,7 +460,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
 
           {/* Table */}
           {table && table.rows && table.rows.length > 0 && (
-            <div className="lg:col-span-3 rounded-2xl overflow-hidden" style={{ background: "white", border: `1px solid ${T.border}` }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: "white", border: `1px solid ${T.border}` }}>
               <div className="px-5 py-3 text-[10px] uppercase tracking-widest font-black border-b" style={{ color: T.textMute, borderColor: T.border }}>
                 {table.title || "Details"}
               </div>
@@ -853,6 +821,72 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// ─── Daily Equipment Moves Count (bars = moves, line = utilization %) ────────
+// Same source as UtilizationSection (GET_EQUIPMENT_DAILY_UTILIZATION) — no
+// separate API call, just a different, more compact chart composition.
+const MovesCountChart = ({ utilizationApi }) => {
+  const chartData = useMemo(() => {
+    const rows = Array.isArray(utilizationApi?.data) ? utilizationApi.data : [];
+    return rows.map(r => ({
+      name: r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "—",
+      moves: Number(r.TotalMoves ?? r.totalmoves ?? 0),
+      utilPct: Number(r.PercentageUtilization ?? r.percentageutilization ?? 0),
+    }));
+  }, [utilizationApi]);
+
+  const maxUtil = Math.max(...chartData.map(d => d.utilPct), 20);
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ background: "rgba(15,23,42,0.97)", border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", minWidth: 160 }}>
+        <div style={{ fontSize: 11, fontWeight: 900, color: "#e2e8f0", marginBottom: 8 }}>{label}</div>
+        {payload.map((p) => (
+          <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 10, marginBottom: 3 }}>
+            <span style={{ color: p.color, fontWeight: 700 }}>{p.name}</span>
+            <span style={{ color: "#cbd5e1", fontWeight: 900, fontFamily: "monospace" }}>
+              {p.value}{p.dataKey === "utilPct" ? "%" : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (!chartData.length) {
+    return (
+      <div className="flex items-center justify-center py-10 text-sm" style={{ color: T.textMute }}>
+        No moves data — run Equipment Daily Utilization above first.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: 340 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={chartData} margin={{ top: 24, right: 24, left: -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
+          <XAxis dataKey="name" tickLine={false} axisLine={false}
+            tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
+          <YAxis yAxisId="left" tickLine={false} axisLine={false}
+            tick={{ fontSize: 10, fill: T.textMute }} width={32} label={{ value: "Moves Count", angle: -90, position: "insideLeft", fontSize: 10, fill: T.textMute }} />
+          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false}
+            tick={{ fontSize: 10, fill: T.indigo }} width={36}
+            tickFormatter={v => `${v}`} domain={[0, Math.ceil(maxUtil / 5) * 5]}
+            label={{ value: "% Utilization", angle: 90, position: "insideRight", fontSize: 10, fill: T.indigo }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(37,99,235,0.05)" }} />
+          <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+          <Bar yAxisId="left" dataKey="moves" name="Moves Count" fill={T.blue} radius={[4, 4, 0, 0]} maxBarSize={48}
+            label={{ position: "top", fontSize: 11, fontWeight: 900, fill: T.text }} />
+          <Line yAxisId="right" type="monotone" dataKey="utilPct" name="Utilization"
+            stroke={T.indigo} strokeWidth={2.5} dot={{ fill: T.indigo, r: 4, strokeWidth: 2, stroke: "white" }}
+            label={{ position: "top", fontSize: 10, fontWeight: 800, fill: T.indigo }} />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 };
@@ -1682,23 +1716,6 @@ const AdminDashboard = () => {
       },
     },
     {
-      key: "ocr",
-      icon: FiPercent,
-      label: "OCR Accuracy",
-      value: ocrStats.pct,
-      suffix: "%",
-      sub: `${ocrStats.captured} captured · ${ocrStats.missing} missed (24h)`,
-      accent: ocrStats.pct >= 80 ? T.emerald : ocrStats.pct >= 60 ? T.amber : T.red,
-      loading: lockLoading,
-      decimals: 1,
-      history: history.ocr,
-      breakdown: [
-        { name: "Captured", value: ocrStats.captured, color: T.emerald },
-        { name: "Missed", value: ocrStats.missing, color: T.red },
-        { name: "Total Scans", value: ocrStats.total, color: T.cyan },
-      ],
-    },
-    {
       key: "util",
       icon: FiZap,
       label: "Utilization",
@@ -2305,6 +2322,11 @@ const AdminDashboard = () => {
             utilizationLoading={utilizationLoading}
             allEquipment={allEquipment}
           />
+
+          {/* ── Daily Equipment Moves Count ─────────────────────────────── */}
+          <Panel title="Daily Equipment Moves Count" subtitle="Moves per machine · utilization overlay" icon={FiBarChart2} accent={T.blue}>
+            <MovesCountChart utilizationApi={utilizationApi} />
+          </Panel>
 
           {/* Ageing + In/Out side by side */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
