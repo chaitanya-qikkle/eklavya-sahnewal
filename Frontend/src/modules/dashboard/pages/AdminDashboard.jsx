@@ -829,6 +829,8 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
 // Same source as UtilizationSection (GET_EQUIPMENT_DAILY_UTILIZATION) — no
 // separate API call, just a different, more compact chart composition.
 const MovesCountChart = ({ utilizationApi }) => {
+  const [view, setView] = useState("chart"); // chart | table
+
   const chartData = useMemo(() => {
     const rows = Array.isArray(utilizationApi?.data) ? utilizationApi.data : [];
     return rows.map(r => ({
@@ -839,6 +841,8 @@ const MovesCountChart = ({ utilizationApi }) => {
   }, [utilizationApi]);
 
   const maxUtil = Math.max(...chartData.map(d => d.utilPct), 20);
+  const totalMoves = chartData.reduce((s, d) => s + d.moves, 0);
+  const avgUtil = chartData.length ? chartData.reduce((s, d) => s + d.utilPct, 0) / chartData.length : 0;
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
@@ -857,37 +861,54 @@ const MovesCountChart = ({ utilizationApi }) => {
     );
   };
 
-  if (!chartData.length) {
-    return (
-      <div className="flex items-center justify-center py-10 text-sm" style={{ color: T.textMute }}>
-        No moves data — run Equipment Daily Utilization above first.
-      </div>
-    );
-  }
-
   return (
-    <div style={{ height: 340 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 24, right: 24, left: -8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
-          <XAxis dataKey="name" tickLine={false} axisLine={false}
-            tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
-          <YAxis yAxisId="left" tickLine={false} axisLine={false}
-            tick={{ fontSize: 10, fill: T.textMute }} width={32} label={{ value: "Moves Count", angle: -90, position: "insideLeft", fontSize: 10, fill: T.textMute }} />
-          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false}
-            tick={{ fontSize: 10, fill: T.indigo }} width={36}
-            tickFormatter={v => `${v}`} domain={[0, Math.ceil(maxUtil / 5) * 5]}
-            label={{ value: "% Utilization", angle: 90, position: "insideRight", fontSize: 10, fill: T.indigo }} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(37,99,235,0.05)" }} />
-          <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-          <Bar yAxisId="left" dataKey="moves" name="Moves Count" fill={T.blue} radius={[4, 4, 0, 0]} maxBarSize={48}
-            label={{ position: "top", fontSize: 11, fontWeight: 900, fill: T.text }} />
-          <Line yAxisId="right" type="monotone" dataKey="utilPct" name="Utilization"
-            stroke={T.indigo} strokeWidth={2.5} dot={{ fill: T.indigo, r: 4, strokeWidth: 2, stroke: "white" }}
-            label={{ position: "top", fontSize: 10, fontWeight: 800, fill: T.indigo }} />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+    <Panel title="Daily Equipment Moves Count" subtitle="Moves per machine · utilization overlay" icon={FiBarChart2}
+      accent={T.blue} className="xl:col-span-4 h-[320px]"
+      right={chartData.length > 0 && (
+        <ViewSwitch value={view} onChange={setView}
+          options={[
+            { value: "chart", label: "Chart", icon: FiBarChart2 },
+            { value: "table", label: "Table", icon: FiList },
+          ]}
+        />
+      )}
+    >
+      {!chartData.length ? (
+        <div className="flex-1 flex items-center justify-center text-xs" style={{ color: T.textMute }}>
+          No moves data — run Equipment Daily Utilization above first.
+        </div>
+      ) : view === "table" ? (
+        <DataTable
+          cols={[
+            { label: "Equipment", key: "name", bold: true },
+            { label: "Moves", key: "moves", align: "right", render: (v) => <span style={{ color: T.blue }}>{fmtNumber(v)}</span> },
+            { label: "Utilization", key: "utilPct", align: "right", render: (v) => <span style={{ color: T.indigo }}>{v.toFixed(1)}%</span> },
+          ]}
+          rows={chartData}
+          footerRow={["Total", fmtNumber(totalMoves), `${avgUtil.toFixed(1)}%`]}
+        />
+      ) : (
+        <div className="flex-1 min-h-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 20, right: 16, left: -8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false}
+                tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
+              <YAxis yAxisId="left" tickLine={false} axisLine={false}
+                tick={{ fontSize: 10, fill: T.textMute }} width={30} />
+              <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false}
+                tick={{ fontSize: 10, fill: T.indigo }} width={34}
+                tickFormatter={v => `${v}%`} domain={[0, Math.ceil(maxUtil / 5) * 5]} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(37,99,235,0.05)" }} />
+              <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
+              <Bar yAxisId="left" dataKey="moves" name="Moves Count" fill={T.blue} radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Line yAxisId="right" type="monotone" dataKey="utilPct" name="Utilization"
+                stroke={T.indigo} strokeWidth={2.5} dot={{ fill: T.indigo, r: 4, strokeWidth: 2, stroke: "white" }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </Panel>
   );
 };
 
@@ -1154,6 +1175,15 @@ const AdminDashboard = () => {
         if (dt) lastTxByDevice.set(dev, dt);
       }
     });
+    // Merge liveLocMap (GPS live-location pings) as additional source — this is
+    // the same feed the Equipment Fleet table's "Last Tx" column reads, so a
+    // machine pinging seconds ago there must also count as active here.
+    liveLocMap.forEach((loc, dev) => {
+      const dt = parseDateTime(loc?.lastAt);
+      if (!dt) return;
+      const existing = lastTxByDevice.get(dev);
+      if (!existing || dt.getTime() > existing.getTime()) lastTxByDevice.set(dev, dt);
+    });
 
     // Active = last tx within 8 hours of NOW (real operational status, not filter window)
     const ACTIVE_WINDOW_MS = 8 * 60 * 60 * 1000;
@@ -1173,7 +1203,7 @@ const AdminDashboard = () => {
     const idle = Math.max(total - active - breakdown, 0);
     const utilization = total > 0 ? (active / total) * 100 : 0;
     return { total, active, idle, breakdown, utilization, perMachine };
-  }, [filteredEquipment, latestEqpTxApi, latestTxMap, now]);
+  }, [filteredEquipment, latestEqpTxApi, latestTxMap, liveLocMap, now]);
 
   const containersAll = useMemo(
     () => (Array.isArray(liveStatusApi?.data) ? liveStatusApi.data : []),
@@ -2323,15 +2353,10 @@ const AdminDashboard = () => {
             allEquipment={allEquipment}
           />
 
-          {/* ── Daily Equipment Moves Count ─────────────────────────────── */}
-          <Panel title="Daily Equipment Moves Count" subtitle="Moves per machine · utilization overlay" icon={FiBarChart2} accent={T.blue}>
-            <MovesCountChart utilizationApi={utilizationApi} />
-          </Panel>
-
-          {/* Ageing + In/Out side by side */}
+          {/* Ageing + In/Out + Moves Count side by side */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             <Panel title="Container Ageing" subtitle="Dwell time distribution" icon={FiClock}
-              accent={T.amber} className="xl:col-span-7 h-[320px]"
+              accent={T.amber} className="xl:col-span-4 h-[320px]"
               right={
                 <div className="flex items-center gap-2">
                   {ageingView === "table" && (
@@ -2449,7 +2474,7 @@ const AdminDashboard = () => {
 
             {/* Container In/Out Monthly */}
             <Panel title="Container In / Out" subtitle="Monthly gate-in vs gate-out · last 6 months" icon={FiTrendingUp}
-              accent={T.blue} className="xl:col-span-5 h-[300px]"
+              accent={T.blue} className="xl:col-span-4 h-[320px]"
               right={
                 <ViewSwitch value={inOutView} onChange={setInOutView}
                   options={[
@@ -2492,6 +2517,9 @@ const AdminDashboard = () => {
                 </div>
               )}
             </Panel>
+
+            {/* Daily Equipment Moves Count */}
+            <MovesCountChart utilizationApi={utilizationApi} />
           </div>
 
           {/* Shipping Line + Size Distribution */}
@@ -2609,7 +2637,7 @@ const AdminDashboard = () => {
               subtitle={`${equipmentStats.active} active · ${equipmentStats.idle} idle · ${equipmentStats.breakdown} breakdown`}
               icon={FiCpu}
               accent={T.emerald}
-              className="xl:col-span-7 h-[440px]"
+              className="xl:col-span-12 h-[440px]"
               noPad
               right={
                 <div className="flex items-center gap-2">
@@ -2710,43 +2738,6 @@ const AdminDashboard = () => {
                           </span>
                           <span className="shrink-0 ml-2 tabular-nums" style={{ color: T.textMute }}>{fmtRelative(e.lastAt)}</span>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Panel>
-
-            {/* Per-Machine Utilization */}
-            <Panel title="Equipment Utilization" subtitle={`${equipmentStats.active} active · ${equipmentStats.idle} idle · ${equipmentStats.breakdown} breakdown (filter range)`} icon={FiZap}
-              accent={T.purple} className="xl:col-span-5 h-[440px]"
-            >
-              {equipmentStats.perMachine.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-xs" style={{ color: T.textMute }}>No equipment data</div>
-              ) : (
-                <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
-                  {equipmentStats.perMachine.map((m, i) => {
-                    const col = m.isBreakdown ? T.red : m.isActive ? T.emerald : T.textMute;
-                    const label = m.isBreakdown ? "BREAKDOWN" : m.isActive ? "ACTIVE" : "IDLE/OFFLINE";
-                    return (
-                      <div key={m.name} className="rounded-xl px-3 py-2.5"
-                        style={{ background: "white", border: `1px solid ${m.isActive ? T.emerald+"33" : T.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${m.isActive ? "animate-pulse" : ""}`}
-                              style={{ background: col, boxShadow: m.isActive ? `0 0 6px ${col}` : "none" }} />
-                            <span className="text-xs font-black truncate" style={{ color: T.text }}>{m.name}</span>
-                          </div>
-                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full"
-                            style={{ background: `${col}15`, color: col, border: `1px solid ${col}40` }}>
-                            {label}
-                          </span>
-                        </div>
-                        {m.lastTx && (
-                          <div className="text-[9px] mt-0.5 truncate" style={{ color: T.textMute }}>
-                            Last tx: {m.lastTx}
-                          </div>
-                        )}
                       </div>
                     );
                   })}
