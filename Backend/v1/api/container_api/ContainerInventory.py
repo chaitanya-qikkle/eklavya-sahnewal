@@ -213,6 +213,24 @@ def get_container_live_status_3d():
         db.close_connection()
 
 
+@router.get("/dashboard-yard-inventory")
+def get_dashboard_yard_inventory(plant_id: int = Query(0)):
+    """Yard inventory by block with real capacity/slot/utilization — GET_DASHBOARD_YARDINVENTORY.
+
+    Returns one row per yard block (plus EMPTY/DOMESTIC rows) with
+    YARDNAME, SIZE20, SIZE40, COUNT, TEUS, YARD_CAPACITY, SLOT, UTILIZATION.
+    Powers the admin dashboard's Yard Inventory panel.
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.GET_DASHBOARD_YARDINVENTORY ?", (plant_id,))
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/container-inout-24h")
 def get_container_inout_24h():
     """Hourly gate-in / gate-out throughput for the last 24h — ContainerInOut_24Hours.

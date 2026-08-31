@@ -22,6 +22,7 @@ import {
   useLazyGetEquipmentDailyUtilizationQuery,
   useGetContainerStatusReportQuery,
   useGetContainerInOut24hQuery,
+  useGetDashboardYardInventoryQuery,
 } from "../../../store/api/ymsApi";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1066,6 +1067,12 @@ const AdminDashboard = () => {
     { pollingInterval: 60000 }
   );
 
+  // Yard inventory by block with real capacity/utilization — GET_DASHBOARD_YARDINVENTORY
+  const { data: yardInvApi, isFetching: yardInvLoading } = useGetDashboardYardInventoryQuery(
+    undefined,
+    { pollingInterval: 60000 }
+  );
+
   const { data: latestTxApi } = useGetDeviceDataLatestQuery(undefined, { pollingInterval: 15000 });
   const { data: liveLocApi } = useGetDeviceDataLiveLocationsQuery(undefined, { pollingInterval: 15000 });
   const { data: latestEqpTxApi } = useGetEquipmentTransactionLatestQuery(undefined, { pollingInterval: 20000 });
@@ -1352,25 +1359,27 @@ const AdminDashboard = () => {
       });
   }, [containers]);
 
-  // ── Yard Inventory by Block (real BLOCK_NAME from backend) ──────────────────
+  // ── Yard Inventory by Block — GET_DASHBOARD_YARDINVENTORY (real capacity/utilization) ──
   const yardInventoryData = useMemo(() => {
-    const map = new Map();
-    containers.forEach((c) => {
-      const block = String(get(c, "BLOCK_NAME", "block_name") || "").trim();
-      if (!block) return;
-      if (!map.has(block)) map.set(block, { location: block, s20: 0, s40: 0 });
-      const e = map.get(block);
-      const sz = String(get(c, "CONTAINER_SIZE", "container_size") || "").toUpperCase();
-      if (sz.startsWith("20")) e.s20++; else e.s40++;
-    });
-    return Array.from(map.values())
-      .map((e) => {
-        const count = e.s20 + e.s40;
-        const teus  = e.s20 + e.s40 * 2;
-        return { location: e.location, s20: e.s20, s40: e.s40, count, teus };
+    const rows = Array.isArray(yardInvApi?.data) ? yardInvApi.data : [];
+    return rows
+      .map((r) => {
+        const s20 = Number(get(r, "SIZE20", "size20") || 0);
+        const s40 = Number(get(r, "SIZE40", "size40") || 0);
+        const capacity = Number(get(r, "YARD_CAPACITY", "yard_capacity") || 0);
+        const slot = Number(get(r, "SLOT", "slot") || 0);
+        return {
+          location: String(get(r, "YARDNAME", "yardname") || "—").trim(),
+          s20, s40,
+          count: Number(get(r, "COUNT", "count") || 0),
+          teus: Number(get(r, "TEUS", "teus") || 0),
+          capacity,
+          slot,
+          utilization: Number(get(r, "UTILIZATION", "utilization") || 0),
+        };
       })
       .sort((a, b) => b.count - a.count);
-  }, [containers]);
+  }, [yardInvApi]);
 
   // ── Container In/Out monthly (uses status report for full history incl. gate-outs) ──
   const containerInOutData = useMemo(() => {
@@ -2242,8 +2251,8 @@ const AdminDashboard = () => {
               )}
             </Panel>
 
-            {/* Yard Inventory — only locations present in backend data */}
-            <Panel title="Yard Inventory" subtitle={`${yardInventoryData.length} blocks`} icon={FiLayers}
+            {/* Yard Inventory — GET_DASHBOARD_YARDINVENTORY (real capacity/utilization) */}
+            <Panel title="Yard Inventory" subtitle={yardInvLoading ? "Loading…" : `${yardInventoryData.length} blocks`} icon={FiLayers}
               accent={T.teal} className="xl:col-span-8 h-[340px]"
               right={
                 <ViewSwitch value={yardInvView} onChange={setYardInvView}
@@ -2278,6 +2287,23 @@ const AdminDashboard = () => {
                     { label: "40'", key: "s40", align: "right", render: (v) => <span style={{ color: T.teal }}>{fmtNumber(v)}</span> },
                     { label: "Count", key: "count", align: "right", render: (v) => <b>{fmtNumber(v)}</b> },
                     { label: "TEUs", key: "teus", align: "right", render: (v) => <span style={{ color: T.blue }}>{fmtNumber(v)}</span> },
+                    { label: "Slot Cap.", key: "capacity", align: "right",
+                      render: (v) => v > 0 ? <span style={{ color: T.textDim }}>{fmtNumber(v)}</span> : <span style={{ color: T.textMute }}>—</span> },
+                    { label: "Utilization", key: "utilization", align: "right",
+                      render: (v, r) => r.capacity > 0 ? (
+                        <div className="flex items-center gap-2 justify-end">
+                          <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.07)", width: 60 }}>
+                            <div className="h-full rounded-full" style={{
+                              width: `${Math.min(v, 100)}%`,
+                              background: v >= 90 ? T.red : v >= 70 ? T.amber : T.emerald,
+                            }} />
+                          </div>
+                          <span className="font-black tabular-nums text-[11px]" style={{ color: v >= 90 ? T.red : v >= 70 ? T.amber : T.emerald }}>
+                            {v.toFixed(1)}%
+                          </span>
+                        </div>
+                      ) : <span style={{ color: T.textMute }}>—</span>,
+                    },
                   ]}
                   rows={yardInventoryData}
                   footerRow={[
@@ -2286,6 +2312,8 @@ const AdminDashboard = () => {
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.s40, 0)),
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.count, 0)),
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.teus, 0)),
+                    fmtNumber(yardInventoryData.reduce((s, r) => s + r.capacity, 0)),
+                    "",
                   ]}
                 />
               )}

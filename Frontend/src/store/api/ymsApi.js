@@ -873,6 +873,18 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getDashboardYardInventory: builder.query({
+      query: ({ plant_id } = {}) => {
+        const params = new URLSearchParams()
+        if (plant_id !== undefined && plant_id !== null) params.set('plant_id', String(plant_id))
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_DASHBOARD_YARD_INVENTORY}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+      providesTags: ['ContainerInventory'],
+    }),
+
     getTrailerGateInList: builder.query({
       query: () => ({
         url: API_ENDPOINTS.CONTAINER.GET_TRAILER_GATE_IN_LIST,
@@ -1236,6 +1248,7 @@ export const {
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
   useGetContainerInOut24hQuery,
+  useGetDashboardYardInventoryQuery,
   useGetContainerStatusReportQuery,
   useLazyGetContainerStatusReportQuery,
   useGetContainerGateReportQuery,
