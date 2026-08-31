@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiTruck as FiTruckIcon, FiPackage, FiLayers,
@@ -334,8 +334,14 @@ const MainGate = () => {
   const [sortCol, setSortCol] = useState('ID')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
+  const [pageInput, setPageInput] = useState('1') // draft text for the "Page ___" box, committed on blur/Enter
   const [lightbox, setLightbox] = useState(null)
   const [detailIdx, setDetailIdx] = useState(null) // index into `filtered`
+
+  // Keep the draft box in sync whenever `page` changes from anywhere else
+  // (Previous/Next buttons, search/filter resetting to page 1, etc.) —
+  // the box only diverges from `page` while the operator is mid-typing.
+  useEffect(() => { setPageInput(String(page)) }, [page])
 
   const rowsAll = Array.isArray(data?.data) ? data.data : []
 
@@ -612,12 +618,19 @@ const MainGate = () => {
                       type="number"
                       min={1}
                       max={totalPages}
-                      value={page}
-                      onChange={(e) => {
-                        const pg = Math.max(1, Math.min(totalPages, Number(e.target.value) || 1))
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onBlur={() => {
+                        const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
                         setPage(pg)
                       }}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return
+                        const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
+                        setPage(pg)
+                        e.currentTarget.blur()
+                      }}
+                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
                     />
                     <span className="text-slate-600">of {totalPages}</span>
                   </div>
@@ -638,10 +651,6 @@ const MainGate = () => {
         <Footer />
       </div>
 
-      {lightbox && (
-        <ImageLightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />
-      )}
-
       {detailIdx != null && (
         <DetailModal
           row={filtered[detailIdx]}
@@ -652,6 +661,14 @@ const MainGate = () => {
           onNext={() => setDetailIdx(i => Math.min(filtered.length - 1, i + 1))}
           onZoom={(u, l) => setLightbox({ url: u, label: l })}
         />
+      )}
+
+      {/* Rendered after DetailModal so it stacks visually on top when
+          opened from inside it (both are fixed inset-0 overlays with the
+          same z-50 — later in the DOM wins) instead of being hidden behind
+          the modal's own backdrop. */}
+      {lightbox && (
+        <ImageLightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />
       )}
     </div>
   )

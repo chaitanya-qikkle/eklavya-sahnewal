@@ -183,14 +183,14 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
           </div>
         </div>
 
-        {/* Body — split panel */}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-slate-100">
+        {/* Body — details on top (2-row grid), images below */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-100">
 
-          {/* Left — details */}
-          <div className="w-full lg:w-[380px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-gradient-to-b from-slate-50 to-white overflow-y-auto">
+          {/* Top — details */}
+          <div className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
             <div className="p-6">
 
-              <div className="mb-6 flex flex-wrap gap-2.5">
+              <div className="mb-5 flex flex-wrap gap-2.5">
                 {row.ContainerNo && (
                   <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-[#1364a4] to-[#0a3b61] text-white font-black font-mono text-base shadow-lg shadow-[#0e4a78]/25">
                     <FiPackage size={15} /> {row.ContainerNo}
@@ -203,53 +203,59 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 px-5 shadow-sm">
-                <DetailField icon={FiPackage} label="Container No" accent="#0e4a78">
-                  {row.ContainerNo || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiBox} label="Size / Type" accent="#0e4a78">
-                  {(row.ContainerSize || row.ContainerType)
-                    ? `${row.ContainerSize || '—'} ${row.ContainerType || ''}`.trim()
-                    : <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FaTrain} label="Wagon No" accent="#d97706">
-                  {row.WagonNo || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiClock} label="Rail In Date/Time" accent="#059669">
-                  {row.RailInDateTime ? formatDate(row.RailInDateTime) : <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiMapPin} label="Container Location" accent="#7c3aed">
-                  {row.ContainerLocation || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiTruck} label="Equipment" accent="#0e4a78">
-                  {row.EquipmentName || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiHash} label="Document No" accent="#64748b">
-                  {row.DocumentNo || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiHash} label="Booking No" accent="#64748b">
-                  {row.BookingNo || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiHome} label="Terminal / Mode" accent="#d97706">
-                  {(row.Terminal || row.Mode)
-                    ? `${row.Terminal || '—'} ${row.Mode ? `· ${row.Mode}` : ''}`.trim()
-                    : <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiClock} label="Process / Status" accent="#059669">
-                  {(row.Process || row.ContainerStatus)
-                    ? `${row.Process || '—'} ${row.ContainerStatus ? `· ${row.ContainerStatus}` : ''}`.trim()
-                    : <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiHash} label="No. of Moves" accent="#64748b">
-                  {row.NoOfMoves ?? <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
+              <div className="bg-white rounded-2xl border border-slate-200 px-5 shadow-sm grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 sm:divide-x sm:divide-slate-100">
+                <div className="sm:pr-5">
+                  <DetailField icon={FiPackage} label="Container No" accent="#0e4a78">
+                    {row.ContainerNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiBox} label="Size / Type" accent="#0e4a78">
+                    {(row.ContainerSize || row.ContainerType)
+                      ? `${row.ContainerSize || '—'} ${row.ContainerType || ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FaTrain} label="Wagon No" accent="#d97706">
+                    {row.WagonNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Rail In Date/Time" accent="#059669">
+                    {row.RailInDateTime ? formatDate(row.RailInDateTime) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                </div>
+                <div className="sm:px-5">
+                  <DetailField icon={FiMapPin} label="Container Location" accent="#7c3aed">
+                    {row.ContainerLocation || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiTruck} label="Equipment" accent="#0e4a78">
+                    {row.EquipmentName || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Document No" accent="#64748b">
+                    {row.DocumentNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Booking No" accent="#64748b">
+                    {row.BookingNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                </div>
+                <div className="sm:pl-5">
+                  <DetailField icon={FiHome} label="Terminal / Mode" accent="#d97706">
+                    {(row.Terminal || row.Mode)
+                      ? `${row.Terminal || '—'} ${row.Mode ? `· ${row.Mode}` : ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Process / Status" accent="#059669">
+                    {(row.Process || row.ContainerStatus)
+                      ? `${row.Process || '—'} ${row.ContainerStatus ? `· ${row.ContainerStatus}` : ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="No. of Moves" accent="#64748b">
+                    {row.NoOfMoves ?? <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right — dual camera images */}
-          <div className="flex-1 min-w-0 overflow-y-auto">
-            <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6 h-full">
+          {/* Bottom — dual camera images */}
+          <div>
+            <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
               {[
                 { url: cam1Url, label: 'Camera 1', icon: FiImage, accent: '#0e4a78' },
                 { url: cam2Url, label: 'Camera 2', icon: FiImage, accent: '#0e4a78' },
@@ -330,16 +336,24 @@ function SortIcon({ col, sortCol, sortDir }) {
 
 const PAGE_SIZE = 20
 const todayStr = () => new Date().toISOString().slice(0, 10)
+const yesterdayStr = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
 
 const RailGateIn = () => {
-  const [fromDate, setFromDate] = useState(todayStr())
+  const [fromDate, setFromDate] = useState(yesterdayStr())
   const [toDate, setToDate] = useState(todayStr())
   const [containerNo, setContainerNo] = useState('')
   const [sortCol, setSortCol] = useState('RailInDateTime')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
+  const [pageInput, setPageInput] = useState('1') // draft text for the "Page ___" box, committed on blur/Enter
   const [lightbox, setLightbox] = useState(null)
   const [detailIdx, setDetailIdx] = useState(null)
+
+  useEffect(() => { setPageInput(String(page)) }, [page])
 
   const [fetchRailIn, { data, isFetching, isError }] = useLazyGetRailInQuery()
 
@@ -353,8 +367,8 @@ const RailGateIn = () => {
 
   const handleSearch = () => { setPage(1); fetchRailIn(buildArgs()) }
   const handleClear = () => {
-    setFromDate(todayStr()); setToDate(todayStr()); setContainerNo(''); setPage(1)
-    fetchRailIn({ from_date: todayStr(), to_date: todayStr() })
+    setFromDate(yesterdayStr()); setToDate(todayStr()); setContainerNo(''); setPage(1)
+    fetchRailIn({ from_date: yesterdayStr(), to_date: todayStr() })
   }
 
   const rowsAll = Array.isArray(data?.data) ? data.data : []
@@ -645,12 +659,19 @@ const RailGateIn = () => {
                       type="number"
                       min={1}
                       max={totalPages}
-                      value={page}
-                      onChange={(e) => {
-                        const pg = Math.max(1, Math.min(totalPages, Number(e.target.value) || 1))
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onBlur={() => {
+                        const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
                         setPage(pg)
                       }}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return
+                        const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
+                        setPage(pg)
+                        e.currentTarget.blur()
+                      }}
+                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
                     />
                     <span className="text-slate-600">of {totalPages}</span>
                   </div>
@@ -671,10 +692,6 @@ const RailGateIn = () => {
         <Footer />
       </div>
 
-      {lightbox && (
-        <ImageLightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />
-      )}
-
       {detailIdx != null && (
         <DetailModal
           row={sorted[detailIdx]}
@@ -685,6 +702,14 @@ const RailGateIn = () => {
           onNext={() => setDetailIdx(i => Math.min(sorted.length - 1, i + 1))}
           onZoom={(u, l) => setLightbox({ url: u, label: l })}
         />
+      )}
+
+      {/* Rendered after DetailModal so it stacks visually on top when
+          opened from inside it (both are fixed inset-0 overlays with the
+          same z-50 — later in the DOM wins) instead of being hidden behind
+          the modal's own backdrop. */}
+      {lightbox && (
+        <ImageLightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />
       )}
     </div>
   )
