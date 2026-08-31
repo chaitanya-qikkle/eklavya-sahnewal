@@ -2189,16 +2189,19 @@ export default function PropsLayer({ props, alignment, pickable = false, onPick,
                     const PointComp = POINT_RENDERERS[p.type];
                     const seeded = SEEDED_POINT_TYPES.has(p.type);
                     const isCustom = p.type === "custom_model";
-                    // Width (X/Z) and height (Y) scale independently — widening
-                    // a gate shouldn't also stretch its posts. `scale` is the
+                    // Width (X), height (Y) and depth (Z) scale independently —
+                    // widening a gate shouldn't also stretch its posts, and a
+                    // custom model can be a square (scaleX === scaleZ) or a
+                    // rectangle (scaleX !== scaleZ) footprint. `scale` is the
                     // older uniform field, kept as a fallback for props placed
                     // before the split existed.
                     const sw = p.scaleX ?? p.scale ?? 1;
                     const sh = p.scaleY ?? p.scale ?? 1;
+                    const sd = p.scaleZ ?? p.scaleX ?? p.scale ?? 1;
                     return (
                         <React.Fragment key={p.id ?? i}>
                             <group position={[item.x, 0, item.z]} rotation={[0, item.rotY, 0]}
-                                scale={[sw, sh, sw]} onClick={pick}>
+                                scale={[sw, sh, sd]} onClick={pick}>
                                 {isCustom
                                     ? <CustomModelProp url={p.modelUrl} color={p.color} />
                                     : PointComp && (seeded

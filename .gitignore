@@ -1,2 +1,6 @@
 stitching/
 *.zip
+
+# Yard Builder — local safety backups, not meant to be committed
+Frontend/public/yard-layout-sahnewal.json.bak-*
+Frontend/public/models/custom/_originals_backup/

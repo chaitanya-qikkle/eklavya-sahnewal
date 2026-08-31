@@ -2357,10 +2357,6 @@
       [
         62.741906894276326,
         -289.9257139538191
-      ],
-      [
-        62.741906894276326,
-        -201.92571395381913
       ]
     ],
     [
@@ -2609,6 +2605,16 @@
       [
         22.148525400333796,
         -550.476152264409
+      ]
+    ],
+    [
+      [
+        62.70543704084032,
+        -289.66731564772357
+      ],
+      [
+        63.02535670105344,
+        -236.6255074556762
       ]
     ]
   ],
@@ -21455,46 +21461,46 @@
       "scaleY": 4
     },
     {
-      "id": "custom_model-r-bem3",
+      "id": "custom_model-1-tahk",
       "type": "custom_model",
-      "x": 105.18018144401799,
-      "y": -254.63580885688458,
-      "rot": 0,
-      "modelUrl": "/models/custom/warehouse_3d_model-1f73d0d4.glb",
-      "scaleX": 8,
-      "scaleY": 3,
-      "color": "#66b0ff"
-    },
-    {
-      "id": "custom_model-15-ednr",
-      "type": "custom_model",
-      "x": -17.580225817083107,
-      "y": -64.49436301915998,
-      "rot": 0,
-      "modelUrl": "/models/custom/warehouse_3d_model-1f73d0d4.glb",
-      "scaleY": 3,
-      "scaleX": 8,
-      "color": "#7abaff"
-    },
-    {
-      "id": "custom_model-18-ifdu",
-      "type": "custom_model",
-      "x": 5.737243297099534,
-      "y": -190.03637751192275,
-      "rot": 0,
-      "modelUrl": "/models/custom/toll_gate_barrier_3d_model-54721447.glb",
-      "scaleX": 8,
-      "scaleY": 3.5
-    },
-    {
-      "id": "custom_model-1b-jq5o",
-      "type": "custom_model",
-      "x": 44.16310524104363,
-      "y": -190.2778644414033,
+      "x": 104.98516765816825,
+      "y": -252.22214925597171,
       "rot": 180,
-      "modelUrl": "/models/custom/toll_gate_barrier_3d_model-54721447.glb",
-      "scaleX": 8,
-      "scaleY": 3.5
+      "modelUrl": "/models/custom/industrial_warehouse_3d_model_1-372e83d7.glb",
+      "scaleX": 4.5,
+      "scaleZ": 7,
+      "scaleY": 4
+    },
+    {
+      "id": "custom_model-j-zmon",
+      "type": "custom_model",
+      "x": -18.20034543630335,
+      "y": -41.25886255235994,
+      "rot": 180,
+      "modelUrl": "/models/custom/industrial_warehouse_3d_model_1-372e83d7.glb",
+      "scaleX": 4.5,
+      "scaleZ": 9,
+      "scaleY": 4
+    },
+    {
+      "id": "custom_model-a-ybp1",
+      "type": "custom_model",
+      "x": 27.32382977924425,
+      "y": -463.05412226256266,
+      "rot": 270,
+      "modelUrl": "/models/custom/administrative_building_3d_model-18964c12.glb",
+      "scaleX": 10,
+      "scaleY": 7
+    },
+    {
+      "id": "custom_model-1-k4r6",
+      "type": "custom_model",
+      "x": 33.858569548929765,
+      "y": -229.32332470238237,
+      "rot": 0,
+      "modelUrl": "/models/custom/gateway_rail_toll_3d_model-adba20a6.glb",
+      "scaleX": 6.5,
+      "scaleY": 4
     }
   ]
 }

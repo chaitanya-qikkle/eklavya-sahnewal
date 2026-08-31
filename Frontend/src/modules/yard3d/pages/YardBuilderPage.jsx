@@ -43,6 +43,9 @@ function saveBundle(edits) {
 }
 
 function SaveRow({ edits }) {
+  const [baking, setBaking] = useState(false);
+  const [bakeMsg, setBakeMsg] = useState(null);
+
   const download = () => {
     const json = saveBundle(edits);
     const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
@@ -51,15 +54,63 @@ function SaveRow({ edits }) {
     URL.revokeObjectURL(url);
   };
   const copy = () => navigator.clipboard?.writeText(saveBundle(edits));
+
+  const bakeNow = async () => {
+    const removedCount = (edits.removedProps || []).length;
+    const addedCount = (edits.props || []).length;
+    const wallCount = (edits.removedWalls || []).length + (edits.addedWalls || []).length;
+    if (!removedCount && !addedCount && !wallCount && !(edits.masts || []).length) {
+      setBakeMsg({ ok: false, text: "Nothing to bake — no changes this session." });
+      return;
+    }
+    const summary = [
+      removedCount && `${removedCount} removed`,
+      addedCount && `${addedCount} added`,
+      wallCount && `${wallCount} wall edits`,
+    ].filter(Boolean).join(", ");
+    if (!window.confirm(`Bake ${summary} into yard-layout-sahnewal.json permanently? A timestamped backup is kept automatically, but this changes the file everyone else sees.`)) {
+      return;
+    }
+    setBaking(true); setBakeMsg(null);
+    try {
+      const res = await fetch("/v1/assets/bake-yard-layout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edits }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.status === "error") throw new Error(json.message || "Bake failed");
+      setBakeMsg({ ok: true, text: `Baked. Backup: ${json.backup}. Reload the page to see it live.` });
+    } catch (err) {
+      setBakeMsg({ ok: false, text: err.message || "Bake failed" });
+    } finally {
+      setBaking(false);
+    }
+  };
+
   return (
-    <div style={{ display: "flex", gap: 6, marginTop: 6, marginBottom: 10 }}>
-      <button onClick={download} style={{
-        flex: 1, padding: "6px 0", cursor: "pointer", fontSize: 12,
-        background: "rgba(79,154,224,.28)", color: "#eaf4ff",
-        border: "1px solid rgba(140,175,210,.25)", borderRadius: 5,
-      }}>Export edits.json</button>
-      <button onClick={copy} style={smallBtn}>Copy</button>
-    </div>
+    <>
+      <div style={{ display: "flex", gap: 6, marginTop: 6, marginBottom: 6 }}>
+        <button onClick={download} style={{
+          flex: 1, padding: "6px 0", cursor: "pointer", fontSize: 12,
+          background: "rgba(79,154,224,.28)", color: "#eaf4ff",
+          border: "1px solid rgba(140,175,210,.25)", borderRadius: 5,
+        }}>Export edits.json</button>
+        <button onClick={copy} style={smallBtn}>Copy</button>
+      </div>
+      <button onClick={bakeNow} disabled={baking} style={{
+        width: "100%", padding: "7px 0", cursor: baking ? "default" : "pointer", fontSize: 12.5, fontWeight: 700,
+        marginBottom: 4,
+        background: "rgba(74,222,128,.22)", color: "#bdf7cf",
+        border: "1px solid rgba(74,222,128,.4)", borderRadius: 5,
+        opacity: baking ? 0.6 : 1,
+      }}>{baking ? "Baking…" : "Bake into yard-layout-sahnewal.json"}</button>
+      {bakeMsg && (
+        <div style={{ fontSize: 10.5, marginBottom: 10, color: bakeMsg.ok ? "#bdf7cf" : "#ffb4b4", lineHeight: 1.4 }}>
+          {bakeMsg.text}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -68,7 +119,7 @@ function SaveRow({ edits }) {
 // it as-is under Frontend/public/models/custom/ (no compression step; an
 // earlier gltf-transform pass was removed after it crashed on some source
 // textures), then click "Place" to arm it like any other point prop.
-function CustomModelsSection({ active, onPick }) {
+function CustomModelsSection({ active, onPick, label = "Custom Models", currentUrl }) {
   const [models, setModels] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -111,7 +162,7 @@ function CustomModelsSection({ active, onPick }) {
       padding: 10, borderRadius: 6, marginBottom: 12,
       background: "rgba(255,255,255,.04)", border: "1px solid rgba(140,175,210,.2)",
     }}>
-      <div style={{ fontSize: 11, color: "#8fa5bb", marginBottom: 8, fontWeight: 600 }}>Custom Models</div>
+      <div style={{ fontSize: 11, color: "#8fa5bb", marginBottom: 8, fontWeight: 600 }}>{label}</div>
 
       <input ref={fileInputRef} type="file" accept=".glb" style={{ display: "none" }} onChange={handleFile} />
       <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{
@@ -127,18 +178,23 @@ function CustomModelsSection({ active, onPick }) {
         <div style={{ fontSize: 10.5, color: "#7d94ab" }}>No models uploaded yet.</div>
       ) : (
         <div style={{ display: "grid", gap: 4 }}>
-          {models.map(m => (
-            <button key={m.filename} onClick={() => onPick(m.url)} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "6px 8px", borderRadius: 5, cursor: "pointer", fontSize: 11.5, textAlign: "left",
-              background: active ? "rgba(79,154,224,.28)" : "rgba(255,255,255,.05)",
-              border: `1px solid ${active ? "#4f9ae0" : "transparent"}`,
-              color: active ? "#eaf4ff" : "#9fb2c6",
-            }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.filename}</span>
-              <span style={{ fontSize: 9.5, color: "#7d94ab", flexShrink: 0, marginLeft: 6 }}>Place</span>
-            </button>
-          ))}
+          {models.map(m => {
+            const isCurrent = currentUrl && m.url === currentUrl;
+            return (
+              <button key={m.filename} onClick={() => onPick(m.url)} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "6px 8px", borderRadius: 5, cursor: "pointer", fontSize: 11.5, textAlign: "left",
+                background: isCurrent ? "rgba(74,222,128,.2)" : active ? "rgba(79,154,224,.28)" : "rgba(255,255,255,.05)",
+                border: `1px solid ${isCurrent ? "#4ade80" : active ? "#4f9ae0" : "transparent"}`,
+                color: isCurrent ? "#bdf7cf" : active ? "#eaf4ff" : "#9fb2c6",
+              }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.filename}</span>
+                <span style={{ fontSize: 9.5, color: "#7d94ab", flexShrink: 0, marginLeft: 6 }}>
+                  {isCurrent ? "Current" : currentUrl ? "Replace" : "Place"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -270,6 +326,20 @@ function PropsTab({
     if (!target || !isCustomModel(target)) return;
     const clamped = Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct / 100));
     updateTarget({ scaleX: clamped });
+  };
+  const setCustomModelDepthPct = (pct) => {
+    if (!target || !isCustomModel(target)) return;
+    const clamped = Math.max(SCALE_MIN, Math.min(SCALE_MAX, pct / 100));
+    updateTarget({ scaleZ: clamped });
+  };
+  const setCustomModelSquare = () => {
+    if (!target || !isCustomModel(target)) return;
+    const w = target.scaleX ?? target.scale ?? 1;
+    updateTarget({ scaleX: w, scaleZ: w });
+  };
+  const setCustomModelUrl = (url) => {
+    if (!target || !isCustomModel(target)) return;
+    updateTarget({ modelUrl: url });
   };
   const nudgeMove = (dx, dy) => {
     if (!target) return;
@@ -432,8 +502,11 @@ function PropsTab({
           )}
           {isCustomModel(target) && (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                <span style={{ fontSize: 11, color: "#8fa5bb" }}>Width</span>
+              <div style={{ fontSize: 10.5, color: "#7d94ab", marginTop: 8, marginBottom: 2 }}>
+                Footprint — equal Width/Depth % = square, different % = rectangle
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: "#8fa5bb", width: 44 }}>Width</span>
                 <input
                   type="number"
                   min={1}
@@ -453,7 +526,28 @@ function PropsTab({
                 <span style={{ fontSize: 10.5, color: "#7d94ab" }}>%</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                <span style={{ fontSize: 11, color: "#8fa5bb" }}>Height</span>
+                <span style={{ fontSize: 11, color: "#8fa5bb", width: 44 }}>Depth</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  step={1}
+                  value={Math.round((target.scaleZ ?? target.scaleX ?? target.scale ?? 1) * 100)}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setCustomModelDepthPct(v);
+                  }}
+                  style={{
+                    width: 64, padding: "4px 6px", borderRadius: 4, fontSize: 11.5,
+                    background: "rgba(255,255,255,.06)", color: "#eaf4ff",
+                    border: "1px solid rgba(140,175,210,.3)",
+                  }}
+                />
+                <span style={{ fontSize: 10.5, color: "#7d94ab" }}>%</span>
+                <button onClick={setCustomModelSquare} style={smallBtn} title="Set depth = width (square)">Square</button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: "#8fa5bb", width: 44 }}>Height</span>
                 <input
                   type="number"
                   min={1}
@@ -472,6 +566,13 @@ function PropsTab({
                 />
                 <span style={{ fontSize: 10.5, color: "#7d94ab" }}>%</span>
               </div>
+
+              <CustomModelsSection
+                active
+                label="Replace model"
+                onPick={setCustomModelUrl}
+                currentUrl={target.modelUrl}
+              />
             </>
           )}
           {hasColor(target, targetSpec) && (
@@ -485,7 +586,7 @@ function PropsTab({
         </div>
       )}
 
-      <SaveRow edits={{ props: edits.props }} />
+      <SaveRow edits={edits} />
       <button onClick={() => setEdits(e => ({ ...e, props: [] }))} style={{
         width: "100%", padding: "6px 10px", cursor: "pointer", fontSize: 12,
         background: "rgba(255,255,255,.06)", color: "#cfe0f0",
@@ -548,6 +649,22 @@ export default function YardBuilderPage() {
   // One shared undo/redo history across both tools.
   const [edits, setEditsRaw, history] = useUndoable(EMPTY_EDITS);
   const setEdits = useCallback((e, label) => setEditsRaw(prev => (typeof e === "function" ? e(prev) : e), label), [setEditsRaw]);
+
+  // Baked props (dxfLayout.props, e.g. previously-baked custom GLB models)
+  // aren't part of the session-only edits.props list, so they can't be
+  // clicked through PropsEditor's own picking. This lets the Erase tool
+  // also remove them — toggling their id in edits.removedProps, which
+  // applyEdits already filters out of the live preview, and the bake
+  // script already honors when writing back to yard-layout-sahnewal.json.
+  const onPickBakedProp = useCallback((prop) => {
+    if (propMode !== "erase" || !prop?.id) return;
+    setEdits(e => {
+      const removed = new Set(e.removedProps || []);
+      if (removed.has(prop.id)) removed.delete(prop.id);
+      else removed.add(prop.id);
+      return { ...e, removedProps: Array.from(removed) };
+    });
+  }, [propMode, setEdits]);
 
   const switchTab = useCallback((next) => {
     if (next !== "walls") { setMode("off"); setPending(null); }
@@ -817,6 +934,7 @@ export default function YardBuilderPage() {
       <YardScene
         geofence={geofence}
         dxfLayout={editedLayout}
+        onPickBakedProp={onPickBakedProp}
         rotationDeg={rotationDeg}
         offsetX={offsetX}
         offsetZ={offsetZ}

@@ -167,23 +167,60 @@ export function makeBuildingWallTex() {
   return tex;
 }
 
+// Precast RCC boundary-wall panel — ribbed vertical grooves (interlocking
+// precast panel joints), cement-grey with weathering streaks, matching the
+// typical ICD/CFS compound wall look rather than a plain flat/brick fill.
 export function makeWallTex() {
-  const c = document.createElement("canvas"); c.width = 256; c.height = 128;
+  const c = document.createElement("canvas"); c.width = 256; c.height = 256;
   const ctx = c.getContext("2d");
-  ctx.fillStyle = "#5a6678"; ctx.fillRect(0, 0, 256, 128);
-  ctx.strokeStyle = "rgba(30,40,55,0.5)"; ctx.lineWidth = 1;
-  for (let y = 0; y < 128; y += 10) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
-    const off = (Math.floor(y / 10) % 2) * 20;
-    for (let x = off; x < 256; x += 40) {
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 10); ctx.stroke();
-    }
+  ctx.fillStyle = "#8f9498"; ctx.fillRect(0, 0, 256, 256);
+  // fine cement speckle
+  for (let i = 0; i < 1400; i++) {
+    const g = Math.floor(Math.random() * 26 + 120);
+    ctx.fillStyle = `rgba(${g},${g},${g - 3},0.22)`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.2, 1.2);
   }
-  // cap stripe
-  ctx.fillStyle = "rgba(255,255,255,0.08)";
-  ctx.fillRect(0, 0, 256, 6);
+  // vertical precast panel joints (ribbed grooves every ~1m at this scale)
+  ctx.strokeStyle = "rgba(50,54,58,0.55)"; ctx.lineWidth = 2;
+  for (let x = 0; x < 256; x += 32) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + 2, 0); ctx.lineTo(x + 2, 256); ctx.stroke();
+    ctx.strokeStyle = "rgba(50,54,58,0.55)"; ctx.lineWidth = 2;
+  }
+  // rain-streak weathering
+  ctx.strokeStyle = "rgba(60,65,60,0.10)"; ctx.lineWidth = 3;
+  for (let i = 0; i < 10; i++) {
+    const x = Math.random() * 256;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + (Math.random() * 8 - 4), 256); ctx.stroke();
+  }
+  // cap stripe (whitewash band near top, common on ICD walls)
+  ctx.fillStyle = "rgba(255,255,255,0.16)";
+  ctx.fillRect(0, 0, 256, 10);
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(8, 1);
+  return tex;
+}
+
+// Precast RCC pillar/column — vertical support post between wall panels.
+function makePillarTex() {
+  const c = document.createElement("canvas"); c.width = 64; c.height = 256;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#7a7f84"; ctx.fillRect(0, 0, 64, 256);
+  for (let i = 0; i < 400; i++) {
+    const g = Math.floor(Math.random() * 22 + 108);
+    ctx.fillStyle = `rgba(${g},${g},${g - 2},0.25)`;
+    ctx.fillRect(Math.random() * 64, Math.random() * 256, 1.2, 1.2);
+  }
+  // subtle edge shading (gives the column a rounded/faceted look)
+  const grad = ctx.createLinearGradient(0, 0, 64, 0);
+  grad.addColorStop(0, "rgba(30,32,34,0.35)");
+  grad.addColorStop(0.15, "rgba(0,0,0,0)");
+  grad.addColorStop(0.85, "rgba(0,0,0,0)");
+  grad.addColorStop(1, "rgba(255,255,255,0.12)");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, 1);
   return tex;
 }
 
@@ -327,33 +364,42 @@ function SupportBuilding({ ring, alignment }) {
   );
 }
 
-// ─── Perimeter wall — solid concrete/brick ────────────────────────────────
+// Wall height shared by the panel, coping, pillars and barbed-wire posts —
+// a real ICD/CFS compound wall (~5m incl. wire) rather than the old 3.8m
+// plain box.
+const ICD_WALL_H = 5.0;
+const ICD_WALL_T = 0.6;
+const ICD_PILLAR_SPACING = 3.0; // metres between RCC pillars, typical precast panel bay width
+const ICD_PILLAR_W = 0.35;
+
+function fenceSegments(fences, alignment) {
+  const out = [];
+  if (!fences || !alignment) return out;
+  for (const ls of fences) {
+    for (let i = 0; i < ls.length - 1; i++) {
+      const a = dxfPointToScene(ls[i][0], ls[i][1], alignment);
+      const b = dxfPointToScene(ls[i + 1][0], ls[i + 1][1], alignment);
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 0.4) continue;
+      out.push({ mx: (a.x + b.x) / 2, mz: (a.z + b.z) / 2, len, ang: Math.atan2(b.z - a.z, b.x - a.x) });
+    }
+  }
+  return out;
+}
+
+// ─── Perimeter wall — precast RCC panels between pillars, ICD/CFS style ──
 function PerimeterWall({ fences, alignment }) {
   const wallTex = useMemo(() => makeWallTex(), []);
   const ref = useRef();
-  const WALL_H = 3.8, WALL_T = 0.6;
 
-  const segs = useMemo(() => {
-    const out = [];
-    if (!fences || !alignment) return out;
-    for (const ls of fences) {
-      for (let i = 0; i < ls.length - 1; i++) {
-        const a = dxfPointToScene(ls[i][0], ls[i][1], alignment);
-        const b = dxfPointToScene(ls[i + 1][0], ls[i + 1][1], alignment);
-        const len = Math.hypot(b.x - a.x, b.z - a.z);
-        if (len < 0.4) continue;
-        out.push({ mx: (a.x + b.x) / 2, mz: (a.z + b.z) / 2, len, ang: Math.atan2(b.z - a.z, b.x - a.x) });
-      }
-    }
-    return out;
-  }, [fences, alignment]);
+  const segs = useMemo(() => fenceSegments(fences, alignment), [fences, alignment]);
 
   useLayoutEffect(() => {
     if (!ref.current || !segs.length) return;
     const { matrix, quat, pos, scl, euler } = TMP;
     segs.forEach((s, i) => {
       euler.set(0, -s.ang, 0); quat.setFromEuler(euler);
-      pos.set(s.mx, WALL_H / 2, s.mz); scl.set(s.len, WALL_H, WALL_T);
+      pos.set(s.mx, ICD_WALL_H / 2, s.mz); scl.set(s.len, ICD_WALL_H, ICD_WALL_T);
       matrix.compose(pos, quat, scl); ref.current.setMatrixAt(i, matrix);
     });
     ref.current.instanceMatrix.needsUpdate = true;
@@ -364,7 +410,49 @@ function PerimeterWall({ fences, alignment }) {
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, segs.length]} castShadow receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
-      <meshLambertMaterial map={wallTex} color="#56667a" />
+      <meshLambertMaterial map={wallTex} color="#96999c" />
+    </instancedMesh>
+  );
+}
+
+// RCC support pillars — placed every ~3m along each wall run, between the
+// precast panels, matching real ICD/CFS compound-wall construction.
+function WallPillars({ fences, alignment }) {
+  const pillarTex = useMemo(() => makePillarTex(), []);
+  const ref = useRef();
+
+  const posts = useMemo(() => {
+    const segs = fenceSegments(fences, alignment);
+    const out = [];
+    for (const s of segs) {
+      const count = Math.max(1, Math.round(s.len / ICD_PILLAR_SPACING));
+      const cos = Math.cos(s.ang), sin = Math.sin(s.ang);
+      const startX = s.mx - (cos * s.len) / 2, startZ = s.mz - (sin * s.len) / 2;
+      for (let k = 0; k <= count; k++) {
+        const t = (k / count) * s.len;
+        out.push({ x: startX + cos * t, z: startZ + sin * t });
+      }
+    }
+    return out;
+  }, [fences, alignment]);
+
+  useLayoutEffect(() => {
+    if (!ref.current || !posts.length) return;
+    const { matrix, pos, scl } = TMP;
+    const PILLAR_H = ICD_WALL_H + 0.3;
+    posts.forEach((p, i) => {
+      pos.set(p.x, PILLAR_H / 2, p.z); scl.set(ICD_PILLAR_W, PILLAR_H, ICD_PILLAR_W);
+      matrix.compose(pos, TMP.quat.identity(), scl); ref.current.setMatrixAt(i, matrix);
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+    ref.current.computeBoundingSphere();
+  }, [posts]);
+
+  if (!posts.length) return null;
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, posts.length]} castShadow receiveShadow>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshLambertMaterial map={pillarTex} color="#a5a8ab" />
     </instancedMesh>
   );
 }
@@ -372,28 +460,14 @@ function PerimeterWall({ fences, alignment }) {
 // Wall coping (cap) — lighter colour strip along top edge
 function WallCoping({ fences, alignment }) {
   const ref = useRef();
-  const WALL_H = 3.8;
-  const segs = useMemo(() => {
-    const out = [];
-    if (!fences || !alignment) return out;
-    for (const ls of fences) {
-      for (let i = 0; i < ls.length - 1; i++) {
-        const a = dxfPointToScene(ls[i][0], ls[i][1], alignment);
-        const b = dxfPointToScene(ls[i + 1][0], ls[i + 1][1], alignment);
-        const len = Math.hypot(b.x - a.x, b.z - a.z);
-        if (len < 0.4) continue;
-        out.push({ mx: (a.x + b.x) / 2, mz: (a.z + b.z) / 2, len, ang: Math.atan2(b.z - a.z, b.x - a.x) });
-      }
-    }
-    return out;
-  }, [fences, alignment]);
+  const segs = useMemo(() => fenceSegments(fences, alignment), [fences, alignment]);
 
   useLayoutEffect(() => {
     if (!ref.current || !segs.length) return;
     const { matrix, quat, pos, scl, euler } = TMP;
     segs.forEach((s, i) => {
       euler.set(0, -s.ang, 0); quat.setFromEuler(euler);
-      pos.set(s.mx, WALL_H + 0.2, s.mz); scl.set(s.len, 0.4, 0.9);
+      pos.set(s.mx, ICD_WALL_H + 0.2, s.mz); scl.set(s.len, 0.4, 0.9);
       matrix.compose(pos, quat, scl); ref.current.setMatrixAt(i, matrix);
     });
     ref.current.instanceMatrix.needsUpdate = true;
@@ -406,6 +480,101 @@ function WallCoping({ fences, alignment }) {
       <boxGeometry args={[1, 1, 1]} />
       <meshLambertMaterial color="#8090a0" />
     </instancedMesh>
+  );
+}
+
+// A single coil (loop) of a concertina/razor-wire helix, running along the
+// local X axis — used as the path for a TubeGeometry so the wire actually
+// reads as a round coil, not a straight strand.
+class ConcertinaCurve extends THREE.Curve {
+  constructor(length, coilRadius, pitch) {
+    super();
+    this.length = length;
+    this.coilRadius = coilRadius;
+    this.pitch = pitch; // metres of X-travel per full turn
+  }
+  getPoint(t, target = new THREE.Vector3()) {
+    const turns = this.length / this.pitch;
+    const angle = t * turns * Math.PI * 2;
+    const x = t * this.length;
+    const y = Math.sin(angle) * this.coilRadius;
+    const z = Math.cos(angle) * this.coilRadius;
+    return target.set(x, y, z);
+  }
+}
+
+// Security concertina/razor wire coil — raised on angled arm posts above
+// the coping, the standard ICD/CFS perimeter security topper. Rendered as
+// an actual helical tube (round coil), not straight strands.
+function BarbedWire({ fences, alignment }) {
+  const armRef = useRef();
+  const COIL_RADIUS = 0.35, COIL_PITCH = 0.55;
+  const ARM_LEN = 0.9, ARM_ANGLE = Math.PI / 5; // taller arm, still angled outward
+  const baseY = ICD_WALL_H + 0.4;
+  const coilY = baseY + ARM_LEN * 0.75; // coil rides most of the way up the arm
+
+  const segs = useMemo(() => fenceSegments(fences, alignment), [fences, alignment]);
+
+  const armPosts = useMemo(() => {
+    const ARM_SPACING = 4.0;
+    const out = [];
+    for (const s of segs) {
+      const count = Math.max(1, Math.round(s.len / ARM_SPACING));
+      const cos = Math.cos(s.ang), sin = Math.sin(s.ang);
+      const nx = sin, nz = -cos; // outward normal
+      const startX = s.mx - (cos * s.len) / 2, startZ = s.mz - (sin * s.len) / 2;
+      for (let k = 0; k <= count; k++) {
+        const t = (k / count) * s.len;
+        const bx = startX + cos * t, bz = startZ + sin * t;
+        const tipX = bx + nx * Math.sin(ARM_ANGLE) * ARM_LEN;
+        const tipZ = bz + nz * Math.sin(ARM_ANGLE) * ARM_LEN;
+        const tipY = baseY + Math.cos(ARM_ANGLE) * ARM_LEN;
+        out.push({ x: (bx + tipX) / 2, y: (baseY + tipY) / 2, z: (bz + tipZ) / 2, ang: s.ang, tiltAng: ARM_ANGLE });
+      }
+    }
+    return out;
+  }, [segs]);
+
+  // One TubeGeometry coil per fence run, positioned along its own local
+  // frame (rotated/translated via the enclosing <group>) so a single curve
+  // covers the whole run's length instead of one mesh per pitch-turn.
+  const coils = useMemo(() => segs.map((s) => {
+    const curve = new ConcertinaCurve(s.len, COIL_RADIUS, COIL_PITCH);
+    const turns = Math.max(1, Math.round(s.len / COIL_PITCH));
+    const tubularSegments = Math.max(16, turns * 10);
+    const geo = new THREE.TubeGeometry(curve, tubularSegments, 0.045, 6, false);
+    return { geo, s };
+  }), [segs]);
+
+  useLayoutEffect(() => {
+    if (!armRef.current || !armPosts.length) return;
+    const { matrix, quat, pos, scl, euler } = TMP;
+    armPosts.forEach((a, i) => {
+      euler.set(0, -a.ang, a.tiltAng); quat.setFromEuler(euler);
+      pos.set(a.x, a.y, a.z); scl.set(0.06, ARM_LEN, 0.06);
+      matrix.compose(pos, quat, scl); armRef.current.setMatrixAt(i, matrix);
+    });
+    armRef.current.instanceMatrix.needsUpdate = true;
+    armRef.current.computeBoundingSphere();
+  }, [armPosts]);
+
+  if (!armPosts.length) return null;
+  return (
+    <>
+      <instancedMesh ref={armRef} args={[undefined, undefined, armPosts.length]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshLambertMaterial color="#3a3f45" />
+      </instancedMesh>
+      {coils.map(({ geo, s }, i) => {
+        const cos = Math.cos(s.ang), sin = Math.sin(s.ang);
+        const startX = s.mx - (cos * s.len) / 2, startZ = s.mz - (sin * s.len) / 2;
+        return (
+          <mesh key={i} geometry={geo} position={[startX, coilY, startZ]} rotation={[0, -s.ang, 0]}>
+            <meshStandardMaterial color="#b8bcc0" metalness={0.75} roughness={0.35} />
+          </mesh>
+        );
+      })}
+    </>
   );
 }
 
@@ -1063,6 +1232,10 @@ export default function YardScene({
   rotationDeg,
   offsetX,
   offsetZ,
+  // Optional — makes baked yard-builder props (dxfLayout.props) clickable,
+  // so YardBuilderPage can offer "remove this baked prop" without needing
+  // them to be re-drawn through PropsEditor's session-only edit layer.
+  onPickBakedProp,
 }) {
   const hoveredRef   = useRef(null);
   const controlsRef  = useRef(null);
@@ -1365,7 +1538,9 @@ export default function YardScene({
 
           {/* Perimeter concrete wall */}
           <PerimeterWall fences={sceneFeatures.fences} alignment={alignment} />
+          <WallPillars   fences={sceneFeatures.fences} alignment={alignment} />
           <WallCoping    fences={sceneFeatures.fences} alignment={alignment} />
+          <BarbedWire    fences={sceneFeatures.fences} alignment={alignment} />
 
           <DxfTrees trees={sceneFeatures.trees} alignment={alignment} />
 
@@ -1373,7 +1548,12 @@ export default function YardScene({
               buildings, etc.) — saved into dxfLayout.props by
               bake-yard-builder-edits.mjs. */}
           {dxfLayout?.props?.length > 0 && (
-            <PropsLayer props={dxfLayout.props} alignment={alignment} />
+            <PropsLayer
+              props={dxfLayout.props}
+              alignment={alignment}
+              pickable={!!onPickBakedProp}
+              onPick={(i) => onPickBakedProp?.(dxfLayout.props[i])}
+            />
           )}
         </>
       )}
