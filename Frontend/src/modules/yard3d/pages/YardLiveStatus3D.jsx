@@ -529,7 +529,7 @@ export default function YardLiveStatus3D() {
     let cancelled = false;
     const site = SAHNEWAL_SITE;
     setDxfLayout(null);
-    fetch(site.layout).then(r => r.json()).catch(() => null)
+    fetch(`${site.layout}?t=${Date.now()}`).then(r => r.json()).catch(() => null)
       .then((dxf) => { if (!cancelled && dxf) setDxfLayout(dxf); });
     return () => { cancelled = true; };
   }, []);
