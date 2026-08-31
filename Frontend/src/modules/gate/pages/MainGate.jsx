@@ -138,66 +138,85 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxHeight: '92vh' }}
+        className="relative w-full max-w-[1600px] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5"
+        style={{ maxHeight: '95vh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-5 py-3.5 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center">
-              <FaDoorOpen size={15} />
+        <div
+          className="relative flex items-center justify-between text-white px-7 py-5 shrink-0 overflow-hidden"
+          style={{ background: "linear-gradient(120deg,#0e4a78 0%,#0b3e66 45%,#072c4a 100%)" }}
+        >
+          <div
+            className="absolute inset-0 opacity-[0.07] pointer-events-none"
+            style={{
+              backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+              backgroundSize: "18px 18px",
+            }}
+          />
+          <div className="relative flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
+              <FaDoorOpen size={20} />
             </div>
             <div>
-              <p className="font-bold text-base leading-tight">Detection Record</p>
-              <p className="text-[11px] text-white/60">Record #{row.ID ?? '—'} · {index + 1} of {total}</p>
+              <p className="font-black text-xl leading-tight tracking-tight">Detection Record</p>
+              <p className="text-xs text-white/60 font-medium mt-0.5">
+                Record #{row.ID ?? '—'} <span className="mx-1.5 opacity-40">·</span> {index + 1} of {total}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="relative flex items-center gap-2">
             <button
               onClick={onPrev}
               disabled={index <= 0}
-              className="p-2 rounded-lg hover:bg-white/15 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
               title="Previous record"
             >
-              <FiChevronLeft size={17} />
+              <FiChevronLeft size={19} />
             </button>
             <button
               onClick={onNext}
               disabled={index >= total - 1}
-              className="p-2 rounded-lg hover:bg-white/15 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
               title="Next record"
             >
-              <FiChevronRight size={17} />
+              <FiChevronRight size={19} />
             </button>
-            <div className="w-px h-6 bg-white/20 mx-1" />
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/15 transition-colors" title="Close">
-              <FiX size={18} />
+            <div className="w-px h-7 bg-white/20 mx-2" />
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-red-500/80 transition-all"
+              title="Close"
+            >
+              <FiX size={19} />
             </button>
           </div>
         </div>
 
         {/* Body — split panel */}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-slate-100">
 
           {/* Left — details */}
-          <div className="w-full lg:w-[340px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50/60 overflow-y-auto">
-            <div className="p-5">
+          <div className="w-full lg:w-[380px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-gradient-to-b from-slate-50 to-white overflow-y-auto">
+            <div className="p-6">
 
-              <div className="mb-5 flex flex-wrap gap-2">
+              <div className="mb-6 flex flex-wrap gap-2.5">
                 {row.VehicleNo && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 text-white font-black font-mono text-sm shadow-sm">
-                    <FiTruckIcon size={13} /> {row.VehicleNo}
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white font-black font-mono text-base shadow-lg shadow-slate-900/20">
+                    <FiTruckIcon size={15} /> {row.VehicleNo}
                   </span>
                 )}
                 {row.ContainerNo && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0e4a78] text-white font-black font-mono text-sm shadow-sm">
-                    <FiPackage size={13} /> {row.ContainerNo}
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-[#1364a4] to-[#0a3b61] text-white font-black font-mono text-base shadow-lg shadow-[#0e4a78]/25">
+                    <FiPackage size={15} /> {row.ContainerNo}
                   </span>
+                )}
+                {!row.VehicleNo && !row.ContainerNo && (
+                  <span className="text-sm text-slate-400 font-medium">No identifiers captured</span>
                 )}
               </div>
 
-              <div className="bg-white rounded-xl border border-slate-200 px-4 shadow-sm">
+              <div className="bg-white rounded-2xl border border-slate-200 px-5 shadow-sm">
                 <DetailField icon={FiHash} label="Record ID" accent="#64748b">
                   {row.ID ?? '—'}
                 </DetailField>
@@ -226,32 +245,51 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
           </div>
 
           {/* Right — images */}
-          <div className="flex-1 min-w-0 overflow-y-auto bg-slate-100">
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex-1 min-w-0 overflow-y-auto">
+            <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6 h-full">
               {[
-                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78' },
-                { url: containerUrl, label: 'Container Snapshot', icon: FiPackage, accent: '#0e4a78' },
+                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78', from: '#eef4fb', to: '#dbe9f7' },
+                { url: containerUrl, label: 'Container Snapshot', icon: FiPackage, accent: '#0e4a78', from: '#eef4fb', to: '#dbe9f7' },
               ].map(({ url, label, icon: Icon, accent }) => (
-                <div key={label} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                  <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-slate-100">
-                    <Icon size={13} style={{ color: accent }} />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+                <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/60">
+                    <span className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
+                        <Icon size={13} />
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{label}</span>
+                    </span>
+                    {url && (
+                      <a
+                        href={url}
+                        download
+                        onClick={e => e.stopPropagation()}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
+                        title="Download image"
+                      >
+                        <FiDownloadIcon size={13} />
+                      </a>
+                    )}
                   </div>
                   {url ? (
                     <button
                       onClick={() => onZoom(url, label)}
-                      className="group relative bg-slate-50 flex items-center justify-center overflow-hidden"
-                      style={{ minHeight: 220 }}
+                      className="group relative flex items-center justify-center overflow-hidden w-full"
+                      style={{ height: 380, background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
                     >
-                      <img src={url} alt={label} className="w-full h-full object-contain max-h-[340px]" />
-                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                        <FiZoomIn className="text-white opacity-0 group-hover:opacity-100 transition-opacity" size={26} />
+                      <img src={url} alt={label} className="max-w-full max-h-full object-contain p-2" />
+                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
+                        <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
+                          <FiZoomIn className="text-[#0e4a78]" size={24} />
+                        </span>
                       </span>
                     </button>
                   ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 text-slate-300" style={{ minHeight: 220 }}>
-                      <FiImage size={32} />
-                      <span className="text-xs font-medium">No image available</span>
+                    <div className="flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full" style={{ height: 380 }}>
+                      <span className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <FiImage size={28} />
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">No image available</span>
                     </div>
                   )}
                 </div>
