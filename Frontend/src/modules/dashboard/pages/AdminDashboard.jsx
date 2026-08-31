@@ -1276,12 +1276,16 @@ const AdminDashboard = () => {
     return rows.map((r) => {
       const hourStart = get(r, "HourStart", "hourstart");
       const dt = parseDateTime(hourStart);
-      const label = dt ? String(dt.getHours()).padStart(2, "0") + "h" : (get(r, "HourSlot", "hourslot") || "—");
+      // Axis label = just the starting clock hour ("14:00"); full range
+      // ("14-08-2026 14:00 - 15:00") is used as the tooltip label instead.
+      const label = dt ? String(dt.getHours()).padStart(2, "0") + ":00" : "—";
+      const hourSlot = get(r, "HourSlot", "hourslot") || label;
       const inCount = Number(get(r, "ContainerIn", "containerin") || 0);
       const outCount = Number(get(r, "ContainerOut", "containerout") || 0);
       return {
         key: hourStart || label,
         label,
+        hourSlot,
         in: inCount,
         out: outCount,
         net: Number(get(r, "NetMovement", "netmovement") ?? (inCount - outCount)),
@@ -1692,7 +1696,7 @@ const AdminDashboard = () => {
       icon: FiTrendingUp,
       label: `Gate-In (${filters.preset === "custom" ? "range" : filters.preset})`,
       value: totalIn24h,
-      sub: `Out ${totalOut24h} · Net ${totalIn24h - totalOut24h >= 0 ? "+" : ""}${totalIn24h - totalOut24h}`,
+      sub: `Out ${totalOut24h}`,
       trend: inTrend,
       accent: T.blue,
       loading: liveStatusLoading,
@@ -1700,12 +1704,11 @@ const AdminDashboard = () => {
       breakdown: [
         { name: "Gate-In", value: totalIn24h, color: T.blue },
         { name: "Gate-Out", value: totalOut24h, color: T.cyan },
-        { name: "Net", value: totalIn24h - totalOut24h, color: T.emerald },
       ],
       table: {
         title: "Hourly throughput",
-        cols: ["Hour", "Gate-In", "Gate-Out", "Net"],
-        rows: hourlyThroughput.map((h) => [h.label, h.in, h.out, h.net >= 0 ? `+${h.net}` : h.net]),
+        cols: ["Hour", "Gate-In", "Gate-Out"],
+        rows: hourlyThroughput.map((h) => [h.hourSlot, h.in, h.out]),
       },
     },
     {
@@ -2099,7 +2102,6 @@ const AdminDashboard = () => {
                     { value: "area", label: "Area", icon: FiActivity },
                     { value: "bar", label: "Bar", icon: FiBarChart2 },
                     { value: "line", label: "Line", icon: FiTrendingUp },
-                    { value: "composed", label: "Mixed", icon: FiZap },
                     { value: "table", label: "Table", icon: FiList },
                   ]}
                 />
@@ -2116,26 +2118,19 @@ const AdminDashboard = () => {
                   <span style={{ color: T.textDim }}>OUT</span>
                   <span className="font-black tabular-nums" style={{ color: T.text }}>{totalOut24h}</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.amber }} />
-                  <span style={{ color: T.textDim }}>NET</span>
-                  <span className="font-black tabular-nums" style={{ color: T.text }}>{totalIn24h - totalOut24h >= 0 ? "+" : ""}{totalIn24h - totalOut24h}</span>
-                </span>
               </div>
               <div className="flex-1 min-h-0">
                 {chartView === "table" ? (
                   <DataTable
                     cols={[
-                      { label: filterRange.toMs - filterRange.fromMs > 25 * 3600 * 1000 ? "Day" : "Hour", key: "label", bold: true },
+                      { label: "Hour", key: "hourSlot", bold: true },
                       { label: "Gate-In", key: "in", align: "right",
                         render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
                       { label: "Gate-Out", key: "out", align: "right",
                         render: (v) => <span style={{ color: T.pink }}>{fmtNumber(v)}</span> },
-                      { label: "Net", key: "net", align: "right",
-                        render: (v) => <span style={{ color: v >= 0 ? T.emerald : T.red }}>{v >= 0 ? `+${v}` : v}</span> },
                     ]}
                     rows={hourlyThroughput}
-                    footerRow={["Total", fmtNumber(totalIn24h), fmtNumber(totalOut24h), `${totalIn24h - totalOut24h >= 0 ? "+" : ""}${totalIn24h - totalOut24h}`]}
+                    footerRow={["Total", fmtNumber(totalIn24h), fmtNumber(totalOut24h)]}
                   />
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -2167,7 +2162,7 @@ const AdminDashboard = () => {
                       <Bar dataKey="in" name="In" fill={T.cyan} radius={[4, 4, 0, 0]} />
                       <Bar dataKey="out" name="Out" fill={T.pink} radius={[4, 4, 0, 0]} />
                     </BarChart>
-                  ) : chartView === "line" ? (
+                  ) : (
                     <LineChart data={hourlyThroughput} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
@@ -2176,16 +2171,6 @@ const AdminDashboard = () => {
                       <Line type="monotone" dataKey="in" name="In" stroke={T.cyan} strokeWidth={3} dot={{ fill: T.cyan, r: 3 }} />
                       <Line type="monotone" dataKey="out" name="Out" stroke={T.pink} strokeWidth={3} dot={{ fill: T.pink, r: 3 }} />
                     </LineChart>
-                  ) : (
-                    <ComposedChart data={hourlyThroughput} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
-                      <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
-                      <Tooltip content={<Tip />} />
-                      <Bar dataKey="in" name="In" fill={T.cyan} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="out" name="Out" fill={T.pink} radius={[4, 4, 0, 0]} />
-                      <Line type="monotone" dataKey="net" name="Net" stroke={T.amber} strokeWidth={3} dot={{ fill: T.amber, r: 3 }} />
-                    </ComposedChart>
                   )}
                 </ResponsiveContainer>
                 )}
