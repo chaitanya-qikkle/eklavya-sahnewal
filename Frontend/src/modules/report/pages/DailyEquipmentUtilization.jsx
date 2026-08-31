@@ -183,10 +183,11 @@ const DailyEquipmentUtilization = () => {
     { key: 'idleTime',      label: 'Idle Time'              },
     { key: 'workTime',      label: 'Work Time'              },
     { key: 'totalMoves',    label: 'Total Moves'            },
-    { key: 'laden',         label: 'Laden'                  },
-    { key: 'empty',         label: 'Empty'                  },
-    { key: 'size20',        label: '20ft'                   },
-    { key: 'size40',        label: '40ft'                   },
+    // Hidden per request — Laden/Empty/20ft/40ft counts (kept for easy restore)
+    // { key: 'laden',         label: 'Laden'                  },
+    // { key: 'empty',         label: 'Empty'                  },
+    // { key: 'size20',        label: '20ft'                   },
+    // { key: 'size40',        label: '40ft'                   },
     { key: 'workingHours',  label: 'Working Hours'          },
     { key: 'hourlyMoves',   label: 'Hourly Moves'           },
     { key: 'expectedHrs',   label: 'Expected Hrs'           },
@@ -365,6 +366,7 @@ const DailyEquipmentUtilization = () => {
                           <td className="px-4 py-2.5 text-slate-700 font-mono border-r border-slate-100">{row.idleTime}</td>
                           <td className="px-4 py-2.5 text-slate-700 font-mono border-r border-slate-100">{row.workTime}</td>
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.totalMoves}</td>
+                          {/* Hidden per request — Laden/Empty/20ft/40ft counts (kept for easy restore)
                           <td className="px-4 py-2.5 text-right border-r border-slate-100">
                             <span className="text-emerald-700 font-bold tabular-nums">{countMap.get(row.equipmentNo)?.laden ?? '—'}</span>
                           </td>
@@ -377,6 +379,7 @@ const DailyEquipmentUtilization = () => {
                           <td className="px-4 py-2.5 text-right border-r border-slate-100">
                             <span className="text-purple-700 font-bold tabular-nums">{countMap.get(row.equipmentNo)?.size40 ?? '—'}</span>
                           </td>
+                          */}
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.workingHours}</td>
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.hourlyMoves}</td>
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.expectedHrs}</td>
@@ -418,6 +421,7 @@ const DailyEquipmentUtilization = () => {
                       <td className="px-4 py-2.5 text-slate-800 font-bold border-r border-slate-200 text-right">
                         {filteredData.reduce((s, r) => s + r.totalMoves, 0)}
                       </td>
+                      {/* Hidden per request — Laden/Empty/20ft/40ft totals (kept for easy restore)
                       <td className="px-4 py-2.5 text-right border-r border-slate-200">
                         <span className="text-emerald-700 font-bold tabular-nums">{countTotals.laden}</span>
                       </td>
@@ -430,6 +434,7 @@ const DailyEquipmentUtilization = () => {
                       <td className="px-4 py-2.5 text-right border-r border-slate-200">
                         <span className="text-purple-700 font-bold tabular-nums">{countTotals.size40}</span>
                       </td>
+                      */}
                       <td className="px-4 py-2.5 text-slate-800 font-bold border-r border-slate-200 text-right">
                         {filteredData.reduce((s, r) => s + r.workingHours, 0).toFixed(1)}
                       </td>

@@ -7,7 +7,7 @@ import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import ContainerMap from "../../container/pages/ContainerMap";
-import { useLazyGetContainerLiveStatusQuery } from "../../../store/api/ymsApi";
+import { useLazyGetContainerLiveStatusQuery, useLazySearchContainerQuery } from "../../../store/api/ymsApi";
 
 const columns = [
   { key: "CONTAINER_NO", label: "Container No", sortable: true },
@@ -85,6 +85,7 @@ const LiveStatus = () => {
   // The SP returns the FULL snapshot in one call — pagination/process-filter
   // are computed client-side here for instant interaction.
   const [triggerFetch] = useLazyGetContainerLiveStatusQuery();
+  const [triggerSuggestions] = useLazySearchContainerQuery();
 
   const allRowsRef = useRef([]);          // full snapshot from the SP
   const activeFilterRef = useRef("all");  // current process filter
@@ -190,7 +191,9 @@ const LiveStatus = () => {
     [backendPagination.pageSize]
   );
 
-  // Autocomplete: search the SP for matches, derive unique container nos.
+  // Autocomplete: GET_ALL_YARDINVENTORY_LIST (same SP used by Inventory
+  // Mapping's suggestion box), not the full live-status feed — lighter and
+  // purpose-built for container-number lookup.
   const fetchSuggestions = useCallback(
     async (searchTerm) => {
       if (!searchTerm || searchTerm.trim().length < 2) {
@@ -200,9 +203,9 @@ const LiveStatus = () => {
       }
       setLoadingSuggestions(true);
       try {
-        const result = await triggerFetch(searchTerm.trim()).unwrap();
+        const result = await triggerSuggestions(searchTerm.trim()).unwrap();
         if (result?.status === "success") {
-          const unique = [...new Set((result.data || []).map((item) => item.CONTAINER_NO))]
+          const unique = [...new Set((result.data || []).map((item) => item.Cont_No))]
             .filter(Boolean)
             .slice(0, 10);
           setSuggestions(unique);
@@ -215,7 +218,7 @@ const LiveStatus = () => {
         setLoadingSuggestions(false);
       }
     },
-    [triggerFetch]
+    [triggerSuggestions]
   );
 
   // Initial load
