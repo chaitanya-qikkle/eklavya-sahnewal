@@ -314,22 +314,6 @@ export default function PreGateInOut() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Direction</label>
-              <div className="flex gap-1.5">
-                {['ALL', 'GATE_IN', 'GATE_OUT'].map(t => (
-                  <button key={t} onClick={() => setGateFilter(t)}
-                    className={`px-3 py-2 rounded-lg text-xs font-semibold border-2 transition-all ${
-                      gateFilter === t
-                        ? 'bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white border-[#0e4a78] shadow-md'
-                        : 'bg-white text-slate-600 border-slate-300 hover:border-[#0e4a78] hover:text-[#0e4a78]'
-                    }`}>
-                    {t === 'ALL' ? 'All' : t === 'GATE_IN' ? 'Gate In' : 'Gate Out'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                 <FiFilter className="text-[#0e4a78]" size={11} /> Gate
               </label>
@@ -339,9 +323,11 @@ export default function PreGateInOut() {
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all min-w-[160px]"
               >
                 <option value="">All Gates</option>
-                {gateOptions.map(g => (
-                  <option key={g} value={g}>{prettyGateName(g)}</option>
-                ))}
+                {gateOptions
+                  .filter(g => !['complexgate', 'railgate'].includes(prettyGateName(g).toLowerCase()))
+                  .map(g => (
+                    <option key={g} value={g}>{prettyGateName(g)}</option>
+                  ))}
               </select>
             </div>
 
