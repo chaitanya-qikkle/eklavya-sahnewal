@@ -260,8 +260,6 @@ export default function PreGateInOut() {
   const total          = data?.total          ?? 0
   const gate_in_count  = data?.gate_in_count   ?? 0
   const gate_out_count = data?.gate_out_count  ?? 0
-  const size_20_count  = data?.size_20_count   ?? 0
-  const size_40_count  = data?.size_40_count   ?? 0
   const total_pages    = data?.total_pages     ?? 1
 
   const TH = ({ col, children }) => (
@@ -302,12 +300,10 @@ export default function PreGateInOut() {
             </div>
 
             {/* Stat cards */}
-            <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[820px] shrink-0">
+            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
               <StatTile label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
               <StatTile label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
               <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
-              <StatTile label="20 ft"    value={size_20_count}  icon={FiBox}     tone="violet"  total={total} />
-              <StatTile label="40 ft"    value={size_40_count}  icon={FiBox}     tone="sky"     total={total} />
             </div>
           </header>
 

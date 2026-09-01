@@ -405,8 +405,8 @@ const MainGate = () => {
     return sorted
   }, [rowsAll, gateFilter, search, sortCol, sortDir])
 
-  const vehicleMatchedCount = useMemo(() => rowsAll.filter(r => r.VehicleNo).length, [rowsAll])
-  const integratedCount = useMemo(() => rowsAll.filter(r => r.IntegrationStatus).length, [rowsAll])
+  const size20Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '20').length, [rowsAll])
+  const size40Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '40').length, [rowsAll])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -475,8 +475,8 @@ const MainGate = () => {
 
             <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
               <StatTile label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
-              <StatTile label="Vehicle Matched" value={vehicleMatchedCount} icon={FiTruckIcon} tone="emerald" />
-              <StatTile label="NAV Integrated" value={integratedCount} icon={FiPackage} tone="amber" />
+              <StatTile label="20 ft" value={size20Count} icon={FiPackage} tone="emerald" />
+              <StatTile label="40 ft" value={size40Count} icon={FiPackage} tone="amber" />
             </div>
           </header>
 
