@@ -798,12 +798,14 @@ export default function YardLiveStatus3D() {
               </div>
             </div>
 
-            {/* Location bar */}
+            {/* Location bar — show the raw combined location string as-is
+                (e.g. "RAIL:A:55:1"), same format the SP returns, instead of
+                rebuilding a "R.. · C.. · T.." display from the parsed parts. */}
             <div className="px-3 py-2 flex items-center gap-2" style={{ background: "#0e4a780a", borderBottom: "1px solid #0e4a7818" }}>
               <FiMapPin size={10} style={{ color: "#0e4a78" }} className="shrink-0" />
-              <span className="text-[10px] font-bold font-mono text-[#0e4a78]">{selected.block || "—"}</span>
-              <span className="text-slate-300 text-[10px]">·</span>
-              <span className="text-[10px] font-mono text-slate-600">R{selected.row||"—"} · C{selected.col||"—"} · T{selected.tier}</span>
+              <span className="text-[10px] font-bold font-mono text-[#0e4a78]">
+                {selected.location || selected.block || "—"}
+              </span>
               {selected.tat && <span className="ml-auto text-[9px] font-bold text-slate-400 font-mono">{selected.tat}</span>}
             </div>
 
