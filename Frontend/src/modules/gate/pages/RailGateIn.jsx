@@ -614,15 +614,21 @@ const RailGateIn = () => {
                               </>
                             ) : <span className="text-slate-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-[11px] text-slate-600 font-mono font-semibold whitespace-nowrap">
-                            {row.WagonNo || '—'}
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.WagonNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-black font-mono text-xs">{row.WagonNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.RailInDateTime} /></td>
-                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[160px] truncate">
-                            {row.ContainerLocation || '—'}
+                          <td className="px-3 py-2 text-[11px] whitespace-nowrap max-w-[160px] truncate">
+                            {row.ContainerLocation
+                              ? <span className="inline-flex items-center gap-1 text-violet-700 font-semibold"><FiMapPin size={10} className="text-violet-400 flex-shrink-0" />{row.ContainerLocation}</span>
+                              : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
-                            {row.EquipmentName || '—'}
+                          <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+                            {row.EquipmentName
+                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"><FiTruck size={10} className="text-emerald-500 flex-shrink-0" />{row.EquipmentName}</span>
+                              : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-2 py-1.5 w-24">
                             <div className="flex items-center gap-1.5 justify-center" onClick={e => e.stopPropagation()}>

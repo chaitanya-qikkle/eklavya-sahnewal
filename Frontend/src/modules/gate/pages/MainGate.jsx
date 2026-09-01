@@ -125,7 +125,7 @@ function DetailCard({ title, icon: Icon, accent, children }) {
         </span>
         <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{title}</span>
       </div>
-      <div className="px-4 py-1 overflow-y-auto">{children}</div>
+      <div className="px-4 py-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">{children}</div>
     </div>
   )
 }
@@ -304,8 +304,8 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
           <div className="flex-1 min-h-0">
             <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
               {[
-                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78' },
                 { url: containerUrl, label: 'Container Snapshot', icon: FiPackage, accent: '#0e4a78' },
+                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78' },
               ].map(({ url, label, icon: Icon, accent }) => (
                 <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
@@ -445,6 +445,9 @@ const MainGate = () => {
       '#': i + 1,
       'Vehicle No': row.VehicleNo || '',
       'Container No': row.ContainerNo || '',
+      'Size / Type': (row.ContainerSize || row.ContainerType) ? `${row.ContainerSize || ''} ${row.ContainerType || ''}`.trim() : '',
+      'Document No': row.DocumentNo || '',
+      'Terminal / Mode': (row.Terminal || row.Mode) ? `${row.Terminal || ''} ${row.Mode || ''}`.trim() : '',
       'Gate': row.GateName || '',
       'Vehicle Detected': row.VehicleDetectedTime ? formatDate(row.VehicleDetectedTime) : '',
       'Container Detected': row.ContainerDetectedTime ? formatDate(row.ContainerDetectedTime) : '',
@@ -596,6 +599,9 @@ const MainGate = () => {
                       <th className="px-2 py-2 text-left font-semibold uppercase tracking-wider border-r border-white/10 w-8">#</th>
                       <TH col="VehicleNo">Vehicle No</TH>
                       <TH col="ContainerNo">Container No</TH>
+                      <TH col="ContainerSize">Size / Type</TH>
+                      <TH col="DocumentNo">Document No</TH>
+                      <TH col="Terminal">Terminal / Mode</TH>
                       <TH col="GateName">Gate</TH>
                       <TH col="VehicleDetectedTime">Vehicle Detected</TH>
                       <TH col="ContainerDetectedTime">Container Detected</TH>
@@ -606,7 +612,7 @@ const MainGate = () => {
                   <tbody className="divide-y divide-slate-100">
                     {pageRows.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-16 text-center">
+                        <td colSpan={10} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                         </td>
@@ -632,8 +638,23 @@ const MainGate = () => {
                               ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-[#0e4a78] font-black font-mono text-xs">{row.ContainerNo}</span>
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {(row.ContainerSize || row.ContainerType)
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[11px]">{`${row.ContainerSize || '—'} ${row.ContainerType || ''}`.trim()}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
                           <td className="px-3 py-2 text-[11px] text-slate-600 font-medium whitespace-nowrap">
-                            {row.GateName || '—'}
+                            {row.DocumentNo || '—'}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {(row.Terminal || row.Mode)
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200 font-semibold text-[11px]">{`${row.Terminal || '—'} ${row.Mode ? `· ${row.Mode}` : ''}`.trim()}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.GateName
+                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#0e4a78]/8 text-[#0e4a78] font-semibold text-[11px]"><FiMapPin size={10} className="text-[#0e4a78]/60 flex-shrink-0" />{row.GateName}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.VehicleDetectedTime} /></td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.ContainerDetectedTime} /></td>
