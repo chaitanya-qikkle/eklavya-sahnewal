@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiCalendar, FiLogIn, FiLogOut, FiFilter,
-  FiDownload, FiMapPin, FiTruck as FiTruckIcon, FiPackage,
+  FiDownload, FiMapPin, FiTruck as FiTruckIcon, FiPackage, FiBox,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaTruck } from 'react-icons/fa'
@@ -23,6 +23,8 @@ const TONE_MAP = {
   slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
   emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
   amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-sky-50",        valueColor: "text-sky-700",     badgeBg: "bg-sky-50",       activeBg: "bg-sky-600"     },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
@@ -258,6 +260,8 @@ export default function PreGateInOut() {
   const total          = data?.total          ?? 0
   const gate_in_count  = data?.gate_in_count   ?? 0
   const gate_out_count = data?.gate_out_count  ?? 0
+  const size_20_count  = data?.size_20_count   ?? 0
+  const size_40_count  = data?.size_40_count   ?? 0
   const total_pages    = data?.total_pages     ?? 1
 
   const TH = ({ col, children }) => (
@@ -298,10 +302,12 @@ export default function PreGateInOut() {
             </div>
 
             {/* Stat cards */}
-            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
+            <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[820px] shrink-0">
               <StatTile label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
               <StatTile label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
               <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
+              <StatTile label="20 ft"    value={size_20_count}  icon={FiBox}     tone="violet"  total={total} />
+              <StatTile label="40 ft"    value={size_40_count}  icon={FiBox}     tone="sky"     total={total} />
             </div>
           </header>
 

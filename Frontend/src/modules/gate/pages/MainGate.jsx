@@ -12,15 +12,6 @@ import Footer from '../../../components/layout/Footer'
 import { useGetVehicleContainerDetectionQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
 
-/* R=Released, O=Open, X=Cancelled, C=Closed (Gateway Rail NAV statuses) */
-const INTEGRATION_STATUS_TONE = {
-  R: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  O: 'bg-amber-50 text-amber-700 border-amber-200',
-  C: 'bg-slate-100 text-slate-600 border-slate-200',
-  X: 'bg-red-50 text-red-700 border-red-200',
-  default: 'bg-slate-100 text-slate-600 border-slate-200',
-}
-
 const TONE_MAP = {
   slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]" },
   emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
@@ -590,7 +581,6 @@ const MainGate = () => {
                       <TH col="Terminal">Terminal / Mode</TH>
                       <TH col="GateName">Gate</TH>
                       <TH col="ContainerDetectedTime">Container Detected</TH>
-                      <TH col="IntegrationStatus">Integration</TH>
                       <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-16">Image</th>
                     </tr>
                   </thead>
@@ -598,7 +588,7 @@ const MainGate = () => {
                   <tbody className="divide-y divide-slate-100">
                     {pageRows.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center">
+                        <td colSpan={9} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                         </td>
@@ -643,13 +633,6 @@ const MainGate = () => {
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.ContainerDetectedTime} /></td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {row.IntegrationStatus
-                              ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${INTEGRATION_STATUS_TONE[row.IntegrationStatus] || INTEGRATION_STATUS_TONE.default}`}>
-                                  {row.IntegrationStatus}
-                                </span>
-                              : <span className="text-slate-300 text-xs">—</span>}
-                          </td>
                           <td className="px-2 py-1.5 w-16">
                             <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
                               <ImageThumb url={buildAssetUrl(row.ContainerImagePath)} label="Container" onOpen={(u, l) => setLightbox({ url: u, label: l })} />

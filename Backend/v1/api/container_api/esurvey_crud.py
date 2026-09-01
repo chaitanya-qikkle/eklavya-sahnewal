@@ -64,7 +64,7 @@ def get_pre_gate_survey(
 ):
     """
     Paginated pre-gate e-survey report using GET_ESURVEY_DETAIL SP.
-    Returns: { status, total, gate_in_count, gate_out_count, page, page_size, total_pages, data }
+    Returns: { status, total, gate_in_count, gate_out_count, size_20_count, size_40_count, page, page_size, total_pages, data }
     """
     db = SQLManager()
     try:
@@ -90,6 +90,8 @@ def get_pre_gate_survey(
 
         gate_in_count  = sum(1 for r in rows if r["GateType"] == "GATE_IN")
         gate_out_count = sum(1 for r in rows if r["GateType"] == "GATE_OUT")
+        size_20_count  = sum(1 for r in rows if str(r.get("ContSize") or "").strip() == "20")
+        size_40_count  = sum(1 for r in rows if str(r.get("ContSize") or "").strip() == "40")
 
         rows.sort(key=lambda r: str(r.get("SurveyTime") or ""), reverse=True)
 
@@ -104,6 +106,8 @@ def get_pre_gate_survey(
             "total":          total,
             "gate_in_count":  gate_in_count,
             "gate_out_count": gate_out_count,
+            "size_20_count":  size_20_count,
+            "size_40_count":  size_40_count,
             "page":           page,
             "page_size":      page_size,
             "total_pages":    total_pages,

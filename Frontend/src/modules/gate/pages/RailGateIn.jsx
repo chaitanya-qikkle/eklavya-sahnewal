@@ -119,8 +119,7 @@ function DetailField({ icon: Icon, label, children, accent = "#0e4a78" }) {
 function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
   if (!row) return null
 
-  const cam1Url = buildAssetUrl(row.Camera1ImagePath)
-  const cam2Url = buildAssetUrl(row.Camera2ImagePath)
+  const cam1Url = buildAssetUrl(row.Camera1ImagePath) || buildAssetUrl(row.Camera2ImagePath)
 
   return (
     <div
@@ -255,12 +254,11 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
             </div>
           </div>
 
-          {/* Bottom — dual camera images, fills remaining modal height */}
+          {/* Bottom — camera image, fills remaining modal height */}
           <div className="flex-1 min-h-0">
-            <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
+            <div className="p-4 grid grid-cols-1 gap-4 h-full max-w-2xl mx-auto">
               {[
                 { url: cam1Url, label: 'Camera 1', icon: FiImage, accent: '#0e4a78' },
-                { url: cam2Url, label: 'Camera 2', icon: FiImage, accent: '#0e4a78' },
               ].map(({ url, label, icon: Icon, accent }) => (
                 <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
@@ -386,8 +384,8 @@ const RailGateIn = () => {
     })
   }, [rowsAll, sortCol, sortDir])
 
-  const cam1Count = useMemo(() => rowsAll.filter(r => r.Camera1ImagePath).length, [rowsAll])
-  const cam2Count = useMemo(() => rowsAll.filter(r => r.Camera2ImagePath).length, [rowsAll])
+  const size20Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '20').length, [rowsAll])
+  const size40Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '40').length, [rowsAll])
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const pageRows = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -459,8 +457,8 @@ const RailGateIn = () => {
 
             <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
               <StatTile label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
-              <StatTile label="Camera 1" value={cam1Count} icon={FiImage} tone="emerald" />
-              <StatTile label="Camera 2" value={cam2Count} icon={FiImage} tone="amber" />
+              <StatTile label="20 ft" value={size20Count} icon={FiBox} tone="emerald" />
+              <StatTile label="40 ft" value={size40Count} icon={FiBox} tone="amber" />
             </div>
           </header>
 
@@ -577,7 +575,7 @@ const RailGateIn = () => {
                       <TH col="RailInDateTime">Rail In</TH>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Equipment</th>
-                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-24">Images</th>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-16">Image</th>
                     </tr>
                   </thead>
 
@@ -630,10 +628,13 @@ const RailGateIn = () => {
                               ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"><FiTruck size={10} className="text-emerald-500 flex-shrink-0" />{row.EquipmentName}</span>
                               : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className="px-2 py-1.5 w-24">
-                            <div className="flex items-center gap-1.5 justify-center" onClick={e => e.stopPropagation()}>
-                              <ImageThumb url={buildAssetUrl(row.Camera1ImagePath)} label="Camera 1" onOpen={(u, l) => setLightbox({ url: u, label: l })} />
-                              <ImageThumb url={buildAssetUrl(row.Camera2ImagePath)} label="Camera 2" onOpen={(u, l) => setLightbox({ url: u, label: l })} />
+                          <td className="px-2 py-1.5 w-16">
+                            <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                              <ImageThumb
+                                url={buildAssetUrl(row.Camera1ImagePath) || buildAssetUrl(row.Camera2ImagePath)}
+                                label={row.Camera1ImagePath ? 'Camera 1' : 'Camera 2'}
+                                onOpen={(u, l) => setLightbox({ url: u, label: l })}
+                              />
                             </div>
                           </td>
                         </tr>
