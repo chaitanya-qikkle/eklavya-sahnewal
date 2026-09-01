@@ -171,20 +171,36 @@ export default function PreGateInOut() {
   const [lightbox,    setLightbox]    = useState(null)
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
-  const { data: gateNamesData } = useGetGateNamesQuery()
+  const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
   const gateOptions = Array.isArray(gateNamesData?.data) ? gateNamesData.data : []
 
-  const buildArgs = useCallback((pg = 1) => {
+  const buildArgs = useCallback((pg = 1, gateNameOverride) => {
     const args = { page: pg, page_size: PAGE_SIZE }
     if (fromDate)               args.from_date    = fromDate
     if (toDate)                 args.to_date      = toDate
     if (containerNo.trim())     args.container_no = containerNo.trim()
     if (gateFilter !== 'ALL')   args.gate_type    = gateFilter
-    if (gateName)                args.gate_name    = gateName
+    const gn = gateNameOverride !== undefined ? gateNameOverride : gateName
+    if (gn)                     args.gate_name    = gn
     return args
   }, [fromDate, toDate, containerNo, gateFilter, gateName])
 
-  useEffect(() => { fetchSurvey(buildArgs(1)) }, []) // eslint-disable-line
+  // Default gate filter to "Maingate In" once the real gate names load —
+  // the raw DB value's exact casing/format isn't known ahead of time, so
+  // match it out of gateOptions rather than hardcoding a string. Falls back
+  // to an unfiltered fetch if the gate-names call comes back empty or fails,
+  // so the report still loads either way.
+  useEffect(() => {
+    if (gateName || (!gateNamesLoaded && !gateNamesFailed)) return
+    const defaultGate = gateOptions.find(g => prettyGateName(g).toLowerCase() === 'maingate in')
+    if (defaultGate) {
+      setGateName(defaultGate)
+      fetchSurvey(buildArgs(1, defaultGate))
+    } else {
+      fetchSurvey(buildArgs(1))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateNamesLoaded, gateNamesFailed])
 
   const handleSearch = () => { setPage(1); fetchSurvey(buildArgs(1)) }
 
