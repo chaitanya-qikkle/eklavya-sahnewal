@@ -113,10 +113,25 @@ const MenuPage = () => {
     }
   }, [plants, plantName])
 
+  // FastAPI's own 422 validation errors come back as {detail: [{loc, msg}, ...]},
+  // not {message}, so the old fallback just showed a bare "Validation Error"
+  // with no indication of which field/why. Surface the real reason instead.
+  const extractErrorMessage = (err) => {
+    const detail = err?.data?.detail
+    if (Array.isArray(detail)) {
+      return detail.map((d) => `${(d.loc || []).slice(1).join('.')}: ${d.msg}`).join('; ')
+    }
+    if (typeof detail === 'string') return detail
+    return err?.data?.message || err?.message
+  }
+
   const getActorUserId = () => {
+    // Backend's MenuCreateRequest/MenuUpdateRequest expect created_by/
+    // modified_by as strings (a GUID in production) — sending a number here
+    // fails Pydantic validation with a generic "Validation Error".
     const user = getStoredUser()
     const id = user?.user_id ?? user?.USER_ID ?? user?.id
-    return toNumber(id) ?? 1
+    return id != null ? String(id) : '1'
   }
 
   const handleSave = () => {
@@ -168,7 +183,7 @@ const MenuPage = () => {
           refetchMenus()
         })
         .catch((err) => {
-          notify.warning('Update failed', err?.data?.message || err?.message || 'Failed to update menu')
+          notify.warning('Update failed', extractErrorMessage(err) || 'Failed to update menu')
         })
       return
     }
@@ -189,7 +204,7 @@ const MenuPage = () => {
         refetchMenus()
       })
       .catch((err) => {
-        notify.warning('Create failed', err?.data?.message || err?.message || 'Failed to create menu')
+        notify.warning('Create failed', extractErrorMessage(err) || 'Failed to create menu')
       })
   }
 
