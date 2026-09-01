@@ -1225,11 +1225,16 @@ const ServiceDashboard = () => {
           </div>
 
           {/* ── Filter Bar ─────────────────────────────────────── */}
-          <div className="relative z-[9980] bg-white/95 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl p-3.5 md:p-5">
+          {/* z-index kept below the navbar's sticky mega-menu (z-[1000] in
+              Navbar.jsx) — this only needs to layer above this page's own
+              cards, not above site navigation. It was z-[9980] before,
+              which made the Report dropdown render underneath this filter
+              bar and its "Missing" badge instead of over it. */}
+          <div className="relative z-40 bg-white/95 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl p-3.5 md:p-5">
             <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-start sm:items-end">
 
               {/* Equipment dropdown */}
-              <div ref={ddRef} className="relative w-full sm:w-auto sm:min-w-[180px] z-[9990]">
+              <div ref={ddRef} className="relative w-full sm:w-auto sm:min-w-[180px] z-40">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">EQP Name</label>
                 <div
                   className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 cursor-pointer hover:bg-white hover:border-[#0e4a78] transition-all text-sm font-semibold text-slate-700"
@@ -1242,7 +1247,7 @@ const ServiceDashboard = () => {
                 </div>
 
                 {showMachineDD && (
-                  <div className="absolute top-full mt-1.5 left-0 min-w-[320px] w-auto bg-white border border-slate-200 rounded-xl shadow-2xl z-[9990] flex flex-col max-h-80">
+                  <div className="absolute top-full mt-1.5 left-0 min-w-[320px] w-auto bg-white border border-slate-200 rounded-xl shadow-2xl z-40 flex flex-col max-h-80">
                     <div className="p-2 border-b">
                       <div className="relative">
                         <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
