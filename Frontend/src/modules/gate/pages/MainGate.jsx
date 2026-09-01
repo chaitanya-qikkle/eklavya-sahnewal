@@ -16,6 +16,7 @@ const TONE_MAP = {
   slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]" },
   emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
   amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700" },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700" },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate" }) => {
@@ -407,6 +408,9 @@ const MainGate = () => {
 
   const size20Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '20').length, [rowsAll])
   const size40Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '40').length, [rowsAll])
+  const size40HQCount = useMemo(() => rowsAll.filter(r =>
+    String(r.ContainerSize || '').trim() === '40' && /HQ/i.test(String(r.ContainerType || ''))
+  ).length, [rowsAll])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -473,10 +477,11 @@ const MainGate = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
+            <div className="grid grid-cols-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[680px] shrink-0">
               <StatTile label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
               <StatTile label="20 ft" value={size20Count} icon={FiPackage} tone="emerald" />
               <StatTile label="40 ft" value={size40Count} icon={FiPackage} tone="amber" />
+              <StatTile label="40 HQ" value={size40HQCount} icon={FiPackage} tone="violet" />
             </div>
           </header>
 

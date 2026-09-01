@@ -3,6 +3,8 @@ import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiCalendar, FiLogIn, FiLogOut, FiFilter,
   FiDownload, FiMapPin, FiTruck as FiTruckIcon, FiPackage, FiBox,
+  FiHash, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
+  FiChevronLeft, FiChevronRight, FiHome,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaTruck } from 'react-icons/fa'
@@ -160,6 +162,235 @@ function ImagesCell({ row, onOpen }) {
   )
 }
 
+/* ─── Detail field row ───────────────────────────────────────────────────── */
+function DetailField({ icon: Icon, label, children, accent = "#0e4a78" }) {
+  return (
+    <div className="flex items-start gap-2.5 py-1.5 border-b border-slate-100 last:border-b-0">
+      <span
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
+        style={{ background: `${accent}12`, color: accent }}
+      >
+        {Icon && <Icon size={12} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 leading-tight">{label}</p>
+        <div className="text-[13px] font-semibold text-slate-800 break-words leading-tight">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Card wrapping a group of DetailFields, with its own header ──────────── */
+function DetailCard({ title, icon: Icon, accent, children }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-0">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+        <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
+          <Icon size={12} />
+        </span>
+        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{title}</span>
+      </div>
+      <div className="px-4 py-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">{children}</div>
+    </div>
+  )
+}
+
+/* ─── Detail Modal — details on top (container | gate/vehicle), 3 images below ── */
+function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
+  if (!row) return null
+  const isIn = row.GateType === 'GATE_IN'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[1600px] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5"
+        style={{ height: '95vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="relative flex items-center justify-between text-white px-7 py-5 shrink-0 overflow-hidden"
+          style={{ background: "linear-gradient(120deg,#0e4a78 0%,#0b3e66 45%,#072c4a 100%)" }}
+        >
+          <div
+            className="absolute inset-0 opacity-[0.07] pointer-events-none"
+            style={{
+              backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+              backgroundSize: "18px 18px",
+            }}
+          />
+          <div className="relative flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
+              <FaTruck size={20} />
+            </div>
+            <div>
+              <p className="font-black text-xl leading-tight tracking-tight">{row.ContainerNo || 'Record'}</p>
+              <p className="text-xs text-white/60 font-medium mt-0.5">
+                Pre Gate Survey <span className="mx-1.5 opacity-40">·</span> {index + 1} of {total}
+              </p>
+            </div>
+          </div>
+          <div className="relative flex items-center gap-2">
+            <button
+              onClick={onPrev}
+              disabled={index <= 0}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+              title="Previous record"
+            >
+              <FiChevronLeft size={19} />
+            </button>
+            <button
+              onClick={onNext}
+              disabled={index >= total - 1}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+              title="Next record"
+            >
+              <FiChevronRight size={19} />
+            </button>
+            <div className="w-px h-7 bg-white/20 mx-2" />
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-red-500/80 transition-all"
+              title="Close"
+            >
+              <FiX size={19} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body — details on top (container | gate/vehicle side-by-side),
+            images fill the rest — flex-col with the images pane as flex-1
+            so everything fits in the modal's fixed height, no page scroll. */}
+        <div className="flex-1 min-h-0 flex flex-col bg-slate-100">
+
+          {/* Top — details */}
+          <div className="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
+            <div className="px-6 py-4">
+
+              <div className="mb-3 flex flex-wrap gap-2.5">
+                {row.ContainerNo && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-[#1364a4] to-[#0a3b61] text-white font-black font-mono text-base shadow-lg shadow-[#0e4a78]/25">
+                    <FiPackage size={15} /> {row.ContainerNo}
+                  </span>
+                )}
+                <span className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border ${
+                  isIn ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                       : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                  {isIn ? <FiLogIn size={13} /> : <FiLogOut size={13} />}
+                  {isIn ? 'GATE IN' : 'GATE OUT'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* Left — Container details */}
+                <DetailCard title="Container" icon={FiPackage} accent="#0e4a78">
+                  <DetailField icon={FiPackage} label="Container No" accent="#0e4a78">
+                    {row.ContainerNo || <span className="text-slate-300 font-normal">Not captured</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Size / Type" accent="#0e4a78">
+                    {(row.ContSize || row.ContType)
+                      ? `${row.ContSize || '—'} ${row.ContType || ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Process" accent="#059669">
+                    {row.Process || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Document No" accent="#64748b">
+                    {row.DocumentNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Status" accent="#7c3aed">
+                    {row.Status || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiMapPin} label="Location" accent="#d97706">
+                    {row.Location || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                </DetailCard>
+
+                {/* Right — Gate / vehicle / timing details */}
+                <DetailCard title="Gate & Vehicle" icon={FiTruckIcon} accent="#0e4a78">
+                  <DetailField icon={FiTruckIcon} label="Vehicle No" accent="#0e4a78">
+                    {row.VehicleNo || <span className="text-slate-300 font-normal">Not captured</span>}
+                  </DetailField>
+                  <DetailField icon={FiHome} label="Gate" accent="#d97706">
+                    {row.GateName || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiLogIn} label="Gate In" accent="#059669">
+                    {row.GateInDate ? formatDate(row.GateInDate) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiLogOut} label="Gate Out" accent="#d97706">
+                    {row.GateOutDate ? formatDate(row.GateOutDate) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Survey Time" accent="#059669">
+                    {row.SurveyTime ? formatDate(row.SurveyTime) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                </DetailCard>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom — 3 images (left/right/top), fills remaining modal height */}
+          <div className="flex-1 min-h-0">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
+              {[
+                { url: buildAssetUrl(row.IMG_LEFT),  label: 'Left',  accent: '#0e4a78' },
+                { url: buildAssetUrl(row.IMG_RIGHT), label: 'Right', accent: '#0e4a78' },
+                { url: buildAssetUrl(row.IMG_TOP),   label: 'Top',   accent: '#0e4a78' },
+              ].map(({ url, label, accent }) => (
+                <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
+                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+                    <span className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
+                        <FiImage size={12} />
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{label}</span>
+                    </span>
+                    {url && (
+                      <a
+                        href={url}
+                        download
+                        onClick={e => e.stopPropagation()}
+                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
+                        title="Download image"
+                      >
+                        <FiDownloadIcon size={12} />
+                      </a>
+                    )}
+                  </div>
+                  {url ? (
+                    <button
+                      onClick={() => onZoom(url, label)}
+                      className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
+                      style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
+                    >
+                      <img src={url} alt={label} className="max-w-full max-h-full object-contain p-2" />
+                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
+                        <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
+                          <FiZoomIn className="text-[#0e4a78]" size={24} />
+                        </span>
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
+                      <span className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <FiImage size={28} />
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">No image available</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 export default function PreGateInOut() {
   const [fromDate,    setFromDate]    = useState('')
@@ -171,6 +402,7 @@ export default function PreGateInOut() {
   const [sortCol,     setSortCol]     = useState('SurveyTime')
   const [sortDir,     setSortDir]     = useState('desc')
   const [lightbox,    setLightbox]    = useState(null)
+  const [detailIdx,   setDetailIdx]   = useState(null) // index into `rows`
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
@@ -463,7 +695,8 @@ export default function PreGateInOut() {
                       return (
                         <tr
                           key={row.ContMasterID ?? row.ContainerNo ?? idx}
-                          className={`border-b border-slate-100 hover:bg-blue-50 transition-colors
+                          onClick={() => setDetailIdx(idx)}
+                          className={`border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors
                             ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
                         >
                           <td className="px-2 py-2 text-[10px] text-slate-400 font-medium border-r border-slate-100 w-8">
@@ -527,7 +760,7 @@ export default function PreGateInOut() {
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
 
-                          <td className="px-1.5 py-1.5 w-32">
+                          <td className="px-1.5 py-1.5 w-32" onClick={e => e.stopPropagation()}>
                             <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                           </td>
                         </tr>
@@ -598,6 +831,22 @@ export default function PreGateInOut() {
         <Footer />
       </div>
 
+      {detailIdx != null && (
+        <DetailModal
+          row={rows[detailIdx]}
+          index={detailIdx}
+          total={rows.length}
+          onClose={() => setDetailIdx(null)}
+          onPrev={() => setDetailIdx(i => Math.max(0, i - 1))}
+          onNext={() => setDetailIdx(i => Math.min(rows.length - 1, i + 1))}
+          onZoom={(u, l) => setLightbox({ url: u, label: l })}
+        />
+      )}
+
+      {/* Rendered after DetailModal so it stacks visually on top when
+          opened from inside it (both are fixed inset-0 overlays with the
+          same z-50 — later in the DOM wins) instead of being hidden behind
+          the modal's own backdrop. */}
       {lightbox && (
         <ImageLightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />
       )}
