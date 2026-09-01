@@ -1,25 +1,26 @@
-"""Main Gate — vehicle/container ALPR detection log.
+"""Main Gate — container ALPR detection log matched against Gateway Rail.
 
 Frontend contract:
   GET /v1/container/vehicle-container-detection  -> full list, latest first
   GET /v1/container/vehicle-container-detection/img?p=<relative path>
       -> serves a detection snapshot image
 
-GET_VEHICLE_CONTAINER_DETECTION (v2) matches each vehicle detection with its
-container detection (same gate, <=2min apart) and, where possible, further
-matches the container against Gateway Rail's NAV integration data (linked
-server, <=2h of the container detection) to attach real container details —
+GET_VEHICLE_CONTAINER_DETECTION (v3) starts from OCR container detections
+(VEHICLE_CONTAINER_DETECTION rows with a ContainerNo) and, for each, finds
+the closest Gateway Rail NAV integration record (linked server, container
+number match, closest JO date/time to the detection) to attach VehicleNo,
 ContainerSize/Type, DocumentNo, NAVDateTime, Process, Terminal, Mode,
-ContainerStatus, IntegrationVehicleNo, IntegrationStatus. Unmatched rows
-(vehicle-only or container-only detections) still come through with those
-integration fields NULL.
+ContainerStatus, IntegrationStatus and NAVTimeDifferenceSeconds. There is no
+separate vehicle-detection source anymore — VehicleNo comes only from the
+integration match and is NULL when nothing matches. There is also only one
+image per row now (ContainerImagePath); no VehicleImagePath.
 
-The SP returns absolute Windows paths
-(D:\\QKL\\Rail-OCR\\Gate-ALPR\\output-test\\<Gate>\\<dd-MM-yyyy>\\<file>.jpg)
-for VehicleImagePath/ContainerImagePath. The API strips the configured base
-directory off those paths before sending rows to the frontend, and the /img
-endpoint re-joins a relative path onto that same base directory — same
-scoped-serving pattern as esurvey_crud.py's STITCHING_DIR/img endpoint.
+The SP returns an absolute Windows path
+(D:\\QKL\\Rail-OCR\\Rail\\Frames\\<Gate>\\<ContainerNo>_<yyyyMMdd_HHmmss>.jpg)
+for ContainerImagePath. The API strips the configured base directory off
+that path before sending rows to the frontend, and the /img endpoint
+re-joins a relative path onto that same base directory — same scoped-serving
+pattern as esurvey_crud.py's STITCHING_DIR/img endpoint.
 """
 import logging
 import os
@@ -33,7 +34,7 @@ from utils.db_utils import SQLManager
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-DETECTION_IMG_DIR = pathlib.Path(os.getenv("GATE_DETECTION_IMG_DIR", r"D:\QKL\Rail-OCR\Gate-ALPR\output-test"))
+DETECTION_IMG_DIR = pathlib.Path(os.getenv("GATE_DETECTION_IMG_DIR", r"D:\QKL\Rail-OCR\Rail\Frames"))
 
 
 def _img_url(abs_path):
@@ -63,7 +64,6 @@ def get_vehicle_container_detection():
 
         rows = result.get("data", []) or []
         for row in rows:
-            row["VehicleImagePath"] = _img_url(row.get("VehicleImagePath"))
             row["ContainerImagePath"] = _img_url(row.get("ContainerImagePath"))
 
         return {"status": "success", "data": rows}

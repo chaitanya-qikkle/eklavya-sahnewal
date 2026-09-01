@@ -12,6 +12,15 @@ import Footer from '../../../components/layout/Footer'
 import { useGetVehicleContainerDetectionQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
 
+/* R=Released, O=Open, X=Cancelled, C=Closed (Gateway Rail NAV statuses) */
+const INTEGRATION_STATUS_TONE = {
+  R: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  O: 'bg-amber-50 text-amber-700 border-amber-200',
+  C: 'bg-slate-100 text-slate-600 border-slate-200',
+  X: 'bg-red-50 text-red-700 border-red-200',
+  default: 'bg-slate-100 text-slate-600 border-slate-200',
+}
+
 const TONE_MAP = {
   slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]" },
   emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
@@ -134,18 +143,7 @@ function DetailCard({ title, icon: Icon, accent, children }) {
 function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
   if (!row) return null
 
-  const vehicleUrl = buildAssetUrl(row.VehicleImagePath)
   const containerUrl = buildAssetUrl(row.ContainerImagePath)
-
-  const dwell = (() => {
-    if (!row.VehicleDetectedTime || !row.ContainerDetectedTime) return null
-    const a = new Date(String(row.VehicleDetectedTime).replace(' ', 'T'))
-    const b = new Date(String(row.ContainerDetectedTime).replace(' ', 'T'))
-    if (isNaN(a.getTime()) || isNaN(b.getTime())) return null
-    const mins = Math.abs(b.getTime() - a.getTime()) / 60000
-    if (mins < 60) return `${mins.toFixed(1)} min`
-    return `${(mins / 60).toFixed(1)} hr`
-  })()
 
   return (
     <div
@@ -268,16 +266,10 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                   </DetailField>
                 </DetailCard>
 
-                {/* Right — Vehicle / trailer details */}
+                {/* Right — Vehicle (from integration match) + record meta */}
                 <DetailCard title="Vehicle" icon={FiTruckIcon} accent="#0e4a78">
                   <DetailField icon={FiTruckIcon} label="Vehicle No" accent="#0e4a78">
-                    {row.VehicleNo || <span className="text-slate-300 font-normal">Not captured</span>}
-                  </DetailField>
-                  <DetailField icon={FiClock} label="Vehicle Detected" accent="#059669">
-                    {row.VehicleDetectedTime ? formatDate(row.VehicleDetectedTime) : <span className="text-slate-300 font-normal">—</span>}
-                  </DetailField>
-                  <DetailField icon={FiTruckIcon} label="Integration Vehicle No" accent="#0e4a78">
-                    {row.IntegrationVehicleNo || <span className="text-slate-300 font-normal">—</span>}
+                    {row.VehicleNo || <span className="text-slate-300 font-normal">Not matched</span>}
                   </DetailField>
                   <DetailField icon={FiMapPin} label="Gate" accent="#d97706">
                     {row.GateName || <span className="text-slate-300 font-normal">—</span>}
@@ -285,14 +277,9 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                   <DetailField icon={FiHash} label="Record ID" accent="#64748b">
                     {row.ID ?? '—'}
                   </DetailField>
-                  {dwell && (
-                    <DetailField icon={FiClock} label="Time Between Detections" accent="#7c3aed">
-                      {dwell}
-                    </DetailField>
-                  )}
-                  {row.DetectionTimeDifferenceSeconds != null && (
-                    <DetailField icon={FiClock} label="Vehicle ↔ Container Match Gap" accent="#7c3aed">
-                      {row.DetectionTimeDifferenceSeconds}s
+                  {row.NAVTimeDifferenceSeconds != null && (
+                    <DetailField icon={FiClock} label="OCR ↔ NAV Time Gap" accent="#7c3aed">
+                      {row.NAVTimeDifferenceSeconds}s
                     </DetailField>
                   )}
                 </DetailCard>
@@ -300,12 +287,11 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
             </div>
           </div>
 
-          {/* Bottom — dual images, fills remaining modal height */}
+          {/* Bottom — container image, fills remaining modal height */}
           <div className="flex-1 min-h-0">
-            <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
+            <div className="p-4 grid grid-cols-1 gap-4 h-full max-w-2xl mx-auto">
               {[
                 { url: containerUrl, label: 'Container Snapshot', icon: FiPackage, accent: '#0e4a78' },
-                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78' },
               ].map(({ url, label, icon: Icon, accent }) => (
                 <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
@@ -428,8 +414,8 @@ const MainGate = () => {
     return sorted
   }, [rowsAll, gateFilter, search, sortCol, sortDir])
 
-  const vehicleCount = useMemo(() => rowsAll.filter(r => r.VehicleDetectedTime).length, [rowsAll])
-  const containerCount = useMemo(() => rowsAll.filter(r => r.ContainerDetectedTime).length, [rowsAll])
+  const vehicleMatchedCount = useMemo(() => rowsAll.filter(r => r.VehicleNo).length, [rowsAll])
+  const integratedCount = useMemo(() => rowsAll.filter(r => r.IntegrationStatus).length, [rowsAll])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -449,8 +435,8 @@ const MainGate = () => {
       'Document No': row.DocumentNo || '',
       'Terminal / Mode': (row.Terminal || row.Mode) ? `${row.Terminal || ''} ${row.Mode || ''}`.trim() : '',
       'Gate': row.GateName || '',
-      'Vehicle Detected': row.VehicleDetectedTime ? formatDate(row.VehicleDetectedTime) : '',
       'Container Detected': row.ContainerDetectedTime ? formatDate(row.ContainerDetectedTime) : '',
+      'Integration Status': row.IntegrationStatus || '',
     }))
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
@@ -498,8 +484,8 @@ const MainGate = () => {
 
             <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
               <StatTile label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
-              <StatTile label="Vehicle Detected" value={vehicleCount} icon={FiTruckIcon} tone="emerald" />
-              <StatTile label="Container Detected" value={containerCount} icon={FiPackage} tone="amber" />
+              <StatTile label="Vehicle Matched" value={vehicleMatchedCount} icon={FiTruckIcon} tone="emerald" />
+              <StatTile label="NAV Integrated" value={integratedCount} icon={FiPackage} tone="amber" />
             </div>
           </header>
 
@@ -603,9 +589,9 @@ const MainGate = () => {
                       <TH col="DocumentNo">Document No</TH>
                       <TH col="Terminal">Terminal / Mode</TH>
                       <TH col="GateName">Gate</TH>
-                      <TH col="VehicleDetectedTime">Vehicle Detected</TH>
                       <TH col="ContainerDetectedTime">Container Detected</TH>
-                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-24">Images</th>
+                      <TH col="IntegrationStatus">Integration</TH>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-16">Image</th>
                     </tr>
                   </thead>
 
@@ -656,11 +642,16 @@ const MainGate = () => {
                               ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#0e4a78]/8 text-[#0e4a78] font-semibold text-[11px]"><FiMapPin size={10} className="text-[#0e4a78]/60 flex-shrink-0" />{row.GateName}</span>
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.VehicleDetectedTime} /></td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.ContainerDetectedTime} /></td>
-                          <td className="px-2 py-1.5 w-24">
-                            <div className="flex items-center gap-1.5 justify-center" onClick={e => e.stopPropagation()}>
-                              <ImageThumb url={buildAssetUrl(row.VehicleImagePath)} label="Vehicle" onOpen={(u, l) => setLightbox({ url: u, label: l })} />
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.IntegrationStatus
+                              ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${INTEGRATION_STATUS_TONE[row.IntegrationStatus] || INTEGRATION_STATUS_TONE.default}`}>
+                                  {row.IntegrationStatus}
+                                </span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-2 py-1.5 w-16">
+                            <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
                               <ImageThumb url={buildAssetUrl(row.ContainerImagePath)} label="Container" onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                             </div>
                           </td>
