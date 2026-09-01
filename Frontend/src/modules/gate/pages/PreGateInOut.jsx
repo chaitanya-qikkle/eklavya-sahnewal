@@ -439,7 +439,7 @@ export default function PreGateInOut() {
                       <TH col="GateName">Gate</TH>
                       <TH col="GateInDate">Gate In</TH>
                       <TH col="GateOutDate">Gate Out</TH>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
+                      {/* <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th> */}
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Vehicle No</th>
                       <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-32">Images</th>
                     </tr>
@@ -448,7 +448,7 @@ export default function PreGateInOut() {
                   <tbody className="divide-y divide-slate-100">
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center">
+                        <td colSpan={9} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range and click Search</p>
@@ -513,11 +513,11 @@ export default function PreGateInOut() {
                             </div>
                           </td>
 
-                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[140px] truncate">
+                          {/* <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[140px] truncate">
                             {row.Location
                               ? <span className="inline-flex items-center gap-1"><FiMapPin size={10} className="text-slate-400" />{row.Location}</span>
                               : <span className="text-slate-300 text-xs">—</span>}
-                          </td>
+                          </td> */}
 
                           <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap">
                             {row.VehicleNo
