@@ -5,7 +5,16 @@ Frontend contract:
   GET /v1/container/vehicle-container-detection/img?p=<relative path>
       -> serves a detection snapshot image
 
-GET_VEHICLE_CONTAINER_DETECTION returns absolute Windows paths
+GET_VEHICLE_CONTAINER_DETECTION (v2) matches each vehicle detection with its
+container detection (same gate, <=2min apart) and, where possible, further
+matches the container against Gateway Rail's NAV integration data (linked
+server, <=2h of the container detection) to attach real container details —
+ContainerSize/Type, DocumentNo, NAVDateTime, Process, Terminal, Mode,
+ContainerStatus, IntegrationVehicleNo, IntegrationStatus. Unmatched rows
+(vehicle-only or container-only detections) still come through with those
+integration fields NULL.
+
+The SP returns absolute Windows paths
 (D:\\QKL\\Rail-OCR\\Gate-ALPR\\output-test\\<Gate>\\<dd-MM-yyyy>\\<file>.jpg)
 for VehicleImagePath/ContainerImagePath. The API strips the configured base
 directory off those paths before sending rows to the frontend, and the /img

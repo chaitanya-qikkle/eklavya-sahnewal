@@ -75,28 +75,34 @@ def get_device_data_live_locations(current_user: dict = Depends(get_current_user
                 GROUP BY KalmarNo
             )
             SELECT
-                P1.DeviceIMEI                                         AS DEVICE_IMEI,
-                P1.KalmarNo                                           AS KALMAR_NO,
-                TRY_CONVERT(float, P1.Latitude)                       AS LAT,
-                TRY_CONVERT(float, P1.Longitude)                      AS LNG,
-                P1.DateTime                                           AS LAST_AT,
+                COALESCE(P1.DeviceIMEI, LK.DeviceIMEI, UK.DeviceIMEI)  AS DEVICE_IMEI,
+                A.KalmarNo                                            AS KALMAR_NO,
+                -- Fall back to the lock/unlock row's own coordinates when
+                -- there's no recent PacketID=1 GPS fix for this device —
+                -- P1 used to be an INNER JOIN, which silently dropped every
+                -- device whose only recent activity was a lock/unlock (7/8)
+                -- packet with no matching GPS row, hiding it from the map
+                -- and from every lock/unlock badge that reads this endpoint.
+                TRY_CONVERT(float, COALESCE(P1.Latitude, LK.Latitude, UK.Latitude))    AS LAT,
+                TRY_CONVERT(float, COALESCE(P1.Longitude, LK.Longitude, UK.Longitude)) AS LNG,
+                COALESCE(P1.DateTime, LK.DateTime, UK.DateTime)       AS LAST_AT,
                 LK.DateTime                                           AS LAST_LK_AT,
                 UK.DateTime                                           AS LAST_UK_AT,
                 ISNULL(LK.ContainerNo, ISNULL(LK.RFIDDATA, ''))      AS LK_CONTAINER,
                 ISNULL(UK.ContainerNo, ISNULL(UK.RFIDDATA, ''))      AS UK_CONTAINER,
                 ISNULL(P1.ContainerNo, ISNULL(P1.RFIDDATA, ''))      AS RFIDDATA,
-                P1.PacketID                                           AS PACKET_ID,
+                COALESCE(P1.PacketID, LK.PacketID, UK.PacketID)       AS PACKET_ID,
                 CASE
                     WHEN LK.DateTime IS NOT NULL
                          AND (UK.DateTime IS NULL OR LK.DateTime > UK.DateTime) THEN 7
                     WHEN UK.DateTime IS NOT NULL THEN 8
                     ELSE 1
                 END                                                   AS PACKET_STATE,
-                ISNULL(P1.Location, '')                               AS LOCATION
+                ISNULL(COALESCE(P1.Location, LK.Location, UK.Location), '') AS LOCATION
             FROM agg A
-            INNER JOIN EKL_TRN_EKDEVICEDATA P1 WITH (NOLOCK) ON P1.DeviceTransID = A.p1_id
-            LEFT  JOIN EKL_TRN_EKDEVICEDATA LK WITH (NOLOCK) ON LK.DeviceTransID = A.lk_id
-            LEFT  JOIN EKL_TRN_EKDEVICEDATA UK WITH (NOLOCK) ON UK.DeviceTransID = A.uk_id
+            LEFT JOIN EKL_TRN_EKDEVICEDATA P1 WITH (NOLOCK) ON P1.DeviceTransID = A.p1_id
+            LEFT JOIN EKL_TRN_EKDEVICEDATA LK WITH (NOLOCK) ON LK.DeviceTransID = A.lk_id
+            LEFT JOIN EKL_TRN_EKDEVICEDATA UK WITH (NOLOCK) ON UK.DeviceTransID = A.uk_id
             """,
             fetch_all=True,
         )

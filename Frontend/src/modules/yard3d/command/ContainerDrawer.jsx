@@ -85,9 +85,7 @@ export default function ContainerDrawer({ container, onClose }) {
               </span>
             </div>
             <div className="font-mono tabular-nums font-black text-[15px]" style={{ color: T.text }}>
-              {container.block
-                ? `${container.block}${container.row || container.col ? ` · ${container.row || ""}${container.col || ""}` : ""}${container.tier ? ` · T${container.tier}` : ""}`
-                : container.location || "—"}
+              {container.location || container.block || "—"}
             </div>
             <div className="text-[10px] truncate" style={{ color: T.textMute }}>
               {container.slotName || container.location || ""}

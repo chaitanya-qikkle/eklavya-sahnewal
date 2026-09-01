@@ -6,7 +6,7 @@ import Navbar from "../../../components/layout/Navbar";
 import YardScene from "../scene/YardScene";
 import { CameraSwitcher, RouteProgress } from "../nav/CameraSwitcher";
 import DownloadDesktopApp, { DesktopBadge } from "../components/DownloadDesktopApp";
-import { useGetContainerLiveStatus3dQuery, useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
+import { useGetContainerLiveStatus3dQuery, useGetLocationSlotsQuery, useGetDashboardYardInventoryQuery } from "../../../store/api/ymsApi";
 import { buildGeofenceFromSlotList } from "../scene/buildGeofenceFromSlotList";
 import {
   FiSearch, FiX, FiRefreshCw, FiPackage, FiMapPin,
@@ -583,6 +583,13 @@ export default function YardLiveStatus3D() {
     refetchOnReconnect: true,
   });
 
+  // Same GET_DASHBOARD_YARDINVENTORY SP the Admin Dashboard's Yard Inventory
+  // panel uses — real slot capacity per block, not the geofence-polygon-count
+  // estimate the "Yard Status" strip below used to compute Capacity from.
+  const { data: yardInvResp } = useGetDashboardYardInventoryQuery(undefined, {
+    pollingInterval: 60000,
+  });
+
   const containers = useMemo(() => {
     const rows = Array.isArray(inventoryResp?.data) ? inventoryResp.data : [];
     return rows.map((row, idx) => mapLiveRow(row, idx)).filter(c => c.containerNo);
@@ -657,9 +664,17 @@ export default function YardLiveStatus3D() {
 
   const stats = useMemo(() => {
     const total = containers.length;
-    const capacity = geofence
-      ? Object.values(geofence.blocks).reduce((a, b) => a + (b.slotCount || 0) * 4, 0)
-      : 0;
+
+    // Real slot capacity from GET_DASHBOARD_YARDINVENTORY (same source as
+    // Admin Dashboard's Yard Inventory panel) — summed across every block
+    // row it returns — instead of the old geofence-polygon-count guess
+    // (Object.values(geofence.blocks)...slotCount * 4), which had no
+    // relationship to actual configured slot capacity.
+    const yardInvRows = Array.isArray(yardInvResp?.data) ? yardInvResp.data : [];
+    const capacity = yardInvRows.reduce(
+      (sum, r) => sum + Number(grab(r, "YARD_CAPACITY", "yard_capacity") || 0), 0
+    );
+
     const byStatus = {};
     Object.keys(STATUS_DEFS).forEach(k => { byStatus[k] = 0; });
     let overdwell = 0;
@@ -671,7 +686,7 @@ export default function YardLiveStatus3D() {
     }
     const occupancy = capacity ? Math.round((total / capacity) * 100) : 0;
     return { total, byStatus, capacity, occupancy, overdwell, maxStack };
-  }, [containers, geofence]);
+  }, [containers, yardInvResp]);
 
   // Highest selectable tier — at least 6, but grows to whatever the backend
   // (STACK_NO) actually reports so no stacked container is ever hidden.
@@ -1259,9 +1274,6 @@ export default function YardLiveStatus3D() {
                   {hovered.container.location}
                 </div>
               )}
-              <div className="text-[9.5px] text-slate-400 mt-0.5 font-mono">
-                {hovered.container?.block} · {hovered.container?.row}{hovered.container?.col} · T{hovered.container?.tier}
-              </div>
             </div>
           )}
 

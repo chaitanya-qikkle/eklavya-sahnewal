@@ -3,7 +3,7 @@ import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiTruck as FiTruckIcon, FiPackage, FiLayers,
   FiHash, FiMapPin, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
-  FiChevronLeft, FiChevronRight,
+  FiChevronLeft, FiChevronRight, FiHome,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaDoorOpen } from 'react-icons/fa'
@@ -100,17 +100,32 @@ function ImageLightbox({ url, label, onClose }) {
 /* ─── Detail field row ───────────────────────────────────────────────────── */
 function DetailField({ icon: Icon, label, children, accent = "#0e4a78" }) {
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-b-0">
+    <div className="flex items-start gap-2.5 py-1.5 border-b border-slate-100 last:border-b-0">
       <span
-        className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center mt-0.5"
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
         style={{ background: `${accent}12`, color: accent }}
       >
-        {Icon && <Icon size={15} />}
+        {Icon && <Icon size={12} />}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">{label}</p>
-        <div className="text-sm font-semibold text-slate-800 break-words">{children}</div>
+        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 leading-tight">{label}</p>
+        <div className="text-[13px] font-semibold text-slate-800 break-words leading-tight">{children}</div>
       </div>
+    </div>
+  )
+}
+
+/* ─── Card wrapping a group of DetailFields, with its own header ──────────── */
+function DetailCard({ title, icon: Icon, accent, children }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-0">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+        <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
+          <Icon size={12} />
+        </span>
+        <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{title}</span>
+      </div>
+      <div className="px-4 py-1 overflow-y-auto">{children}</div>
     </div>
   )
 }
@@ -193,22 +208,24 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
           </div>
         </div>
 
-        {/* Body — split panel */}
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden bg-slate-100">
+        {/* Body — details on top (container | vehicle side-by-side),
+            images fill the rest — flex-col with the images pane as flex-1
+            so everything fits in the modal's fixed height, no page scroll. */}
+        <div className="flex-1 min-h-0 flex flex-col bg-slate-100">
 
-          {/* Left — details */}
-          <div className="w-full lg:w-[380px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-gradient-to-b from-slate-50 to-white overflow-y-auto">
-            <div className="p-6">
+          {/* Top — details */}
+          <div className="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
+            <div className="px-6 py-4">
 
-              <div className="mb-6 flex flex-wrap gap-2.5">
-                {row.VehicleNo && (
-                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white font-black font-mono text-base shadow-lg shadow-slate-900/20">
-                    <FiTruckIcon size={15} /> {row.VehicleNo}
-                  </span>
-                )}
+              <div className="mb-3 flex flex-wrap gap-2.5">
                 {row.ContainerNo && (
                   <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-[#1364a4] to-[#0a3b61] text-white font-black font-mono text-base shadow-lg shadow-[#0e4a78]/25">
                     <FiPackage size={15} /> {row.ContainerNo}
+                  </span>
+                )}
+                {row.VehicleNo && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white font-black font-mono text-base shadow-lg shadow-slate-900/20">
+                    <FiTruckIcon size={15} /> {row.VehicleNo}
                   </span>
                 )}
                 {!row.VehicleNo && !row.ContainerNo && (
@@ -216,40 +233,79 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                 )}
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 px-5 shadow-sm">
-                <DetailField icon={FiHash} label="Record ID" accent="#64748b">
-                  {row.ID ?? '—'}
-                </DetailField>
-                <DetailField icon={FiTruckIcon} label="Vehicle No" accent="#0e4a78">
-                  {row.VehicleNo || <span className="text-slate-300 font-normal">Not captured</span>}
-                </DetailField>
-                <DetailField icon={FiPackage} label="Container No" accent="#0e4a78">
-                  {row.ContainerNo || <span className="text-slate-300 font-normal">Not captured</span>}
-                </DetailField>
-                <DetailField icon={FiMapPin} label="Gate" accent="#d97706">
-                  {row.GateName || <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiClock} label="Vehicle Detected" accent="#059669">
-                  {row.VehicleDetectedTime ? formatDate(row.VehicleDetectedTime) : <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                <DetailField icon={FiClock} label="Container Detected" accent="#059669">
-                  {row.ContainerDetectedTime ? formatDate(row.ContainerDetectedTime) : <span className="text-slate-300 font-normal">—</span>}
-                </DetailField>
-                {dwell && (
-                  <DetailField icon={FiClock} label="Time Between Detections" accent="#7c3aed">
-                    {dwell}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* Left — Container details (OCR + Gateway Rail integration) */}
+                <DetailCard title="Container" icon={FiPackage} accent="#0e4a78">
+                  <DetailField icon={FiPackage} label="Container No" accent="#0e4a78">
+                    {row.ContainerNo || <span className="text-slate-300 font-normal">Not captured</span>}
                   </DetailField>
-                )}
+                  <DetailField icon={FiClock} label="Container Detected" accent="#059669">
+                    {row.ContainerDetectedTime ? formatDate(row.ContainerDetectedTime) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Size / Type" accent="#0e4a78">
+                    {(row.ContainerSize || row.ContainerType)
+                      ? `${row.ContainerSize || '—'} ${row.ContainerType || ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Process / Status" accent="#059669">
+                    {(row.Process || row.ContainerStatus)
+                      ? `${row.Process || '—'} ${row.ContainerStatus ? `· ${row.ContainerStatus}` : ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Document No" accent="#64748b">
+                    {row.DocumentNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHome} label="Terminal / Mode" accent="#d97706">
+                    {(row.Terminal || row.Mode)
+                      ? `${row.Terminal || '—'} ${row.Mode ? `· ${row.Mode}` : ''}`.trim()
+                      : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="NAV Date/Time" accent="#059669">
+                    {row.NAVDateTime || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Integration Status" accent="#7c3aed">
+                    {row.IntegrationStatus || <span className="text-slate-300 font-normal">Not integrated</span>}
+                  </DetailField>
+                </DetailCard>
+
+                {/* Right — Vehicle / trailer details */}
+                <DetailCard title="Vehicle" icon={FiTruckIcon} accent="#0e4a78">
+                  <DetailField icon={FiTruckIcon} label="Vehicle No" accent="#0e4a78">
+                    {row.VehicleNo || <span className="text-slate-300 font-normal">Not captured</span>}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Vehicle Detected" accent="#059669">
+                    {row.VehicleDetectedTime ? formatDate(row.VehicleDetectedTime) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiTruckIcon} label="Integration Vehicle No" accent="#0e4a78">
+                    {row.IntegrationVehicleNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiMapPin} label="Gate" accent="#d97706">
+                    {row.GateName || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Record ID" accent="#64748b">
+                    {row.ID ?? '—'}
+                  </DetailField>
+                  {dwell && (
+                    <DetailField icon={FiClock} label="Time Between Detections" accent="#7c3aed">
+                      {dwell}
+                    </DetailField>
+                  )}
+                  {row.DetectionTimeDifferenceSeconds != null && (
+                    <DetailField icon={FiClock} label="Vehicle ↔ Container Match Gap" accent="#7c3aed">
+                      {row.DetectionTimeDifferenceSeconds}s
+                    </DetailField>
+                  )}
+                </DetailCard>
               </div>
             </div>
           </div>
 
-          {/* Right — images, fills remaining modal height */}
-          <div className="flex-1 min-w-0 min-h-0">
+          {/* Bottom — dual images, fills remaining modal height */}
+          <div className="flex-1 min-h-0">
             <div className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
               {[
-                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78', from: '#eef4fb', to: '#dbe9f7' },
-                { url: containerUrl, label: 'Container Snapshot', icon: FiPackage, accent: '#0e4a78', from: '#eef4fb', to: '#dbe9f7' },
+                { url: vehicleUrl, label: 'Vehicle Snapshot', icon: FiTruckIcon, accent: '#0e4a78' },
+                { url: containerUrl, label: 'Container Snapshot', icon: FiPackage, accent: '#0e4a78' },
               ].map(({ url, label, icon: Icon, accent }) => (
                 <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
                   <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
