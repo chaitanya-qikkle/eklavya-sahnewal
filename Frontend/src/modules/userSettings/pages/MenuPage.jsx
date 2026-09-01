@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Edit2, Trash2, Search, X, Layers, Menu } from 'lucide-react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
@@ -102,6 +102,17 @@ const MenuPage = () => {
     setIsPlantDropdownOpen(false)
   }
 
+  // This deployment only ever has one plant — auto-select it in the display
+  // field once the list loads, so it shows pre-filled instead of "--Select--".
+  // Purely cosmetic: the actual save always sends plant_id: 1 regardless
+  // (see handleSave), since the backend's menu models don't have a
+  // plant_name field to receive this dropdown's value at all.
+  useEffect(() => {
+    if (plants.length === 1 && !plantName) {
+      setPlantName(plants[0])
+    }
+  }, [plants, plantName])
+
   const getActorUserId = () => {
     const user = getStoredUser()
     const id = user?.user_id ?? user?.USER_ID ?? user?.id
@@ -111,12 +122,6 @@ const MenuPage = () => {
   const handleSave = () => {
     if (!menuName.trim()) {
       notify.warning('Missing fields', 'Menu name is required')
-      return
-    }
-
-    // Plant is only mandatory for child menus. Parent (top-level) menus can be created without it.
-    if (parentMenuId && !plantName) {
-      notify.warning('Missing fields', 'Plant name is required for child menus')
       return
     }
 
@@ -137,7 +142,11 @@ const MenuPage = () => {
       area: area || null,
       controller: controller || null,
       action_result: actionResult || null,
-      plant_name: plantName || null,
+      // Backend's MenuCreateRequest/MenuUpdateRequest models only have a
+      // plant_id field (no plant_name) and default it to 1 when omitted —
+      // this deployment only has one plant, so the plant-name dropdown was
+      // never actually reaching the backend. Pass plant_id directly instead.
+      plant_id: 1,
       sort_order: sortOrderFromArea ?? existingSortOrder,
     }
 
