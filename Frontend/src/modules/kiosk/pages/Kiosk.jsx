@@ -1,14 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useGetContainerLiveStatus3dQuery } from "../../../store/api/ymsApi";
+import { useGetContainerLiveStatusQuery } from "../../../store/api/ymsApi";
 import { FiMapPin, FiRefreshCw, FiBox, FiSearch, FiAlertTriangle } from "react-icons/fi";
 import KioskMap from "./KioskMap";
-
-// Same field-name grab helper the 3D yard page uses to read
-// ContainerLiveStatus_3D rows — column casing isn't guaranteed.
-function grab(row, ...keys) {
-  for (const k of keys) if (row[k] != null && row[k] !== "") return row[k];
-  return null;
-}
 
 // ─── Keyboard rows ─────────────────────────────────────────────────────────────
 const ROWS = [
@@ -66,26 +59,18 @@ const Kiosk = () => {
   const suggRef = useRef(null);
   const idleTimer = useRef(null);
 
-  // Same in-yard inventory source (ContainerLiveStatus_3D) the 3D Yard Live
-  // Status page uses, incl. the SlotId FK into ESS_MST_LOCATION for exact
-  // map placement — replaces the old SP_KIOSK_CONTAINER_SEARCH round trip.
-  const { data: inventoryResp, isFetching: loadingInventory } = useGetContainerLiveStatus3dQuery(undefined, {
+  // Same in-yard inventory source (GET_CONTAINERLIVESTATUS) LiveStatus.jsx's
+  // "Show on Map" feature uses — already field-mapped to CONTAINER_NO,
+  // MASTERTABLE, OFFLOAD_LAT/LON, BLOCK_NAME etc. by the backend, so
+  // KioskMap's existing slot-matching logic (built for that same shape) just
+  // works without any remapping.
+  const { data: inventoryResp, isFetching: loadingInventory } = useGetContainerLiveStatusQuery(undefined, {
     pollingInterval: 60000,
   });
 
   const inventory = useMemo(() => {
     const rows = Array.isArray(inventoryResp?.data) ? inventoryResp.data : [];
-    return rows.map((row) => ({
-      CONTAINER_NO:      String(grab(row, "Cont_No", "CONTAINER_NO", "ContainerNo") || "").trim().toUpperCase(),
-      CONTAINER_SIZE:    grab(row, "Cont_Size", "CONTAINER_SIZE", "ContainerSize"),
-      CONTAINER_TYPE:    grab(row, "Cont_Type", "CONTAINER_TYPE", "ContainerType"),
-      MASTERTABLE:       grab(row, "Last_Loc", "MASTERTABLE", "LOCATION_NAME"),
-      SLOT_ID:           grab(row, "SlotId", "SLOT_ID", "SlotID"),
-      OFFLOAD_LAT:       grab(row, "OFFLOAD_LAT", "Lat", "Latitude"),
-      OFFLOAD_LON:       grab(row, "OFFLOAD_LON", "Lng", "Longitude"),
-      CONTAINER_PROCESS: grab(row, "CONTAINER_PROCESS", "Process"),
-      INVENTORY_STATUS:  grab(row, "INVENTORY_STATUS", "Status"),
-    })).filter(c => c.CONTAINER_NO);
+    return rows.filter(c => c.CONTAINER_NO);
   }, [inventoryResp]);
 
   // Auto-reset after 90s of idle
@@ -106,7 +91,9 @@ const Kiosk = () => {
     if (!term || term.length < 1) { setSuggestions([]); setShowSuggestions(false); return; }
     const t = term.trim().toUpperCase();
     const unique = [...new Set(
-      inventory.filter((c) => c.CONTAINER_NO.includes(t)).map((c) => c.CONTAINER_NO)
+      inventory
+        .filter((c) => String(c.CONTAINER_NO || "").toUpperCase().includes(t))
+        .map((c) => String(c.CONTAINER_NO).toUpperCase())
     )].slice(0, 8);
     setSuggestions(unique);
     setShowSuggestions(unique.length > 0);
@@ -135,8 +122,8 @@ const Kiosk = () => {
     if (loadingInventory) { setError("Yard inventory is still loading, please wait a moment."); return; }
     setLocating(true);
     setError("");
-    const found = inventory.find((c) => c.CONTAINER_NO === term)
-      || inventory.find((c) => c.CONTAINER_NO.startsWith(term));
+    const found = inventory.find((c) => String(c.CONTAINER_NO || "").toUpperCase() === term)
+      || inventory.find((c) => String(c.CONTAINER_NO || "").toUpperCase().startsWith(term));
     if (found) {
       setFoundContainer([found]);
       setShowMap(true);

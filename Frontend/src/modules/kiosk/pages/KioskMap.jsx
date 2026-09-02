@@ -53,7 +53,7 @@ const KioskMap = ({ container, onClose }) => {
     const rows = slotsResponse?.data || [];
     return rows.map((row, idx) => {
       const slotName = row.SLOTNAME ?? row.SlotName ?? row.slotname ?? `Slot-${idx}`;
-      const block    = row.BLOCK ?? row.Block ?? row.BlockId ?? "";
+      const block    = row.BlockName ?? row.BLOCK ?? row.Block ?? row.BlockId ?? "";
       const rowLabel = row.ROW ?? row.Row ?? row.row ?? "";
       const col      = row.COLUMN ?? row.Column ?? row.column ?? row.COL ?? "";
       const slotId   = row.SlotId ?? row.SLOTID ?? row.SlotID ?? `slot-${idx}`;
@@ -87,22 +87,12 @@ const KioskMap = ({ container, onClose }) => {
     return m;
   }, [slots]);
 
-  const slotById = useMemo(() => {
-    const m = new Map();
-    for (const s of slots) m.set(s.id, s);
-    return m;
-  }, [slots]);
-
-  // Find container's slot — SlotId (direct FK into ESS_MST_LOCATION, from
-  // ContainerLiveStatus_3D, same source the 3D yard page uses) first, since
-  // it's an exact match; falls back to the older string/name matching only
-  // when a row has no SlotId.
+  // Find container's slot — same matching logic as ContainerMap.jsx (which
+  // powers LiveStatus.jsx's "Show on Map"), since both consume the same
+  // GET_CONTAINERLIVESTATUS-shaped rows: name/location string match first,
+  // then block+row+col as a fallback.
   const containerSlot = useMemo(() => {
     if (!container) return null;
-    if (container.SLOT_ID) {
-      const hit = slotById.get(String(container.SLOT_ID));
-      if (hit) return hit;
-    }
     const candidates = [
       container.MASTERTABLE !== "EMPTY-YARD" ? container.MASTERTABLE : null,
       container.location,
@@ -124,7 +114,7 @@ const KioskMap = ({ container, onClose }) => {
       }
     }
     return null;
-  }, [container, slotById, slotByName, slots]);
+  }, [container, slotByName, slots]);
 
   // Only show slots in the same block as the container's slot
   const blockName = containerSlot?.block || container?.BLOCK_NAME || "";
