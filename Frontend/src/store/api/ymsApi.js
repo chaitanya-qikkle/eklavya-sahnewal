@@ -858,6 +858,21 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    getKioskLiveStatus: builder.query({
+      query: (search_for = '') => {
+        const params = new URLSearchParams()
+        if (search_for) params.set('search_for', search_for)
+        const qs = params.toString()
+        return {
+          url: qs
+            ? `${API_ENDPOINTS.CONTAINER.KIOSK_LIVE_STATUS}?${qs}`
+            : API_ENDPOINTS.CONTAINER.KIOSK_LIVE_STATUS,
+          method: 'GET',
+        }
+      },
+      providesTags: ['ContainerInventory'],
+    }),
+
     getContainerLiveStatus3d: builder.query({
       query: () => ({
         url: API_ENDPOINTS.CONTAINER.GET_CONTAINER_LIVE_STATUS_3D,
@@ -1235,6 +1250,8 @@ export const {
   useGetContainerLiveStatusQuery,
   useGetContainerLiveStatus3dQuery,
   useLazyGetContainerLiveStatusQuery,
+  useGetKioskLiveStatusQuery,
+  useLazyGetKioskLiveStatusQuery,
   useGetTrailerGateInListQuery,
   useGetTrailerGateOutListQuery,
   useGateOutTrailerMutation,

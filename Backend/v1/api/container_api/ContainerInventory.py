@@ -23,13 +23,10 @@ def kiosk_container_search(term: str, top: Optional[int] = 20):
         db.close_connection()
 
 
-@router.get("/container-live-status")
-def get_container_live_status(
-    plant_id:     int = Query(0),
-    search_for:   Optional[str] = Query(None),
-    current_user: dict = Depends(get_current_user),
-):
-    """Full in-yard live-status feed via GET_CONTAINERLIVESTATUS.
+def _fetch_container_live_status(plant_id: int, search_for: str):
+    """Shared GET_CONTAINERLIVESTATUS paging + field-mapping logic used by
+    both the authenticated /container-live-status endpoint and the public
+    /kiosk-live-status endpoint (kiosk devices have no logged-in user).
 
     The SP is hard-paginated (25 rows/page with @SearchFor, 15 rows/page
     without) and returns no total-count column, but LiveStatus.jsx, the 3D
@@ -94,6 +91,26 @@ def get_container_live_status(
         return {"status": "error", "message": f"Server Error: {str(e)}", "data": []}
     finally:
         db.close_connection()
+
+
+@router.get("/container-live-status")
+def get_container_live_status(
+    plant_id:     int = Query(0),
+    search_for:   Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Full in-yard live-status feed via GET_CONTAINERLIVESTATUS (authenticated)."""
+    return _fetch_container_live_status(plant_id, search_for)
+
+
+@router.get("/kiosk-live-status")
+def get_kiosk_live_status(
+    plant_id:   int = Query(0),
+    search_for: Optional[str] = Query(None),
+):
+    """Same in-yard live-status feed as /container-live-status, unauthenticated —
+    the public Container Locator kiosk (no logged-in user) uses this."""
+    return _fetch_container_live_status(plant_id, search_for)
 
 
 @router.get("/container-status-report")

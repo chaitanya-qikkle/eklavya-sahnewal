@@ -184,6 +184,7 @@ export const API_ENDPOINTS = {
     GET_CONTAINER_INOUT_24H: buildUrl('/v1/container/container-inout-24h'),
     GET_DASHBOARD_YARD_INVENTORY: buildUrl('/v1/container/dashboard-yard-inventory'),
     KIOSK_SEARCH: buildUrl('/v1/container/kiosk-search'),
+    KIOSK_LIVE_STATUS: buildUrl('/v1/container/kiosk-live-status'),
     GET_LOCATION_SLOTS: buildUrl('/v1/container/location-slots'),
     GET_PRE_GATE_SURVEY: buildUrl('/v1/container/pre-gate-survey'),
     GET_GATE_NAMES: buildUrl('/v1/container/gate-names'),

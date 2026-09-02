@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useGetContainerLiveStatusQuery } from "../../../store/api/ymsApi";
+import { useGetKioskLiveStatusQuery } from "../../../store/api/ymsApi";
 import { FiMapPin, FiRefreshCw, FiBox, FiSearch, FiAlertTriangle } from "react-icons/fi";
 import KioskMap from "./KioskMap";
 
@@ -60,11 +60,13 @@ const Kiosk = () => {
   const idleTimer = useRef(null);
 
   // Same in-yard inventory source (GET_CONTAINERLIVESTATUS) LiveStatus.jsx's
-  // "Show on Map" feature uses — already field-mapped to CONTAINER_NO,
-  // MASTERTABLE, OFFLOAD_LAT/LON, BLOCK_NAME etc. by the backend, so
-  // KioskMap's existing slot-matching logic (built for that same shape) just
-  // works without any remapping.
-  const { data: inventoryResp, isFetching: loadingInventory } = useGetContainerLiveStatusQuery(undefined, {
+  // "Show on Map" feature uses, via the public /kiosk-live-status endpoint —
+  // the kiosk device has no logged-in user, so it can't call the
+  // authenticated /container-live-status endpoint. Already field-mapped to
+  // CONTAINER_NO, MASTERTABLE, OFFLOAD_LAT/LON, BLOCK_NAME etc. by the
+  // backend, so KioskMap's existing slot-matching logic (built for that same
+  // shape) just works without any remapping.
+  const { data: inventoryResp, isFetching: loadingInventory } = useGetKioskLiveStatusQuery(undefined, {
     pollingInterval: 60000,
   });
 
