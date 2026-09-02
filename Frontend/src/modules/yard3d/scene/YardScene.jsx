@@ -898,11 +898,92 @@ function makeContainerNormalTex() {
 }
 const _containerNormalTex = makeContainerNormalTex();
 
-// Shared unit-box geometry — one allocation, reused by the instanced mesh
+// ─── Single container box ─────────────────────────────────────────────────
+// One <mesh> per container — simple, zero timing issues, guaranteed colour.
+// Shared unit-box geometry — one allocation, reused by all ContainerBox instances
 const _boxGeo = new THREE.BoxGeometry(1, 1, 1);
 
-const HOVER_COLOR = new THREE.Color("#FFEB3B");
-const SELECT_COLOR = new THREE.Color("#fff176");
+function ContainerBox({ it, isSelected, isHighlighted, onSelect, onHover }) {
+  const [hovered, setHovered] = React.useState(false);
+  const meshRef = React.useRef();
+  const matRef  = React.useRef();
+  const t = React.useRef(0);
+
+  // Tier-based brightness: tier 1 = full color, each tier above gets slightly
+  // lighter so stacked containers are visually distinct from each other.
+  const tierBright = 1 + (it.tier - 1) * 0.18;
+  const baseColor = useMemo(() => {
+    // Every container shows its real livery colour; non-matches during a
+    // search are dimmed (not greyed out) so highlights still stand out.
+    const c = new THREE.Color(it.color);
+    c.multiplyScalar(Math.min(tierBright, 1.6));
+    if (!isHighlighted) c.multiplyScalar(0.5);
+    return c;
+  }, [isHighlighted, it.color, tierBright]);
+
+  // Imperatively drive material — avoids React prop diffing / material recreation flicker
+  useFrame(() => {
+    const mat = matRef.current;
+    if (!mat) return;
+    if (isSelected) {
+      mat.color.set("#fff176");
+      mat.emissive.set("#ffff00");
+      mat.emissiveIntensity = 0.5;
+      mat.roughness = 0.2;
+      mat.metalness = 0.4;
+    } else if (hovered) {
+      mat.color.set("#FFEB3B");
+      mat.emissive.set("#ff9900");
+      mat.emissiveIntensity = 0.3;
+      mat.roughness = 0.50;
+      mat.metalness = 0.10;
+    } else {
+      mat.color.set(baseColor);
+      mat.emissive.set("#000000");
+      mat.emissiveIntensity = 0;
+      mat.roughness = 0.58;
+      mat.metalness = 0.10;
+    }
+  });
+
+  // Pulse scale when selected; snap back instantly on deselect
+  useFrame((_, delta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    if (isSelected) {
+      t.current += delta * 3;
+      const pulse = 1 + Math.sin(t.current) * 0.05;
+      mesh.scale.set(it.w * pulse, it.h * 1.08, it.d * pulse);
+    } else {
+      t.current = 0;
+      mesh.scale.set(it.w, it.h, it.d);
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      geometry={_boxGeo}
+      castShadow
+      receiveShadow
+      position={[it.x, it.y + (isSelected ? 0.15 : 0), it.z]}
+      scale={[it.w, it.h, it.d]}
+      rotation={[0, it.rotY || 0, 0]}
+      onClick={(e) => { e.stopPropagation(); onSelect(it.container); }}
+      onPointerOver={(e) => { e.stopPropagation(); setHovered(true);  onHover && onHover(it); }}
+      onPointerOut={(e)  => { e.stopPropagation(); setHovered(false); onHover && onHover(null); }}
+    >
+      <meshStandardMaterial
+        ref={matRef}
+        color={baseColor}
+        roughness={0.52}
+        metalness={0.18}
+        normalMap={_containerNormalTex}
+        normalScale={[0.4, 0.4]}
+      />
+    </mesh>
+  );
+}
 
 // ─── Floating pin + label above selected container ─────────────────────────
 function SelectedPin({ item }) {
@@ -983,106 +1064,21 @@ function CameraFocuser({ item, controlsRef }) {
 }
 
 // ─── Containers ───────────────────────────────────────────────────────────
-// Single InstancedMesh for every container instead of one <mesh>+useFrame per
-// container — at 1200-4000 containers, per-item React components/useFrame
-// subscriptions were the dominant cost in the scene. Same pattern already
-// proven in YardOverview3D.jsx's ContainersInstanced: positions/colors are
-// written imperatively via setMatrixAt/setColorAt in a useLayoutEffect keyed
-// on items/selection/highlight/hover, so an idle frame touches nothing;
-// hover state is one number (not one state per container), so re-painting on
-// hover is a single effect run over the (small) instance count, not a React
-// re-render cascade.
 function Containers({ items, selectedId, highlightedIds, onSelect, onHover }) {
-  const ref = useRef();
-  const [hovered, setHovered] = React.useState(null);
-  const pulseT = useRef(0);
-  const colorReadyRef = useRef(false);
-
-  useLayoutEffect(() => {
-    const mesh = ref.current;
-    if (!mesh || !items.length) return;
-    const { matrix, pos, quat, scl, euler, color } = TMP;
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const isSel = it.id === selectedId;
-      const isHov = i === hovered;
-      pos.set(it.x, it.y + (isSel ? 0.15 : 0), it.z);
-      euler.set(0, it.rotY || 0, 0); quat.setFromEuler(euler);
-      scl.set(it.w, it.h, it.d);
-      matrix.compose(pos, quat, scl);
-      mesh.setMatrixAt(i, matrix);
-
-      if (isSel) color.copy(SELECT_COLOR);
-      else if (isHov) color.copy(HOVER_COLOR);
-      else {
-        const isHL = highlightedIds ? highlightedIds.has(it.id) : true;
-        color.set(it.color);
-        const tierBright = 1 + (it.tier - 1) * 0.18;
-        color.multiplyScalar(Math.min(tierBright, 1.6));
-        if (!isHL) color.multiplyScalar(0.5);
-      }
-      mesh.setColorAt(i, color);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    // setColorAt lazily creates instanceColor on its first call, but the
-    // material's shader program is compiled at mount (before instanceColor
-    // exists) without the instancing-color define — without one forced
-    // recompile here, every instance renders at the material's default
-    // (black) color regardless of setColorAt. Only needed once, the first
-    // time instanceColor actually exists.
-    if (mesh.material && !colorReadyRef.current && mesh.instanceColor) {
-      mesh.material.needsUpdate = true;
-      colorReadyRef.current = true;
-    }
-    mesh.computeBoundingSphere();
-    pulseT.current = 0;
-  }, [items, selectedId, highlightedIds, hovered]);
-
-  // Pulse animation for the selected container only — one instance's matrix
-  // per frame, not the whole list.
-  useFrame((_, delta) => {
-    const mesh = ref.current;
-    if (!mesh || selectedId == null) return;
-    const i = items.findIndex((it) => it.id === selectedId);
-    if (i < 0) return;
-    const it = items[i];
-    pulseT.current += delta * 3;
-    const pulse = 1 + Math.sin(pulseT.current) * 0.05;
-    const { matrix, pos, quat, scl, euler } = TMP;
-    pos.set(it.x, it.y + 0.15, it.z);
-    euler.set(0, it.rotY || 0, 0); quat.setFromEuler(euler);
-    scl.set(it.w * pulse, it.h * 1.08, it.d * pulse);
-    matrix.compose(pos, quat, scl);
-    mesh.setMatrixAt(i, matrix);
-    mesh.instanceMatrix.needsUpdate = true;
-  });
-
   if (!items.length) return null;
   return (
-    <instancedMesh
-      key={items.length}
-      ref={ref}
-      args={[_boxGeo, undefined, items.length]}
-      castShadow
-      receiveShadow
-      onClick={(e) => { e.stopPropagation(); if (e.instanceId != null && items[e.instanceId]) onSelect(items[e.instanceId].container); }}
-      onPointerMove={(e) => {
-        if (e.instanceId !== hovered) {
-          setHovered(e.instanceId ?? null);
-          if (e.instanceId != null && items[e.instanceId] && onHover) onHover(items[e.instanceId]);
-        }
-      }}
-      onPointerOut={() => { setHovered(null); if (onHover) onHover(null); }}
-    >
-      <meshStandardMaterial
-        vertexColors
-        roughness={0.52}
-        metalness={0.18}
-        normalMap={_containerNormalTex}
-        normalScale={[0.4, 0.4]}
-      />
-    </instancedMesh>
+    <group>
+      {items.map((it) => (
+        <ContainerBox
+          key={it.id}
+          it={it}
+          isSelected={it.id === selectedId}
+          isHighlighted={highlightedIds ? highlightedIds.has(it.id) : true}
+          onSelect={onSelect}
+          onHover={onHover}
+        />
+      ))}
+    </group>
   );
 }
 
