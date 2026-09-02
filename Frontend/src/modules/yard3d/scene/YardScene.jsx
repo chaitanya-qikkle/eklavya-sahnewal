@@ -921,44 +921,62 @@ function ContainerBox({ it, isSelected, isHighlighted, onSelect, onHover }) {
     return c;
   }, [isHighlighted, it.color, tierBright]);
 
-  // Imperatively drive material — avoids React prop diffing / material recreation flicker
-  useFrame(() => {
+  // Imperatively drive material/scale. useFrame always subscribes (R3F
+  // hooks can't be conditional), but for the vast majority of containers —
+  // neither selected nor hovered — there's nothing to animate, so the
+  // callback bails out in one cheap boolean check instead of doing 5
+  // material-property writes every frame. The one-time "snap to rest" when
+  // a container stops being active happens in useLayoutEffect below, not on
+  // every idle frame.
+  const active = isSelected || hovered;
+
+  useFrame((_, delta) => {
+    if (!active) return;
     const mat = matRef.current;
-    if (!mat) return;
-    if (isSelected) {
-      mat.color.set("#fff176");
-      mat.emissive.set("#ffff00");
-      mat.emissiveIntensity = 0.5;
-      mat.roughness = 0.2;
-      mat.metalness = 0.4;
-    } else if (hovered) {
-      mat.color.set("#FFEB3B");
-      mat.emissive.set("#ff9900");
-      mat.emissiveIntensity = 0.3;
-      mat.roughness = 0.50;
-      mat.metalness = 0.10;
-    } else {
-      mat.color.set(baseColor);
-      mat.emissive.set("#000000");
-      mat.emissiveIntensity = 0;
-      mat.roughness = 0.58;
-      mat.metalness = 0.10;
+    if (mat) {
+      if (isSelected) {
+        mat.color.set("#fff176");
+        mat.emissive.set("#ffff00");
+        mat.emissiveIntensity = 0.5;
+        mat.roughness = 0.2;
+        mat.metalness = 0.4;
+      } else {
+        mat.color.set("#FFEB3B");
+        mat.emissive.set("#ff9900");
+        mat.emissiveIntensity = 0.3;
+        mat.roughness = 0.50;
+        mat.metalness = 0.10;
+      }
+    }
+    const mesh = meshRef.current;
+    if (mesh) {
+      if (isSelected) {
+        t.current += delta * 3;
+        const pulse = 1 + Math.sin(t.current) * 0.05;
+        mesh.scale.set(it.w * pulse, it.h * 1.08, it.d * pulse);
+      } else {
+        mesh.scale.set(it.w, it.h, it.d);
+      }
     }
   });
 
-  // Pulse scale when selected; snap back instantly on deselect
-  useFrame((_, delta) => {
+  // Reset to rest state exactly once whenever this container stops being
+  // selected/hovered, instead of every idle frame.
+  useLayoutEffect(() => {
     const mesh = meshRef.current;
-    if (!mesh) return;
-    if (isSelected) {
-      t.current += delta * 3;
-      const pulse = 1 + Math.sin(t.current) * 0.05;
-      mesh.scale.set(it.w * pulse, it.h * 1.08, it.d * pulse);
-    } else {
+    const mat = matRef.current;
+    if (!active) {
       t.current = 0;
-      mesh.scale.set(it.w, it.h, it.d);
+      if (mesh) mesh.scale.set(it.w, it.h, it.d);
+      if (mat) {
+        mat.color.set(baseColor);
+        mat.emissive.set("#000000");
+        mat.emissiveIntensity = 0;
+        mat.roughness = 0.58;
+        mat.metalness = 0.10;
+      }
     }
-  });
+  }, [active, baseColor, it.w, it.h, it.d]);
 
   return (
     <mesh
