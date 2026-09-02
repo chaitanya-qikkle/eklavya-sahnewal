@@ -11,7 +11,8 @@ const parseLatLong = (raw) => {
   return raw.trim().split(",").map((tok) => {
     const parts = tok.trim().split(/\s+/);
     if (parts.length < 2) return null;
-    const a = parseFloat(parts[0]), b = parseFloat(parts[1]);
+    const a = parseFloat
+    (parts[0]), b = parseFloat(parts[1]);
     if (!isFinite(a) || !isFinite(b)) return null;
     return Math.abs(a) < Math.abs(b) ? { lat: a, lng: b } : { lat: b, lng: a };
   }).filter(Boolean);
@@ -86,22 +87,31 @@ const KioskMap = ({ container, onClose }) => {
     return m;
   }, [slots]);
 
-  // Find container's slot
+  const slotById = useMemo(() => {
+    const m = new Map();
+    for (const s of slots) m.set(s.id, s);
+    return m;
+  }, [slots]);
+
+  // Find container's slot — SlotId (direct FK into ESS_MST_LOCATION, from
+  // ContainerLiveStatus_3D, same source the 3D yard page uses) first, since
+  // it's an exact match; falls back to the older string/name matching only
+  // when a row has no SlotId.
   const containerSlot = useMemo(() => {
     if (!container) return null;
-    console.log("[KioskMap] container:", container);
-    console.log("[KioskMap] slots loaded:", slots.length, slots[0]);
+    if (container.SLOT_ID) {
+      const hit = slotById.get(String(container.SLOT_ID));
+      if (hit) return hit;
+    }
     const candidates = [
       container.MASTERTABLE !== "EMPTY-YARD" ? container.MASTERTABLE : null,
       container.location,
       container.LOCATION_NAME,
       container.SLOT_NAME,
     ];
-    console.log("[KioskMap] slot candidates:", candidates);
     for (const key of candidates) {
       if (key && String(key).trim() && String(key).trim().toUpperCase() !== "EMPTY-YARD") {
         const hit = slotByName.get(String(key).trim().toUpperCase());
-        console.log("[KioskMap] trying slot key:", key, "→", hit ? "FOUND" : "miss");
         if (hit) return hit;
       }
     }
@@ -109,13 +119,12 @@ const KioskMap = ({ container, onClose }) => {
       const bk = String(container.BLOCK_NAME).trim().toUpperCase();
       const rk = String(container.ROW_NO).trim();
       const ck = String(container.COLUMN_NAME).trim().toUpperCase();
-      console.log("[KioskMap] block+row+col fallback:", bk, rk, ck);
       for (const s of slots) {
         if (s.block.toUpperCase() === bk && s.row.toUpperCase() === rk && s.col.toUpperCase() === ck) return s;
       }
     }
     return null;
-  }, [container, slotByName, slots]);
+  }, [container, slotById, slotByName, slots]);
 
   // Only show slots in the same block as the container's slot
   const blockName = containerSlot?.block || container?.BLOCK_NAME || "";
