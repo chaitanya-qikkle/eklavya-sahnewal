@@ -996,6 +996,7 @@ function Containers({ items, selectedId, highlightedIds, onSelect, onHover }) {
   const ref = useRef();
   const [hovered, setHovered] = React.useState(null);
   const pulseT = useRef(0);
+  const colorReadyRef = useRef(false);
 
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -1024,6 +1025,16 @@ function Containers({ items, selectedId, highlightedIds, onSelect, onHover }) {
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    // setColorAt lazily creates instanceColor on its first call, but the
+    // material's shader program is compiled at mount (before instanceColor
+    // exists) without the instancing-color define — without one forced
+    // recompile here, every instance renders at the material's default
+    // (black) color regardless of setColorAt. Only needed once, the first
+    // time instanceColor actually exists.
+    if (mesh.material && !colorReadyRef.current && mesh.instanceColor) {
+      mesh.material.needsUpdate = true;
+      colorReadyRef.current = true;
+    }
     mesh.computeBoundingSphere();
     pulseT.current = 0;
   }, [items, selectedId, highlightedIds, hovered]);
