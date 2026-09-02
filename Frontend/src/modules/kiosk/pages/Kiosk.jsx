@@ -26,13 +26,13 @@ const Key = ({ label, onClick, wide, accent }) => (
       relative select-none font-black rounded-2xl transition-all duration-75
       active:scale-95 flex items-center justify-center
       shadow-[0_5px_0_rgba(0,0,0,0.15)] active:shadow-none active:translate-y-1.5
-      ${wide ? "px-10 py-4 text-base" : "text-xl"}
+      ${wide ? "px-10 py-3 text-base" : "text-xl"}
       ${accent
         ? "bg-red-600 hover:bg-red-700 text-white border border-red-700/40"
         : "bg-white hover:bg-gray-50 text-[#0e4a78] border border-gray-200"
       }
     `}
-    style={{ minWidth: wide ? undefined : "4.25rem", height: wide ? "auto" : "4.25rem" }}
+    style={{ minWidth: wide ? undefined : "3.75rem", height: wide ? "auto" : "3.75rem" }}
   >
     {label}
   </button>
@@ -231,22 +231,22 @@ const Kiosk = () => {
         </div>
 
         {/* Center: Input + keyboard */}
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6 min-h-0">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-3.5 min-h-0">
           <div className="w-full max-w-3xl">
-            <label className="text-xs font-bold uppercase tracking-widest text-[#0e4a78] mb-2.5 block">
+            <label className="text-xs font-bold uppercase tracking-widest text-[#0e4a78] mb-1.5 block">
               Container Number
             </label>
-            <div className={`flex items-center gap-4 px-6 py-5 rounded-2xl border-2 transition-all bg-white shadow-sm ${error ? "border-red-400" : input ? "border-[#0e4a78]" : "border-gray-200"}`}>
-              <FiBox className={`text-3xl flex-shrink-0 ${error ? "text-red-400" : "text-[#0e4a78]"}`} />
-              <span className="flex-1 min-h-[2.5rem] flex items-center text-2xl font-black font-mono tracking-widest text-gray-800">
-                {input || <span className="text-gray-400 text-xl font-semibold not-italic tracking-wide">Use keyboard below…</span>}
+            <div className={`flex items-center gap-4 px-6 py-3.5 rounded-2xl border-2 transition-all bg-white shadow-sm ${error ? "border-red-400" : input ? "border-[#0e4a78]" : "border-gray-200"}`}>
+              <FiBox className={`text-2xl flex-shrink-0 ${error ? "text-red-400" : "text-[#0e4a78]"}`} />
+              <span className="flex-1 min-h-[2.25rem] flex items-center text-2xl font-black font-mono tracking-widest text-gray-800">
+                {input || <span className="text-gray-400 text-lg font-semibold not-italic tracking-wide">Use keyboard below…</span>}
                 {input && <span className="animate-pulse ml-0.5 text-[#0e4a78]">|</span>}
               </span>
-              {locating && <span className="w-7 h-7 border-2 border-[#0e4a78] border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+              {locating && <span className="w-6 h-6 border-2 border-[#0e4a78] border-t-transparent rounded-full animate-spin flex-shrink-0" />}
             </div>
             {error && (
-              <div className="mt-3 flex items-center gap-3 px-5 py-3.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-base font-semibold">
-                <FiAlertTriangle className="text-xl flex-shrink-0 text-red-400" />
+              <div className="mt-2 flex items-center gap-3 px-5 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-semibold">
+                <FiAlertTriangle className="text-lg flex-shrink-0 text-red-400" />
                 {error}
               </div>
             )}
@@ -257,33 +257,33 @@ const Kiosk = () => {
             <button
               onPointerDown={(e) => { e.preventDefault(); handleLocate(); }}
               disabled={locating || !input.trim()}
-              className="flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-white text-2xl transition-all
+              className="flex-1 flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black text-white text-xl transition-all
                 bg-[#0e4a78] hover:bg-[#0a3b61] border border-[#0e4a78]/60
                 disabled:opacity-40 disabled:cursor-not-allowed
-                shadow-[0_7px_0_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1.5"
+                shadow-[0_6px_0_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1"
             >
               {locating
-                ? <><span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" /> Locating…</>
-                : <><FiMapPin className="text-2xl" /> LOCATE</>}
+                ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Locating…</>
+                : <><FiMapPin className="text-xl" /> LOCATE</>}
             </button>
             <button
               onPointerDown={(e) => { e.preventDefault(); handleReset(); }}
-              className="flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl font-black text-white text-2xl transition-all
+              className="flex-1 flex items-center justify-center gap-3 py-3.5 rounded-2xl font-black text-white text-xl transition-all
                 bg-red-600 hover:bg-red-700 border border-red-700/40
-                shadow-[0_7px_0_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1.5"
+                shadow-[0_6px_0_rgba(0,0,0,0.2)] active:shadow-none active:translate-y-1"
             >
-              <FiRefreshCw className="text-2xl" /> RESET
+              <FiRefreshCw className="text-xl" /> RESET
             </button>
           </div>
 
           {/* Virtual keyboard */}
-          <div className="flex flex-col items-center gap-2.5 w-full max-w-3xl">
+          <div className="flex flex-col items-center gap-2 w-full max-w-3xl">
             {ROWS.map((row, ri) => (
-              <div key={ri} className="flex gap-2.5 justify-center">
+              <div key={ri} className="flex gap-2 justify-center">
                 {row.map((key) => <Key key={key} label={key} onClick={handleKey} />)}
               </div>
             ))}
-            <div className="flex gap-2.5 justify-center mt-1">
+            <div className="flex gap-2 justify-center mt-0.5">
               <Key label="SPACE" onClick={handleKey} wide />
               <Key label="⌫" onClick={handleKey} wide accent />
             </div>
