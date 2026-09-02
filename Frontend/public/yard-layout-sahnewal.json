@@ -21891,6 +21891,22 @@
       "modelUrl": "/models/custom/billboard_sign_3d_model-43775b6d.glb",
       "scaleX": 3,
       "scaleY": 3.5
+    },
+    {
+      "id": "custom_model-1-t3s2",
+      "type": "custom_model",
+      "x": 42.52988190404678,
+      "y": -490.96759233591786,
+      "rot": 97,
+      "modelUrl": "/models/custom/white_suv_lineup_3d_model-29d3ad5c.glb"
+    },
+    {
+      "id": "custom_model-3-u7j8",
+      "type": "custom_model",
+      "x": 44.354726280664565,
+      "y": -440.5627061822152,
+      "rot": 89,
+      "modelUrl": "/models/custom/white_suv_lineup_3d_model-29d3ad5c.glb"
     }
   ]
 }
