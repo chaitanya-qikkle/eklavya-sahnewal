@@ -4,7 +4,7 @@ import { FiX, FiAlertCircle, FiMapPin, FiPackage, FiCheckCircle } from "react-ic
 import { useGetLocationSlotsQuery } from "../../../store/api/ymsApi";
 
 const mapContainerStyle = { width: "100%", height: "100%" };
-const defaultCenter = { lat: 18.897905866934074, lng: 73.00137179085313 };
+const defaultCenter = { lat: 30.8327483520962, lng:  75.98702828893376 };
 
 const parseLatLong = (raw) => {
   if (!raw || typeof raw !== "string") return [];
