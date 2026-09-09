@@ -11,6 +11,16 @@ function toDateTimeLocalParam(v) {
   return v ? v.replace('T', ' ') : undefined
 }
 
+// SP returns raw "YYYY-MM-DD HH:mm:ss"-style strings — format to the app's
+// standard dd/mm/yyyy hh:mm display instead of showing the ISO string as-is.
+function formatDate(raw) {
+  if (!raw) return ''
+  const d = new Date(String(raw).replace(' ', 'T'))
+  if (isNaN(d.getTime())) return String(raw)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 function mapRow(r) {
   return {
     containerNo: r.ContainerNo || '',
@@ -132,7 +142,12 @@ const ContainerHistoryStatus = () => {
   }
 
   const handleExportExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredData)
+    const exportRows = filteredData.map((r) => ({
+      ...r,
+      gateInDate: formatDate(r.gateInDate),
+      gateOutDate: formatDate(r.gateOutDate),
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Container History")
     XLSX.writeFile(workbook, "container-history.xlsx")
@@ -327,8 +342,8 @@ const ContainerHistoryStatus = () => {
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.documentNo}</td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.bookingNo}</td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.mode}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.gateInDate}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.gateOutDate}</td>
+                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{formatDate(row.gateInDate)}</td>
+                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{formatDate(row.gateOutDate)}</td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 font-medium whitespace-nowrap">{row.tat}</td>
                       </tr>
                     ))}

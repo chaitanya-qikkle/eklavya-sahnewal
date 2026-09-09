@@ -23,6 +23,7 @@ const COLUMNS = [
   { key: 'MaintanceEnd',   label: 'Maintenance End',   format: fmtDate },
   { key: 'TAT',            label: 'TAT' },
   { key: 'Reason',         label: 'Remark Type' },
+  { key: 'Category',       label: 'Category' },
   { key: 'RemarkBy',       label: 'Remark By' },
 ]
 

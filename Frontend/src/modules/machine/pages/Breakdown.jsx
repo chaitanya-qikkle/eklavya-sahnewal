@@ -48,6 +48,14 @@ const getEqpId   = (eqp) => eqp?.Eqp_ID   ?? eqp?.eqp_id   ?? eqp?.EQP_ID
 const getEqpName = (eqp) => eqp?.Equipment_Name ?? eqp?.equipment_name ?? eqp?.EQUIPMENT_NAME ?? `EQP-${getEqpId(eqp)}`
 const getEqpType = (eqp) => eqp?.Equipment_Type ?? eqp?.equipment_type ?? eqp?.EQUIPMENT_TYPE ?? 'Equipment'
 
+// GET_BREAKDOWN_DETAIL's b.IsActive is the authoritative open/closed flag —
+// MaintanceEnd being filled in does not by itself mean the breakdown is
+// closed, so status must be read from IsActive, not from MaintanceEnd.
+const isRowOpen = (row) => {
+  const v = row?.IsActive ?? row?.ISACTIVE
+  return v === true || v === 1 || v === '1'
+}
+
 export default function Breakdown() {
   const [selectedEqp, setSelectedEqp] = useState(null)
   const [formMode, setFormMode] = useState('add')   // 'add' | 'edit'
@@ -84,19 +92,18 @@ export default function Breakdown() {
     }
     if (!search.trim()) return list
     const q = search.toLowerCase()
-    return list.filter(r => {
-      const isOpen = !(r.MaintanceEnd || r.MAINTANCEEND)
-      return (r.EqpName || r.EQPNAME || '').toLowerCase().includes(q) ||
-        (r.Reason || r.REASON || '').toLowerCase().includes(q) ||
-        (isOpen ? 'open' : 'closed').includes(q)
-    })
+    return list.filter(r =>
+      (r.EqpName || r.EQPNAME || '').toLowerCase().includes(q) ||
+      (r.Reason || r.REASON || '').toLowerCase().includes(q) ||
+      (isRowOpen(r) ? 'open' : 'closed').includes(q)
+    )
   }, [breakdownData, search, selectedEqp])
 
-  // Stats derived from ALL breakdowns (unfiltered). The SP has no STATUS
-  // column — "open" is simply a row with no MaintanceEnd yet.
+  // Stats derived from ALL breakdowns (unfiltered). Status comes from
+  // IsActive, not from whether MaintanceEnd has been filled in.
   const allBreakdowns = breakdownData?.data || []
-  const statsOpen  = allBreakdowns.filter(r => !(r.MaintanceEnd || r.MAINTANCEEND)).length
-  const statsClosed = allBreakdowns.filter(r => !!(r.MaintanceEnd || r.MAINTANCEEND)).length
+  const statsOpen  = allBreakdowns.filter(isRowOpen).length
+  const statsClosed = allBreakdowns.filter(r => !isRowOpen(r)).length
   const statsBreakdown = allBreakdowns.filter(r => (r.Category || r.CATEGORY || '') === 'Breakdown').length
 
   // When machine selected, pre-fill form
@@ -194,8 +201,7 @@ export default function Breakdown() {
     // breakdown row can only be matched back to a machine by name.
     const name = getEqpName(eqp)
     const openCount = allBreakdowns.filter(r =>
-      (r.EqpName || r.EQPNAME) === name &&
-      !(r.MaintanceEnd || r.MAINTANCEEND)
+      (r.EqpName || r.EQPNAME) === name && isRowOpen(r)
     ).length
     return openCount > 0 ? 'breakdown' : 'ok'
   }
@@ -566,7 +572,7 @@ export default function Breakdown() {
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-slate-200">
-                    {['#', 'MACHINE', 'START TIME', 'END TIME', 'TAT', 'REASON', 'STATUS', 'ACTIONS'].map(h => (
+                    {['#', 'MACHINE', 'START TIME', 'END TIME', 'TAT', 'REASON', 'CATEGORY', 'REMARK BY', 'STATUS', 'ACTIONS'].map(h => (
                       <th key={h} className="px-4 py-3 text-[11px] font-extrabold text-[#0e4a78] uppercase tracking-wider whitespace-nowrap border-r last:border-r-0 border-slate-200">
                         {h}
                       </th>
@@ -579,7 +585,9 @@ export default function Breakdown() {
                     const start    = row.MaintanceStart || row.MAINTANCESTART
                     const end      = row.MaintanceEnd   || row.MAINTANCEEND
                     const reason   = row.Reason || row.REASON || '—'
-                    const isOpen   = !end
+                    const category = row.Category || row.CATEGORY || '—'
+                    const remarkBy = row.RemarkBy || row.REMARKBY || '—'
+                    const isOpen   = isRowOpen(row)
 
                     return (
                       <tr key={idx} className="hover:bg-blue-50/40 transition-colors group">
@@ -620,6 +628,12 @@ export default function Breakdown() {
                             <FiTool className="w-3 h-3" />
                             {reason}
                           </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs font-semibold text-slate-600 border-r border-slate-100">
+                          {category}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-600 border-r border-slate-100">
+                          {remarkBy}
                         </td>
                         <td className="px-4 py-3.5 border-r border-slate-100">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide
