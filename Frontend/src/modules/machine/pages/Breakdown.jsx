@@ -19,6 +19,7 @@ import {
 import { notify } from '../../../utils/notify'
 
 const REMARK_TYPES = ['Breakdown', 'Daily Check', 'Maintenance', 'Change']
+const BREAKDOWN_CATEGORIES = ['Cooling', 'Breakdown', 'Pre-Maintenance']
 
 const REMARK_META = {
   'Breakdown':    { color: 'red',    icon: FiAlertTriangle, bg: 'bg-red-50',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700',    ring: 'ring-red-400' },
@@ -53,7 +54,7 @@ export default function Breakdown() {
   const [editRow, setEditRow] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState({ brkid: 0, vehicle_id: '', maintance_start: '', maintance_end: '', reason: '' })
+  const [form, setForm] = useState({ brkid: 0, vehicle_id: '', maintance_start: '', maintance_end: '', reason: '', category: '' })
 
   // Real API data
   const { data: equipmentData, isLoading: eqpLoading } = useGetEquipmentQuery()
@@ -101,14 +102,14 @@ export default function Breakdown() {
     setShowForm(false)
     setFormMode('add')
     setEditRow(null)
-    setForm({ brkid: 0, vehicle_id: getEqpId(eqp), maintance_start: '', maintance_end: '', reason: '' })
+    setForm({ brkid: 0, vehicle_id: getEqpId(eqp), maintance_start: '', maintance_end: '', reason: '', category: '' })
   }
 
   const openAddForm = () => {
     if (!selectedEqp) { notify.warning('Please select a machine first'); return }
     setFormMode('add')
     setEditRow(null)
-    setForm({ brkid: 0, vehicle_id: getEqpId(selectedEqp), maintance_start: '', maintance_end: '', reason: '' })
+    setForm({ brkid: 0, vehicle_id: getEqpId(selectedEqp), maintance_start: '', maintance_end: '', reason: '', category: '' })
     setShowForm(true)
   }
 
@@ -123,6 +124,7 @@ export default function Breakdown() {
       maintance_start: (row.MaintanceStart || row.MAINTANCESTART || row.START_TIME || '').replace(' ', 'T').slice(0, 16),
       maintance_end:   (row.MaintanceEnd   || row.MAINTANCEEND   || row.END_TIME   || '').replace(' ', 'T').slice(0, 16),
       reason:          row.Reason || row.REASON || row.REMARK_TYPE || '',
+      category:        row.Category || row.CATEGORY || '',
     })
     setShowForm(true)
   }
@@ -425,6 +427,23 @@ export default function Breakdown() {
                         onChange={e => setForm(f => ({ ...f, maintance_end: e.target.value }))}
                         className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/40 focus:border-[#0e4a78] transition shadow-sm"
                       />
+                    </div>
+                  </div>
+
+                  {/* CATEGORY */}
+                  <div className="grid grid-cols-12 items-center gap-3">
+                    <label className="col-span-3 text-right text-[11px] font-bold text-slate-600 uppercase tracking-wide">Category</label>
+                    <div className="col-span-9">
+                      <select
+                        value={form.category}
+                        onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                        className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/40 focus:border-[#0e4a78] transition bg-white shadow-sm"
+                      >
+                        <option value="">— Select Category —</option>
+                        {BREAKDOWN_CATEGORIES.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 

@@ -257,6 +257,44 @@ def get_dashboard_shipline(plant_id: int = Query(1)):
         db.close_connection()
 
 
+@router.get("/dashboard-containerageing")
+def get_dashboard_container_ageing(plant_id: int = Query(1)):
+    """In-yard container dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING.
+
+    Returns one row per (Process, Aging bucket) with Size20/Size40 counts.
+    Aging is one of: 'DAY 0-5', 'DAY 06-10', 'DAY 11-20', 'DAY 21-30',
+    'DAY ABOVE 30'. Process is one of Import/Export/Domestic/Empty.
+    Powers the admin dashboard's Container Ageing panel.
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.GET_DASHBOARD_CONTAINERAGEING ?", (plant_id,))
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
+@router.get("/dashboard-yardinventory-processwise")
+def get_dashboard_yard_inventory_processwise(plant_id: int = Query(1)):
+    """In-yard container counts by process (last 24h gate-in) — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE.
+
+    Returns one row per process (IMPORT/EXPORT/DOMESTIC/EMPTY/UNALLOCATED)
+    with SIZE20, SIZE40, TOTAL, TEUS. Powers the admin dashboard's Process
+    Mix panel (which folds in the size-20/40 split, replacing the separate
+    Size Distribution panel).
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.GET_DASHBOARD_YARDINVENTORY_PROCESSWISE ?", (plant_id,))
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/container-inout-24h")
 def get_container_inout_24h():
     """Hourly gate-in / gate-out throughput for the last 24h — ContainerInOut_24Hours.

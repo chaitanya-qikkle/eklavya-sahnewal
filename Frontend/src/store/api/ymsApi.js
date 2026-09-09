@@ -912,6 +912,30 @@ export const ymsApi = createApi({
       providesTags: ['ContainerInventory'],
     }),
 
+    getDashboardContainerAgeing: builder.query({
+      query: ({ plant_id } = {}) => {
+        const params = new URLSearchParams()
+        if (plant_id !== undefined && plant_id !== null) params.set('plant_id', String(plant_id))
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_DASHBOARD_CONTAINER_AGEING}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+      providesTags: ['ContainerInventory'],
+    }),
+
+    getDashboardYardInventoryProcesswise: builder.query({
+      query: ({ plant_id } = {}) => {
+        const params = new URLSearchParams()
+        if (plant_id !== undefined && plant_id !== null) params.set('plant_id', String(plant_id))
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_DASHBOARD_YARD_INVENTORY_PROCESSWISE}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+      providesTags: ['ContainerInventory'],
+    }),
+
     getTrailerGateInList: builder.query({
       query: () => ({
         url: API_ENDPOINTS.CONTAINER.GET_TRAILER_GATE_IN_LIST,
@@ -1295,6 +1319,8 @@ export const {
   useGetContainerInOut24hQuery,
   useGetDashboardYardInventoryQuery,
   useGetDashboardShiplineQuery,
+  useGetDashboardContainerAgeingQuery,
+  useGetDashboardYardInventoryProcesswiseQuery,
   useGetContainerStatusReportQuery,
   useLazyGetContainerStatusReportQuery,
   useGetContainerGateReportQuery,

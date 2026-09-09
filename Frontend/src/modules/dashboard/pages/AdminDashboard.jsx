@@ -24,6 +24,8 @@ import {
   useGetContainerInOut24hQuery,
   useGetDashboardYardInventoryQuery,
   useGetDashboardShiplineQuery,
+  useGetDashboardContainerAgeingQuery,
+  useGetDashboardYardInventoryProcesswiseQuery,
 } from "../../../store/api/ymsApi";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -561,7 +563,7 @@ const _localDate = (offset = 0) => {
 const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoading, allEquipment }) => {
   // Single date — always one day so expected hrs = 18
   const [selDate, setSelDate] = useState(() => _localDate(-1));
-  const [chartType, setChartType] = useState("table"); // table | bar | composed
+  const [chartType, setChartType] = useState("bar"); // table | bar | composed
 
   const rows = useMemo(() => Array.isArray(utilizationApi?.data) ? utilizationApi.data : [], [utilizationApi]);
 
@@ -923,25 +925,12 @@ const AdminDashboard = () => {
   const [drill, setDrill] = useState(null);
 
   // ─── Filters ──────────────────────────────────────────────────────────────
-  // Default: last 24h rolling, all equipment, all processes/sizes — enterprise default
+  // Fixed rolling last-24h window, all equipment, all processes/sizes — no user-facing filter UI
   const buildPreset = (preset) => {
     const pad = (n) => String(n).padStart(2, "0");
     const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     const now = new Date();
-    if (preset === "today") {
-      return { from: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0)), to: fmt(now) };
-    }
-    if (preset === "24h") {
-      return { from: fmt(new Date(now.getTime() - 24 * 3600 * 1000)), to: fmt(now) };
-    }
-    if (preset === "shift") {
-      const today9 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0);
-      const ref = now.getHours() >= 9 ? today9 : new Date(today9.getTime() - 24 * 3600 * 1000);
-      return { from: fmt(ref), to: fmt(new Date(ref.getTime() + 24 * 3600 * 1000)) };
-    }
-    if (preset === "7d") return { from: fmt(new Date(now.getTime() - 7 * 24 * 3600 * 1000)), to: fmt(now) };
-    if (preset === "30d") return { from: fmt(new Date(now.getTime() - 30 * 24 * 3600 * 1000)), to: fmt(now) };
-    return null;
+    return { from: fmt(new Date(now.getTime() - 24 * 3600 * 1000)), to: fmt(now) };
   };
   const initialRange = buildPreset("24h");
   const [filters, setFilters] = useState({
@@ -952,79 +941,15 @@ const AdminDashboard = () => {
     processes: new Set(), // empty = all
     sizes: new Set(), // empty = all
   });
-  const [showEqpDD, setShowEqpDD] = useState(false);
-  const [eqpFilterSearch, setEqpFilterSearch] = useState("");
-  const eqpDDRef = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (eqpDDRef.current && !eqpDDRef.current.contains(e.target)) setShowEqpDD(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const applyPreset = (preset) => {
-    const r = buildPreset(preset);
-    if (!r) return;
-    setFilters((f) => ({ ...f, preset, from: r.from, to: r.to }));
-  };
-
-  const toggleSetItem = (key, item) => {
-    setFilters((f) => {
-      const next = new Set(f[key]);
-      next.has(item) ? next.delete(item) : next.add(item);
-      return { ...f, [key]: next };
-    });
-  };
-
-  const toggleEquipment = (deviceId) => {
-    setFilters((f) => {
-      // null = all selected. First toggle off "all" → start with current minus this one.
-      const current = f.equipmentIds; // null or Set
-      if (current == null) {
-        const all = new Set();
-        // toggle by REMOVING this one from the "all" set
-        // Build the full set without this id
-        // (we need allEquipment ids; closures handle this at call site)
-        return { ...f, equipmentIds: all };
-      }
-      const next = new Set(current);
-      next.has(deviceId) ? next.delete(deviceId) : next.add(deviceId);
-      return { ...f, equipmentIds: next };
-    });
-  };
-
-  const setEquipmentAll = () => setFilters((f) => ({ ...f, equipmentIds: null }));
-  const setEquipmentNone = () => setFilters((f) => ({ ...f, equipmentIds: new Set() }));
-
-  const resetFilters = () => {
-    const r = buildPreset("24h");
-    setFilters({
-      preset: "24h",
-      from: r.from,
-      to: r.to,
-      equipmentIds: null,
-      processes: new Set(),
-      sizes: new Set(),
-    });
-  };
-
-  const activeFilterCount =
-    (filters.preset !== "24h" ? 1 : 0) +
-    (filters.equipmentIds != null ? 1 : 0) +
-    (filters.processes.size > 0 ? 1 : 0) +
-    (filters.sizes.size > 0 ? 1 : 0);
 
   const [chartView, setChartView] = useState("area");
   const [eqpView, setEqpView] = useState("table");
   const [yardView, setYardView] = useState("bars");
-  const [processView, setProcessView] = useState("donut");
-  const [sizeView, setSizeView] = useState("chart");
+  const [processView, setProcessView] = useState("chart");
   const [ageingView, setAgeingView] = useState("chart");
   const [heatmapView, setHeatmapView] = useState("heat");
   const [shippingView, setShippingView] = useState("chart");
-  const [yardInvView, setYardInvView] = useState("table");
+  const [yardInvView, setYardInvView] = useState("chart");
   const [inOutView, setInOutView] = useState("chart");
   const [topView, setTopView] = useState("chart");
   const [activityView, setActivityView] = useState("stream");
@@ -1076,6 +1001,18 @@ const AdminDashboard = () => {
 
   // In-yard container counts by shipping line — GET_DASHBOARD_SHIPLINE
   const { data: shiplineApi, isFetching: shiplineLoading } = useGetDashboardShiplineQuery(
+    undefined,
+    { pollingInterval: 60000 }
+  );
+
+  // In-yard container dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING
+  const { data: containerAgeingApi } = useGetDashboardContainerAgeingQuery(
+    undefined,
+    { pollingInterval: 60000 }
+  );
+
+  // Process mix (with 20/40 size split) — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE
+  const { data: processMixApi } = useGetDashboardYardInventoryProcesswiseQuery(
     undefined,
     { pollingInterval: 60000 }
   );
@@ -1294,55 +1231,51 @@ const AdminDashboard = () => {
       // ("14-08-2026 14:00 - 15:00") is used as the tooltip label instead.
       const label = dt ? String(dt.getHours()).padStart(2, "0") + ":00" : "—";
       const hourSlot = get(r, "HourSlot", "hourslot") || label;
-      const inCount = Number(get(r, "ContainerIn", "containerin") || 0);
-      const outCount = Number(get(r, "ContainerOut", "containerout") || 0);
+      const inCount = Number(get(r, "TotalGateIn", "totalgatein") || 0);
+      const outCount = Number(get(r, "TotalGateOut", "totalgateout") || 0);
       return {
         key: hourStart || label,
         label,
         hourSlot,
         in: inCount,
         out: outCount,
-        net: Number(get(r, "NetMovement", "netmovement") ?? (inCount - outCount)),
+        in20: Number(get(r, "GateIn20", "gatein20") || 0),
+        in40: Number(get(r, "GateIn40", "gatein40") || 0),
+        out20: Number(get(r, "GateOut20", "gateout20") || 0),
+        out40: Number(get(r, "GateOut40", "gateout40") || 0),
       };
     });
   }, [gateInOut24hApi]);
 
+  // Dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING. One SP row per
+  // (Process, Aging bucket) with Size20/Size40 counts; fold those into the
+  // same 5 fixed buckets the panel already renders (Aging strings from the
+  // SP match these bucket names exactly).
   const ageingBuckets = useMemo(() => {
     const buckets = [
-      { name: "DAY 0-5",      label: "DAY 0-5",      min: 0,   max: 120,      count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.emerald },
-      { name: "DAY 06-10",    label: "DAY 06-10",    min: 120, max: 240,      count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.cyan },
-      { name: "DAY 11-20",    label: "DAY 11-20",    min: 240, max: 480,      count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.blue },
-      { name: "DAY 21-30",    label: "DAY 21-30",    min: 480, max: 720,      count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.amber },
-      { name: "DAY ABOVE 30", label: "DAY ABOVE 30", min: 720, max: Infinity, count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.red },
+      { name: "DAY 0-5",      label: "DAY 0-5",      count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.emerald },
+      { name: "DAY 06-10",    label: "DAY 06-10",    count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.cyan },
+      { name: "DAY 11-20",    label: "DAY 11-20",    count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.blue },
+      { name: "DAY 21-30",    label: "DAY 21-30",    count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.amber },
+      { name: "DAY ABOVE 30", label: "DAY ABOVE 30", count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.red },
     ];
-    containers.forEach((c) => {
-      const gIn = parseDateTime(get(c, "GATE_IN_DATE", "gate_in_date"));
-      if (!gIn) return;
-      let hours = null;
-      const tat = get(c, "TIME_IN_YARD", "time_in_yard");
-      if (tat != null) {
-        const s = String(tat);
-        if (s.includes(":")) {
-          const [h] = s.split(":").map(Number);
-          if (Number.isFinite(h)) hours = h;
-        } else {
-          const n = Number(s);
-          if (Number.isFinite(n)) hours = n;
-        }
-      }
-      if (hours == null) hours = (now.getTime() - gIn.getTime()) / 3600000;
-      if (hours < 0) return;
-      const b = buckets.find((x) => hours >= x.min && hours < x.max);
+    const byName = new Map(buckets.map((b) => [b.name, b]));
+    const rows = Array.isArray(containerAgeingApi?.data) ? containerAgeingApi.data : [];
+    rows.forEach((r) => {
+      const aging = String(get(r, "Aging", "AGING", "aging") || "").trim().toUpperCase();
+      const b = byName.get(aging);
       if (!b) return;
-      b.count++;
-      const proc = String(get(c, "CONTAINER_PROCESS", "container_process") || "").toUpperCase();
-      if (proc === "IMPORT")        b.import++;
-      else if (proc === "EXPORT")   b.export++;
-      else if (proc === "DOMESTIC") b.domestic++;
-      else                          b.empty++;
+      const cnt = Number(get(r, "Size20", "SIZE20", "size20") || 0)
+                + Number(get(r, "Size40", "SIZE40", "size40") || 0);
+      b.count += cnt;
+      const proc = String(get(r, "Process", "PROCESS", "process") || "").toUpperCase();
+      if (proc === "IMPORT")        b.import += cnt;
+      else if (proc === "EXPORT")   b.export += cnt;
+      else if (proc === "DOMESTIC") b.domestic += cnt;
+      else                          b.empty += cnt;
     });
     return buckets;
-  }, [containers, now]);
+  }, [containerAgeingApi]);
 
   // ── Shipping Line Wise Inventory — GET_DASHBOARD_SHIPLINE (real line
   // names from the SP, not a container-number-prefix guess) ──────────────
@@ -1539,19 +1472,30 @@ const AdminDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestEqpTxApi, filterRange, allowedEqpNames]);
 
-  const processData = useMemo(() => [
-    { name: "Import", value: containerStats.imp, fill: T.blue, color: T.blue },
-    { name: "Export", value: containerStats.exp, fill: T.pink, color: T.pink },
-    { name: "Empty", value: containerStats.empty, fill: T.amber, color: T.amber },
-    { name: "Other", value: containerStats.other, fill: T.textMute, color: T.textMute },
-  ].filter((d) => d.value > 0), [containerStats]);
-
-  const sizeData = useMemo(() => [
-    { name: "20'", value: containerStats.size20, fill: T.cyan, color: T.cyan },
-    { name: "40'", value: containerStats.size40, fill: T.indigo, color: T.indigo },
-    { name: "40' HQ", value: containerStats.size40hq, fill: T.purple, color: T.purple },
-    { name: "Other", value: containerStats.sizeOther, fill: T.textMute, color: T.textMute },
-  ].filter((d) => d.value > 0), [containerStats]);
+  // Process mix, with 20/40 size split folded in — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE.
+  // Replaces the old client-side containerStats tally and the separate Size
+  // Distribution panel (size20/size40 now render inside this same chart).
+  const PROCESS_COLOR = {
+    IMPORT: T.blue, EXPORT: T.pink, DOMESTIC: T.teal, EMPTY: T.amber, UNALLOCATED: T.textMute,
+  };
+  const processData = useMemo(() => {
+    const rows = Array.isArray(processMixApi?.data) ? processMixApi.data : [];
+    return rows
+      .map((r) => {
+        const nameRaw = String(get(r, "PROCESS", "Process", "process") || "UNALLOCATED").trim().toUpperCase();
+        const size20 = Number(get(r, "SIZE20", "Size20", "size20") || 0);
+        const size40 = Number(get(r, "SIZE40", "Size40", "size40") || 0);
+        return {
+          name: nameRaw.charAt(0) + nameRaw.slice(1).toLowerCase(),
+          value: Number(get(r, "TOTAL", "Total", "total") || 0),
+          size20, size40,
+          teus: Number(get(r, "TEUS", "Teus", "teus") || 0),
+          color: PROCESS_COLOR[nameRaw] || T.textMute,
+        };
+      })
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [processMixApi]);
 
   const topEquipment = useMemo(() => {
     const rows = Array.isArray(latestEqpTxApi?.data) ? latestEqpTxApi.data : [];
@@ -1707,7 +1651,7 @@ const AdminDashboard = () => {
     {
       key: "gateIn",
       icon: FiTrendingUp,
-      label: `Gate-In (${filters.preset === "custom" ? "range" : filters.preset})`,
+      label: "Gate-In (24h)",
       value: totalIn24h,
       sub: `Out ${totalOut24h}`,
       trend: inTrend,
@@ -1856,7 +1800,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* ── Filter Bar ─────────────────────────────────────── */}
+          {/* ── Info Bar — fixed last-24h window ──────────────────── */}
           <div className="rounded-2xl relative z-40"
             style={{
               background: "linear-gradient(145deg, #ffffff, #f8faff)",
@@ -1864,215 +1808,22 @@ const AdminDashboard = () => {
               boxShadow: "0 2px 12px -2px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.05)",
             }}>
             <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
-              {/* Title + active filter count */}
               <div className="flex items-center gap-2 mr-1">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${T.cyan}15`, color: T.cyan }}>
-                  <FiFilter className="w-3.5 h-3.5" />
+                  <FiClock className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: T.text }}>Filters</div>
-                {activeFilterCount > 0 && (
-                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                    style={{ background: T.cyan, color: T.bg }}>
-                    {activeFilterCount}
-                  </span>
-                )}
+                <div className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: T.text }}>Last 24 Hours</div>
               </div>
-
-              {/* Date Range Presets */}
-              <div className="inline-flex items-center gap-0.5 rounded-lg p-0.5"
-                style={{ background: "rgba(0,0,0,0.04)", border: `1px solid ${T.border}` }}>
-                {[
-                  { v: "today",  l: "Today" },
-                  { v: "24h",    l: "24h" },
-                  { v: "shift",  l: "Shift" },
-                  { v: "7d",     l: "7d" },
-                  { v: "30d",    l: "30d" },
-                  { v: "custom", l: "Custom" },
-                ].map((p) => (
-                  <button key={p.v}
-                    onClick={() => p.v === "custom" ? setFilters((f) => ({ ...f, preset: "custom" })) : applyPreset(p.v)}
-                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
-                      filters.preset === p.v
-                        ? "bg-white shadow text-indigo-600"
-                        : "text-slate-400 hover:text-slate-700 hover:bg-white/60"
-                    }`}>
-                    {p.l}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom date inputs (only when preset === custom) */}
-              {filters.preset === "custom" && (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="datetime-local"
-                    value={filters.from}
-                    onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value, preset: "custom" }))}
-                    className="px-2 py-1 rounded-md text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                    style={{ background: "white", border: `1px solid ${T.border}`, colorScheme: "light" }}
-                  />
-                  <span className="text-[10px]" style={{ color: T.textMute }}>→</span>
-                  <input
-                    type="datetime-local"
-                    value={filters.to}
-                    onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value, preset: "custom" }))}
-                    className="px-2 py-1 rounded-md text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                    style={{ background: "white", border: `1px solid ${T.border}`, colorScheme: "light" }}
-                  />
-                </div>
-              )}
-
-              {/* Equipment multi-select */}
-              <div ref={eqpDDRef} className="relative">
-                <button
-                  onClick={() => setShowEqpDD((v) => !v)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black text-slate-700 hover:bg-indigo-50 transition-colors"
-                  style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-                  <FiCpu className="w-3 h-3" style={{ color: T.emerald }} />
-                  Equipment
-                  <span className="text-[10px] tabular-nums" style={{ color: T.cyan }}>
-                    {filters.equipmentIds == null ? `All ${allEquipment.length}` : `${filters.equipmentIds.size}/${allEquipment.length}`}
-                  </span>
-                  <FiChevronDown className={`w-3 h-3 transition-transform ${showEqpDD ? "rotate-180" : ""}`} style={{ color: T.textMute }} />
-                </button>
-                {showEqpDD && (
-                  <div className="absolute z-50 top-full mt-1.5 left-0 w-72 rounded-xl overflow-hidden flex flex-col max-h-80"
-                    style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 16px 48px rgba(99,102,241,0.15), 0 4px 12px rgba(0,0,0,0.08)" }}>
-                    <div className="p-2 border-b" style={{ borderColor: T.border }}>
-                      <div className="relative">
-                        <FiSearch className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: T.textMute }} />
-                        <input
-                          type="text"
-                          placeholder="Search equipment…"
-                          value={eqpFilterSearch}
-                          onChange={(e) => setEqpFilterSearch(e.target.value)}
-                          className="w-full pl-7 pr-2 py-1.5 rounded-md text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                          style={{ background: "#f8fafc", border: `1px solid ${T.border}` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: T.border }}>
-                      <button onClick={setEquipmentAll}
-                        className="text-[10px] font-black uppercase tracking-wider hover:text-white transition-colors"
-                        style={{ color: T.cyan }}>
-                        ✓ Select All
-                      </button>
-                      <button onClick={setEquipmentNone}
-                        className="text-[10px] font-black uppercase tracking-wider hover:text-white transition-colors"
-                        style={{ color: T.textMute }}>
-                        Clear
-                      </button>
-                    </div>
-                    <div className="overflow-y-auto flex-1 p-1">
-                      {allEquipment
-                        .filter((e) => !eqpFilterSearch || e.name.toLowerCase().includes(eqpFilterSearch.toLowerCase()))
-                        .map((e) => {
-                          const sel = filters.equipmentIds;
-                          const checked = sel == null ? true : (e.deviceId && sel.has(e.deviceId));
-                          return (
-                            <button key={e.id}
-                              onClick={() => {
-                                if (filters.equipmentIds == null) {
-                                  // turn into explicit "all" Set, then toggle this one off
-                                  const next = new Set(allEquipment.map((x) => x.deviceId).filter(Boolean));
-                                  if (e.deviceId) next.delete(e.deviceId);
-                                  setFilters((f) => ({ ...f, equipmentIds: next }));
-                                } else {
-                                  toggleEquipment(e.deviceId);
-                                }
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-indigo-50 transition-colors text-left">
-                              <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 transition-colors`}
-                                style={{
-                                  background: checked ? T.cyan : "transparent",
-                                  borderColor: checked ? T.cyan : T.border,
-                                  boxShadow: "none",
-                                }}>
-                                {checked && <span className="text-[8px] font-black text-white">✓</span>}
-                              </span>
-                              <span className="text-xs font-bold truncate" style={{ color: T.text }}>{e.name}</span>
-                              <span className="ml-auto text-[10px] font-mono truncate shrink-0" style={{ color: T.textMute }}>
-                                {e.deviceId || "—"}
-                              </span>
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Process chips */}
-              <div className="inline-flex items-center gap-1 ml-1">
-                <span className="text-[9px] font-black uppercase tracking-wider mr-0.5" style={{ color: T.textMute }}>Process</span>
-                {[
-                  { v: "import", l: "Import", c: T.blue },
-                  { v: "export", l: "Export", c: T.pink },
-                  { v: "empty",  l: "Empty",  c: T.amber },
-                ].map((p) => {
-                  const active = filters.processes.has(p.v);
-                  return (
-                    <button key={p.v}
-                      onClick={() => toggleSetItem("processes", p.v)}
-                      className="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
-                      style={{
-                        background: active ? `${p.c}18` : "rgba(0,0,0,0.03)",
-                        color: active ? p.c : T.textMute,
-                        border: `1px solid ${active ? p.c + "50" : T.border}`,
-                        boxShadow: "none",
-                      }}>
-                      {p.l}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Size chips */}
-              <div className="inline-flex items-center gap-1">
-                <span className="text-[9px] font-black uppercase tracking-wider mr-0.5" style={{ color: T.textMute }}>Size</span>
-                {[
-                  { v: "20",   l: "20'",     c: T.cyan },
-                  { v: "40",   l: "40'",     c: T.indigo },
-                  { v: "40hq", l: "40' HQ",  c: T.purple },
-                ].map((p) => {
-                  const active = filters.sizes.has(p.v);
-                  return (
-                    <button key={p.v}
-                      onClick={() => toggleSetItem("sizes", p.v)}
-                      className="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
-                      style={{
-                        background: active ? `${p.c}18` : "rgba(0,0,0,0.03)",
-                        color: active ? p.c : T.textMute,
-                        border: `1px solid ${active ? p.c + "50" : T.border}`,
-                        boxShadow: "none",
-                      }}>
-                      {p.l}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Reset */}
-              <button onClick={resetFilters}
-                className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-red-50 transition-colors"
-                style={{ background: "white", border: `1px solid ${T.border}`, color: T.textDim }}>
-                <FiX className="w-3 h-3" />
-                Reset
-              </button>
-            </div>
-            {/* Active filter summary line */}
-            <div className="px-4 pb-2 text-[10px] flex flex-wrap items-center gap-x-3 gap-y-1" style={{ color: T.textMute }}>
-              <span className="tabular-nums">
+              <span className="tabular-nums text-[10px]" style={{ color: T.textMute }}>
                 <span className="font-black" style={{ color: T.cyan }}>{containers.length}</span>
-                <span> / {containersAll.length} containers</span>
+                <span> containers</span>
               </span>
-              <span>·</span>
-              <span className="tabular-nums">
+              <span style={{ color: T.textMute }}>·</span>
+              <span className="tabular-nums text-[10px]" style={{ color: T.textMute }}>
                 <span className="font-black" style={{ color: T.emerald }}>{filteredEquipment.length}</span>
-                <span> / {allEquipment.length} equipment</span>
+                <span> equipment</span>
               </span>
-              <span>·</span>
-              <span className="font-mono">
+              <span className="ml-auto font-mono text-[10px]" style={{ color: T.textMute }}>
                 {filters.from.replace("T", " ")} → {filters.to.replace("T", " ")}
               </span>
             </div>
@@ -2193,14 +1944,16 @@ const AdminDashboard = () => {
 
           {/* Process Mix + Yard Inventory */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
-            {/* Process donut with center */}
-            <Panel title="Process Mix" icon={FiPieChart} accent={T.blue} className="xl:col-span-4 h-[340px]"
+            {/* Process Mix — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE, with the
+                20/40 size split folded in (replaces the separate Size
+                Distribution panel) */}
+            <Panel title="Process Mix" subtitle="By process · 20ft vs 40ft" icon={FiPieChart} accent={T.blue} className="xl:col-span-4 h-[340px]"
               right={
                 <ViewSwitch
                   value={processView}
                   onChange={setProcessView}
                   options={[
-                    { value: "donut", label: "Donut", icon: FiPieChart },
+                    { value: "chart", label: "Chart", icon: FiBarChart2 },
                     { value: "table", label: "Table", icon: FiList },
                   ]}
                 />
@@ -2219,39 +1972,34 @@ const AdminDashboard = () => {
                         </span>
                       ),
                     },
-                    { label: "Count", key: "value", align: "right" },
-                    { label: "%", align: "right",
-                      render: (_, r) => `${containerStats.total > 0 ? (r.value / containerStats.total * 100).toFixed(1) : "0"}%` },
+                    { label: "20'", key: "size20", align: "right", render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
+                    { label: "40'", key: "size40", align: "right", render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
+                    { label: "Total", key: "value", align: "right", render: (v) => <b>{fmtNumber(v)}</b> },
+                    { label: "TEUs", key: "teus", align: "right", render: (v) => <span style={{ color: T.textMute }}>{fmtNumber(v)}</span> },
                   ]}
                   rows={processData}
-                  footerRow={["Total", fmtNumber(containerStats.total), "100%"]}
+                  footerRow={[
+                    "Total",
+                    fmtNumber(processData.reduce((s, r) => s + r.size20, 0)),
+                    fmtNumber(processData.reduce((s, r) => s + r.size40, 0)),
+                    fmtNumber(processData.reduce((s, r) => s + r.value, 0)),
+                    fmtNumber(processData.reduce((s, r) => s + r.teus, 0)),
+                  ]}
                 />
               ) : (
-                <>
-                  <div className="flex-1 min-h-0 relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={processData} innerRadius="62%" outerRadius="92%" paddingAngle={3} dataKey="value" stroke="none">
-                          {processData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                        </Pie>
-                        <Tooltip content={<Tip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <div className="text-2xl md:text-3xl font-black tabular-nums leading-none" style={{ color: T.text }}>{fmtCompact(containerStats.total)}</div>
-                      <div className="text-[9px] uppercase tracking-widest font-black mt-1" style={{ color: T.textMute }}>TEUs in yard</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5 mt-3">
-                    {processData.map((d) => (
-                      <div key={d.name} className="flex items-center gap-1.5 text-[10px]">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
-                        <span className="truncate" style={{ color: T.textDim }}>{d.name}</span>
-                        <span className="ml-auto font-black tabular-nums" style={{ color: T.text }}>{d.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <div className="flex-1 min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={processData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textDim, fontWeight: 700 }} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} width={28} />
+                      <Tooltip content={<Tip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+                      <Bar dataKey="size20" name="20ft" stackId="a" fill={T.cyan} barSize={26} />
+                      <Bar dataKey="size40" name="40ft" stackId="a" fill={T.indigo} radius={[4, 4, 0, 0]} barSize={26} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </Panel>
 
@@ -2459,7 +2207,7 @@ const AdminDashboard = () => {
           {/* Shipping Line + Size Distribution */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             <Panel title="Shipping Line Wise Inventory" subtitle="Container count by line · 20ft vs 40ft" icon={FiBarChart2}
-              accent={T.indigo} className="xl:col-span-8 h-[340px]"
+              accent={T.indigo} className="xl:col-span-12 h-[340px]"
               right={
                 <ViewSwitch value={shippingView} onChange={setShippingView}
                   options={[
@@ -2500,62 +2248,6 @@ const AdminDashboard = () => {
                       <Bar yAxisId="left" dataKey="size40" name="Size 40" stackId="a" fill={T.indigo} radius={[4, 4, 0, 0]} barSize={18} />
                       <Line yAxisId="right" type="monotone" dataKey="pct" name="%" stroke={T.emerald} strokeWidth={2} dot={{ r: 3, fill: T.emerald }} />
                     </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </Panel>
-
-            {/* Size Distribution */}
-            <Panel title="Size Distribution" icon={FiBox} accent={T.purple} className="xl:col-span-4 h-[340px]"
-              right={
-                <ViewSwitch value={sizeView} onChange={setSizeView}
-                  options={[
-                    { value: "chart", label: "Chart", icon: FiBarChart2 },
-                    { value: "table", label: "Table", icon: FiList },
-                  ]}
-                />
-              }
-            >
-              {sizeData.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-xs" style={{ color: T.textMute }}>No data</div>
-              ) : sizeView === "table" ? (
-                <DataTable
-                  cols={[
-                    { label: "Size", key: "name", bold: true,
-                      render: (v, r) => (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ background: r.color }} />
-                          {v}
-                        </span>
-                      ),
-                    },
-                    { label: "Count", key: "value", align: "right" },
-                    { label: "%", align: "right",
-                      render: (_, r) => `${containerStats.total > 0 ? (r.value / containerStats.total * 100).toFixed(1) : "0"}%` },
-                  ]}
-                  rows={sizeData}
-                  footerRow={["Total", fmtNumber(containerStats.total), "100%"]}
-                />
-              ) : (
-                <div className="flex-1 min-h-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={sizeData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                      <defs>
-                        {sizeData.map((d, i) => (
-                          <linearGradient key={i} id={`szg-${i}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={d.color} stopOpacity={1} />
-                            <stop offset="100%" stopColor={d.color} stopOpacity={0.4} />
-                          </linearGradient>
-                        ))}
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: T.textDim, fontWeight: 800 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
-                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                        {sizeData.map((d, i) => <Cell key={i} fill={`url(#szg-${i})`} />)}
-                      </Bar>
-                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}

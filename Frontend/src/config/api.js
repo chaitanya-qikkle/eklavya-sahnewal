@@ -184,6 +184,8 @@ export const API_ENDPOINTS = {
     GET_CONTAINER_INOUT_24H: buildUrl('/v1/container/container-inout-24h'),
     GET_DASHBOARD_YARD_INVENTORY: buildUrl('/v1/container/dashboard-yard-inventory'),
     GET_DASHBOARD_SHIPLINE: buildUrl('/v1/container/dashboard-shipline'),
+    GET_DASHBOARD_CONTAINER_AGEING: buildUrl('/v1/container/dashboard-containerageing'),
+    GET_DASHBOARD_YARD_INVENTORY_PROCESSWISE: buildUrl('/v1/container/dashboard-yardinventory-processwise'),
     KIOSK_SEARCH: buildUrl('/v1/container/kiosk-search'),
     KIOSK_LIVE_STATUS: buildUrl('/v1/container/kiosk-live-status'),
     GET_LOCATION_SLOTS: buildUrl('/v1/container/location-slots'),
