@@ -13,6 +13,7 @@ class BreakdownSaveRequest(BaseModel):
     maintance_start: str              # "YYYY-MM-DD HH:MM:SS"
     maintance_end: Optional[str] = None
     reason: str
+    category: Optional[str] = None
 
 
 class BreakdownDeleteRequest(BaseModel):
@@ -43,6 +44,7 @@ def _upsert(request: BreakdownSaveRequest, current_user: dict):
                 @MaintanceStart = ?,
                 @MaintanceEnd   = ?,
                 @Reason         = ?,
+                @Category       = ?,
                 @PlantID        = ?,
                 @CreatedBy      = @CreatedByUID,
                 @IsSuccess      = @IsSuccess OUTPUT;
@@ -54,6 +56,7 @@ def _upsert(request: BreakdownSaveRequest, current_user: dict):
             request.maintance_start,
             request.maintance_end,
             request.reason,
+            request.category,
             current_user.get("plant_id"),
         )
         result = db.execute_query(query, params, commit=True)
@@ -187,6 +190,7 @@ def close_breakdown(
         vehicle_id = rec.get("VehicleID") or rec.get("VEHICLEID") or rec.get("EqpID")
         start      = rec.get("MaintanceStart") or rec.get("MAINTANCESTART")
         reason     = rec.get("Reason") or rec.get("REASON") or ""
+        category   = rec.get("Category") or rec.get("CATEGORY")
 
         query = """
             DECLARE @IsSuccess INT = 0;
@@ -197,13 +201,14 @@ def close_breakdown(
                 @MaintanceStart = ?,
                 @MaintanceEnd   = ?,
                 @Reason         = ?,
+                @Category       = ?,
                 @PlantID        = ?,
                 @CreatedBy      = @CreatedByUID,
                 @IsSuccess      = @IsSuccess OUTPUT;
         """
         params = (
             str(current_user.get("user_id", "")),   # ? → @CreatedByUID (must be first)
-            brkid, vehicle_id, start, end_time, reason,
+            brkid, vehicle_id, start, end_time, reason, category,
             current_user.get("plant_id"),
         )
         result = db.execute_query(query, params, commit=True)

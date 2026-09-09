@@ -140,6 +140,7 @@ export default function Breakdown() {
       maintance_start: form.maintance_start.replace('T', ' '),
       maintance_end:   form.maintance_end ? form.maintance_end.replace('T', ' ') : null,
       reason:          form.reason,
+      category:        form.category || null,
     }
     try {
       const fn  = formMode === 'add' ? addBreakdown : updateBreakdown

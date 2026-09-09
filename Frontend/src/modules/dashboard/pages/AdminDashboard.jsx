@@ -2070,24 +2070,54 @@ const AdminDashboard = () => {
                   <ResponsiveContainer width="60%" height="100%">
                     <PieChart>
                       <Tooltip content={<Tip />} />
+                      {/* Outer ring — process totals */}
                       <Pie
                         data={processData}
                         dataKey="value"
                         nameKey="name"
-                        innerRadius="55%"
-                        outerRadius="85%"
+                        innerRadius="70%"
+                        outerRadius="90%"
                         paddingAngle={2}
                       >
                         {processData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                      </Pie>
+                      {/* Inner ring — per-process 20ft/40ft split, segments aligned under each outer slice */}
+                      <Pie
+                        data={processData.flatMap((d) => [
+                          { name: `${d.name} 20ft`, value: d.size20, color: T.cyan },
+                          { name: `${d.name} 40ft`, value: d.size40, color: T.indigo },
+                        ])}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius="40%"
+                        outerRadius="62%"
+                        paddingAngle={1}
+                      >
+                        {processData.flatMap((d, i) => [
+                          <Cell key={`${i}-20`} fill={T.cyan} />,
+                          <Cell key={`${i}-40`} fill={T.indigo} />,
+                        ])}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="flex flex-col gap-2 flex-1 min-w-0">
                     {processData.map((d) => (
-                      <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                        <span className="font-bold truncate" style={{ color: T.textDim }}>{d.name}</span>
-                        <span className="ml-auto font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(d.value)}</span>
+                      <div key={d.name} className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
+                          <span className="font-bold truncate" style={{ color: T.textDim }}>{d.name}</span>
+                          <span className="ml-auto font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(d.value)}</span>
+                        </div>
+                        <div className="flex items-center gap-3 pl-4 text-[10px]" style={{ color: T.textMute }}>
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: T.cyan }} />
+                            20': <b style={{ color: T.textDim }}>{fmtNumber(d.size20)}</b>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: T.indigo }} />
+                            40': <b style={{ color: T.textDim }}>{fmtNumber(d.size40)}</b>
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
