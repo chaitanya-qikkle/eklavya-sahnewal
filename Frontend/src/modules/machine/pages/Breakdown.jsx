@@ -587,6 +587,11 @@ export default function Breakdown() {
                     const reason   = row.Reason || row.REASON || '—'
                     const category = row.Category || row.CATEGORY || '—'
                     const remarkBy = row.RemarkBy || row.REMARKBY || '—'
+                    // GET_BREAKDOWN_DETAIL's own TAT (ConvertDDHHMMSS) substitutes
+                    // GETDATE() for a NULL MaintanceEnd, so it keeps ticking for open
+                    // breakdowns — calcTAT(start, end) returned '—' for every open
+                    // row since `end` is null until closed.
+                    const tat      = row.TAT || row.tat || calcTAT(start, end)
                     const isOpen   = isRowOpen(row)
 
                     return (
@@ -620,7 +625,7 @@ export default function Breakdown() {
                         </td>
                         <td className="px-4 py-3.5 border-r border-slate-100">
                           <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">
-                            {calcTAT(start, end)}
+                            {tat}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 border-r border-slate-100">
