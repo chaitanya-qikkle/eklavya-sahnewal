@@ -1250,8 +1250,8 @@ export default function YardVisualization3D() {
             <StatCard label="Total CTRs" value={stats.total.toLocaleString()} sub={`of ${stats.capacity} cap`} icon="📦" color="#3b82f6"/>
             <StatCard label="Occupancy" value={`${stats.occupancy}%`} sub={`${stats.total} active`} icon="📊"
               color={stats.occupancy>85?"#ef4444":stats.occupancy>65?"#f59e0b":"#22c55e"}/>
-            <StatCard label="Avg Dwell" value={`${stats.avgDwell}d`} sub={`${stats.overdwell} overdwell`} icon="⏱"
-              color={stats.avgDwell>7?"#ef4444":"#f59e0b"}/>
+            <StatCard label="Overdwell" value={stats.overdwell} sub=">7 days in yard" icon="⏱"
+              color={stats.overdwell>0?"#ef4444":"#f59e0b"}/>
 
             <div style={{fontSize:7,color:"#4d7a9e",letterSpacing:"0.16em",margin:"5px 0 1px"}}>BY STATUS</div>
             {Object.entries(STATUS_COLORS).map(([s,sc])=>(
@@ -1567,8 +1567,6 @@ export default function YardVisualization3D() {
         <span style={{color:"#c8d8ea",flexShrink:0}}>YARD_001</span>
         <span style={{color:"#4d7a9e",flexShrink:0}} className="mobile-hide">·</span>
         <span className="mobile-hide">{stats.total.toLocaleString()} containers · {stats.occupancy}% occupied</span>
-        <span style={{color:"#4d7a9e",flexShrink:0}} className="mobile-hide">·</span>
-        <span className="mobile-hide">Avg dwell {stats.avgDwell}d</span>
         <span style={{color:"#4d7a9e",flexShrink:0}} className="mobile-hide">·</span>
         <span style={{color:"#f59e0b",flexShrink:0}} className="mobile-hide">{stats.overdwell} overdwell</span>
         <div style={{marginLeft:"auto",display:"flex",gap:14,color:"#4d7a9e",flexShrink:0}}>

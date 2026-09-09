@@ -74,21 +74,30 @@ export default function Breakdown() {
   }, [equipmentData])
 
   const breakdowns = useMemo(() => {
-    const list = breakdownData?.data || []
+    let list = breakdownData?.data || []
+    // GET_BREAKDOWN_DETAIL has no equipment-ID column and ignores the
+    // eqp_id the backend is asked for, so the machine filter has to be
+    // applied here client-side, matching by name.
+    if (selectedEqp) {
+      const name = getEqpName(selectedEqp)
+      list = list.filter(r => (r.EqpName || r.EQPNAME) === name)
+    }
     if (!search.trim()) return list
     const q = search.toLowerCase()
-    return list.filter(r =>
-      (r.EQUIPMENT_NAME || r.equipment_name || '').toLowerCase().includes(q) ||
-      (r.REMARK_TYPE || r.remark_type || '').toLowerCase().includes(q) ||
-      (r.STATUS || r.status || '').toLowerCase().includes(q)
-    )
-  }, [breakdownData, search])
+    return list.filter(r => {
+      const isOpen = !(r.MaintanceEnd || r.MAINTANCEEND)
+      return (r.EqpName || r.EQPNAME || '').toLowerCase().includes(q) ||
+        (r.Reason || r.REASON || '').toLowerCase().includes(q) ||
+        (isOpen ? 'open' : 'closed').includes(q)
+    })
+  }, [breakdownData, search, selectedEqp])
 
-  // Stats derived from ALL breakdowns (unfiltered)
+  // Stats derived from ALL breakdowns (unfiltered). The SP has no STATUS
+  // column — "open" is simply a row with no MaintanceEnd yet.
   const allBreakdowns = breakdownData?.data || []
-  const statsOpen  = allBreakdowns.filter(r => (r.STATUS || r.status || '').toLowerCase() === 'open').length
-  const statsClosed = allBreakdowns.filter(r => (r.STATUS || r.status || '').toLowerCase() === 'closed').length
-  const statsBreakdown = allBreakdowns.filter(r => (r.REMARK_TYPE || r.remark_type || '') === 'Breakdown').length
+  const statsOpen  = allBreakdowns.filter(r => !(r.MaintanceEnd || r.MAINTANCEEND)).length
+  const statsClosed = allBreakdowns.filter(r => !!(r.MaintanceEnd || r.MAINTANCEEND)).length
+  const statsBreakdown = allBreakdowns.filter(r => (r.Category || r.CATEGORY || '') === 'Breakdown').length
 
   // When machine selected, pre-fill form
   useEffect(() => {
@@ -116,14 +125,19 @@ export default function Breakdown() {
   const openEditForm = (row) => {
     setFormMode('edit')
     setEditRow(row)
-    const brkid     = row.BRKID      || row.BrkId      || row.brkid      || 0
-    const vehicleId = row.VehicleID  || row.VEHICLEID  || row.vehicle_id || row.EQP_ID || row.eqp_id
+    const brkid   = row.BRKID || row.BrkId || row.brkid || 0
+    // GET_BREAKDOWN_DETAIL returns only EqpName (text), no equipment ID —
+    // resolve it back to an EqpID via the already-loaded machines list so
+    // the Machine dropdown can pre-select it.
+    const eqpName = row.EqpName || row.EQPNAME || ''
+    const matched = machines.find(m => getEqpName(m) === eqpName)
+    const vehicleId = matched ? getEqpId(matched) : ''
     setForm({
       brkid,
       vehicle_id:      vehicleId,
-      maintance_start: (row.MaintanceStart || row.MAINTANCESTART || row.START_TIME || '').replace(' ', 'T').slice(0, 16),
-      maintance_end:   (row.MaintanceEnd   || row.MAINTANCEEND   || row.END_TIME   || '').replace(' ', 'T').slice(0, 16),
-      reason:          row.Reason || row.REASON || row.REMARK_TYPE || '',
+      maintance_start: (row.MaintanceStart || row.MAINTANCESTART || '').replace(' ', 'T').slice(0, 16),
+      maintance_end:   (row.MaintanceEnd   || row.MAINTANCEEND   || '').replace(' ', 'T').slice(0, 16),
+      reason:          row.Reason || row.REASON || '',
       category:        row.Category || row.CATEGORY || '',
     })
     setShowForm(true)
@@ -176,10 +190,12 @@ export default function Breakdown() {
   }
 
   const machineStatus = (eqp) => {
-    const id = getEqpId(eqp)
+    // The SP has no equipment-ID column, only EqpName (text), so a
+    // breakdown row can only be matched back to a machine by name.
+    const name = getEqpName(eqp)
     const openCount = allBreakdowns.filter(r =>
-      ((r.EQP_ID || r.eqp_id) === id) &&
-      (r.STATUS || r.status || '').toLowerCase() === 'open'
+      (r.EqpName || r.EQPNAME) === name &&
+      !(r.MaintanceEnd || r.MAINTANCEEND)
     ).length
     return openCount > 0 ? 'breakdown' : 'ok'
   }
@@ -506,7 +522,7 @@ export default function Breakdown() {
               <div>
                 <h2 className="text-sm font-bold text-white uppercase tracking-wide">
                   {selectedEqp
-                    ? `Breakdown Log — ${selectedEqp.EQUIPMENT_NAME || selectedEqp.equipment_name}`
+                    ? `Breakdown Log — ${getEqpName(selectedEqp)}`
                     : '24h Breakdown Details — All Machines'}
                 </h2>
                 <p className="text-xs text-blue-200">{breakdowns.length} record(s) found</p>
@@ -559,10 +575,10 @@ export default function Breakdown() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {breakdowns.map((row, idx) => {
-                    const eqpName  = row.Equipment_Name || row.EQUIPMENT_NAME || row.equipment_name || '—'
-                    const start    = row.MaintanceStart || row.MAINTANCESTART || row.START_TIME || row.start_time
-                    const end      = row.MaintanceEnd   || row.MAINTANCEEND   || row.END_TIME   || row.end_time
-                    const reason   = row.Reason || row.REASON || row.REMARK_TYPE || row.remark_type || '—'
+                    const eqpName  = row.EqpName || row.EQPNAME || '—'
+                    const start    = row.MaintanceStart || row.MAINTANCESTART
+                    const end      = row.MaintanceEnd   || row.MAINTANCEEND
+                    const reason   = row.Reason || row.REASON || '—'
                     const isOpen   = !end
 
                     return (

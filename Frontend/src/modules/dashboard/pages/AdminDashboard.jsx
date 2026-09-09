@@ -1712,20 +1712,7 @@ const AdminDashboard = () => {
         { name: "Total", value: equipmentStats.total, color: T.blue },
       ],
     },
-    {
-      key: "dwell",
-      icon: FiClock,
-      label: "Avg Dwell",
-      value: avgDwellHrs,
-      suffix: "h",
-      sub: ` ${ageingBuckets.find(b => b.name === "DAY ABOVE 30")?.count || 0} over 30d · ${containerStats.damaged} damaged`,
-      accent: T.amber,
-      loading: liveStatusLoading,
-      decimals: 1,
-      history: history.dwell,
-      breakdown: ageingBuckets.map((b) => ({ name: b.name, value: b.count, color: b.color })),
-    },
-  ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, avgDwellHrs, ageingBuckets, containers, liveEquipment, hourlyThroughput, dailyUtilPct, utilizationApi]);
+  ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, ageingBuckets, containers, liveEquipment, hourlyThroughput, dailyUtilPct, utilizationApi]);
 
   // ─── Equipment table sort/filter ─────────────────────────────────────────
   const sortedEquipment = useMemo(() => {
