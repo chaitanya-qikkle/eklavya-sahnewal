@@ -12,8 +12,8 @@ const _LoadingScreen = () => (
   </div>
 )
 
-// On chunk load failure (old build / missing file), redirect to service dashboard
-const _RedirectToHome = () => <Navigate to="/dashboard/service" replace />
+// On chunk load failure (old build / missing file), redirect to equipment status
+const _RedirectToHome = () => <Navigate to="/machine/equipment-status" replace />
 
 const lazyPage = (loader) =>
   lazy(() =>
@@ -141,8 +141,8 @@ const App = () => (
             }
           />
         ))}
-        {/* Any unknown route → service dashboard */}
-        <Route path="*" element={<Navigate to="/dashboard/service" replace />} />
+        {/* Any unknown route → equipment status */}
+        <Route path="*" element={<Navigate to="/machine/equipment-status" replace />} />
       </Routes>
     </Suspense>
   </BrowserRouter>
