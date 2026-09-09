@@ -24,16 +24,7 @@ def kiosk_container_search(term: str, top: Optional[int] = 20):
 
 
 def _fetch_container_live_status(plant_id: int, search_for: str):
-    """Shared GET_CONTAINERLIVESTATUS paging + field-mapping logic used by
-    both the authenticated /container-live-status endpoint and the public
-    /kiosk-live-status endpoint (kiosk devices have no logged-in user).
-
-    The SP is hard-paginated (25 rows/page with @SearchFor, 15 rows/page
-    without) and returns no total-count column, but LiveStatus.jsx, the 3D
-    yard view, and the dashboards all expect one call to return the whole
-    in-yard list. So we page through the SP here and concatenate — with
-    ~1200 containers in yard that's dozens of round-trips per call.
-    """
+ 
     db = SQLManager()
     search_for = (search_for or "").strip()
     page_size  = 25 if search_for else 15
@@ -49,7 +40,7 @@ def _fetch_container_live_status(plant_id: int, search_for: str):
                 return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
             page_rows = result.get("data") or []
             rows.extend(page_rows)
-            if len(page_rows) < page_size or page_index > 500:  # 500 = safety cap
+            if len(page_rows) < page_size or page_index > 500: 
                 break
             page_index += 1
         mapped = [
@@ -248,13 +239,28 @@ def get_dashboard_yard_inventory(plant_id: int = Query(0)):
         db.close_connection()
 
 
+@router.get("/dashboard-shipline")
+def get_dashboard_shipline(plant_id: int = Query(1)):
+    """In-yard container counts by shipping line — GET_DASHBOARD_SHIPLINE.
+
+    Returns one row per shipping line (lines under 15 TEUs collapsed into
+    OTHERS) with Line_NO, Empty20, Laden20, Empty40, Laden40, Size20, Size40,
+    Size45, SizeTeus. Powers the admin dashboard's Shipping Line panel.
+    """
+    db = SQLManager()
+    try:
+        response = db.execute_query("EXEC dbo.GET_DASHBOARD_SHIPLINE ?", (plant_id,))
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/container-inout-24h")
 def get_container_inout_24h():
     """Hourly gate-in / gate-out throughput for the last 24h — ContainerInOut_24Hours.
 
-    Pre-bucketed and gap-filled server-side (one row per hour, zero-filled),
-    driven by EKL_TRN_INVENTORY.GateInDate/GateOutDate. Powers the admin
-    dashboard's Gate Throughput chart.
     """
     db = SQLManager()
     try:

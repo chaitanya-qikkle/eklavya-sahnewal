@@ -29,11 +29,21 @@ const DeviceTransactionSummary = () => {
   const { data: equipmentApi } = useGetEquipmentQuery()
   const [fetchReport, { data, isFetching, isError }] = useLazyGetDeviceTransactionSummaryQuery()
 
+  // The backend resolves equipment_names -> DeviceID -> Equipment_Name for the
+  // SP (see _resolve_eqp_names in Report.py), so the filter must send DeviceID
+  // values, not the display name, or a single selection matches nothing.
   const equipmentList = useMemo(() => {
     const rows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : []
-    return Array.from(new Set(
-      rows.map((r) => String(r?.Equipment_Name ?? r?.equipment_name ?? r?.EQUIPMENT_NAME ?? '').trim()).filter(Boolean)
-    ))
+    const seen = new Set()
+    const out = []
+    for (const r of rows) {
+      const deviceId = String(r?.DeviceID ?? r?.Device_ID ?? r?.DEVICE_ID ?? '').trim()
+      const name = String(r?.Equipment_Name ?? r?.equipment_name ?? r?.EQUIPMENT_NAME ?? '').trim()
+      if (!deviceId || !name || seen.has(deviceId)) continue
+      seen.add(deviceId)
+      out.push({ deviceId, name })
+    }
+    return out
   }, [equipmentApi])
 
   const [containerNo, setContainerNo] = useState('')
@@ -64,16 +74,22 @@ const DeviceTransactionSummary = () => {
 
   const allSelected = selectedEqp.length === 0
 
+  const eqpNameByDeviceId = useMemo(() => {
+    const m = new Map()
+    equipmentList.forEach(({ deviceId, name }) => m.set(deviceId, name))
+    return m
+  }, [equipmentList])
+
   const filteredEqpOptions = useMemo(() => {
     const q = eqpSearch.trim().toLowerCase()
     if (!q) return equipmentList
-    return equipmentList.filter((name) => name.toLowerCase().includes(q))
+    return equipmentList.filter(({ name }) => name.toLowerCase().includes(q))
   }, [equipmentList, eqpSearch])
 
-  const toggleEqp = (name) => {
-    setSelectedEqp((prev) => prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name])
+  const toggleEqp = (deviceId) => {
+    setSelectedEqp((prev) => prev.includes(deviceId) ? prev.filter((id) => id !== deviceId) : [...prev, deviceId])
   }
-  const removeEqp = (name) => setSelectedEqp((prev) => prev.filter((n) => n !== name))
+  const removeEqp = (deviceId) => setSelectedEqp((prev) => prev.filter((id) => id !== deviceId))
 
   const rows = Array.isArray(data?.data) ? data.data : []
 
@@ -178,10 +194,10 @@ const DeviceTransactionSummary = () => {
                         {allSelected ? (
                           <span className="text-slate-500">All equipment ({equipmentList.length})</span>
                         ) : selectedEqp.length <= 2 ? (
-                          selectedEqp.map((name) => (
-                            <span key={name} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-semibold">
-                              {name}
-                              <FiX className="text-[10px] hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeEqp(name) }} />
+                          selectedEqp.map((deviceId) => (
+                            <span key={deviceId} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-semibold">
+                              {eqpNameByDeviceId.get(deviceId) || deviceId}
+                              <FiX className="text-[10px] hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeEqp(deviceId) }} />
                             </span>
                           ))
                         ) : (
@@ -212,9 +228,9 @@ const DeviceTransactionSummary = () => {
                           >
                             All Equipment
                           </button>
-                          {filteredEqpOptions.map((name) => (
-                            <label key={name} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-[#eaf1f7] transition-colors">
-                              <input type="checkbox" checked={selectedEqp.includes(name)} onChange={() => toggleEqp(name)} className="accent-[#0e4a78]" />
+                          {filteredEqpOptions.map(({ deviceId, name }) => (
+                            <label key={deviceId} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-[#eaf1f7] transition-colors">
+                              <input type="checkbox" checked={selectedEqp.includes(deviceId)} onChange={() => toggleEqp(deviceId)} className="accent-[#0e4a78]" />
                               <span className="text-slate-700">{name}</span>
                             </label>
                           ))}
