@@ -154,14 +154,45 @@ def get_breakdown_by_id(
 
 @breakdown_router.post("/delete-breakdown")
 def delete_breakdown(request: BreakdownDeleteRequest, current_user: dict = Depends(get_current_user)):
-    """Delete breakdown — calls DEL_ESS_MST_BREAKDOWN."""
+    """Soft-delete breakdown — calls DEL_ESS_MST_BREAKDOWN.
+
+    The SP only actually reads @BRKID (looks up VehicleID itself) and
+    @CreatedBy (stored as DeletedBy) — @VehicleID/@MaintanceStart/
+    @MaintanceEnd/@Reason/@Category/@PlantID are declared but unused in its
+    body. We still pass the record's real values (fetched via
+    GET_ESS_MST_BREAKDOWN_BYID) rather than blanks, in case that changes.
+    """
     db = SQLManager()
     try:
-        result = db.execute_query(
-            "EXEC dbo.DEL_ESS_MST_BREAKDOWN ?",
-            (request.brkid,),
-            commit=True,
+        rec_res = db.execute_query("EXEC dbo.GET_ESS_MST_BREAKDOWN_BYID ?", (request.brkid,))
+        rec = (rec_res.get("data") or [{}])[0] if rec_res and rec_res.get("status") == "success" else {}
+
+        vehicle_id = rec.get("VehicleID") or rec.get("VEHICLEID") or 0
+        start      = rec.get("MaintanceStart") or rec.get("MAINTANCESTART")
+        end        = rec.get("MaintanceEnd") or rec.get("MAINTANCEEND")
+        reason     = rec.get("Reason") or rec.get("REASON") or ""
+        category   = rec.get("Category") or rec.get("CATEGORY") or ""
+
+        query = """
+            DECLARE @IsSuccess INT = 0;
+            DECLARE @DeletedByUID uniqueidentifier = CONVERT(uniqueidentifier, ?);
+            EXEC dbo.DEL_ESS_MST_BREAKDOWN
+                @BRKID          = ?,
+                @VehicleID      = ?,
+                @MaintanceStart = ?,
+                @MaintanceEnd   = ?,
+                @Reason         = ?,
+                @Category       = ?,
+                @PlantID        = ?,
+                @CreatedBy      = @DeletedByUID,
+                @IsSuccess      = @IsSuccess OUTPUT;
+        """
+        params = (
+            str(current_user.get("user_id", "")),   # ? → @DeletedByUID (must be first)
+            request.brkid, vehicle_id, start, end, reason, category,
+            current_user.get("plant_id"),
         )
+        result = db.execute_query(query, params, commit=True)
         if result and result.get("status") == "success":
             return {"status": "success", "message": "Record deleted"}
         return {"status": "error", "message": (result or {}).get("message", "Delete failed")}
