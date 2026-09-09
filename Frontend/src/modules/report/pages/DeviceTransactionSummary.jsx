@@ -21,7 +21,6 @@ const COLUMNS = [
   { key: 'ContNo',   label: 'Container No' },
   { key: 'EqpName',  label: 'Equipment' },
   { key: 'Location', label: 'Location' },
-  { key: 'ITVNo',    label: 'ITV No' },
   { key: 'TransDate',label: 'Transaction Date', format: fmtDate },
 ]
 

@@ -405,6 +405,7 @@ export default function PreGateInOut() {
   const [detailIdx,   setDetailIdx]   = useState(null) // index into `rows`
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
+  const [fetchExportSurvey, { isFetching: isExporting }] = useLazyGetPreGateSurveyQuery()
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
   const gateOptions = Array.isArray(gateNamesData?.data) ? gateNamesData.data : []
 
@@ -438,8 +439,12 @@ export default function PreGateInOut() {
 
   const handleSearch = () => { setPage(1); fetchSurvey(buildArgs(1)) }
 
-  const handleExport = () => {
-    const allRows = Array.isArray(data?.data) ? data.data : []
+  const handleExport = async () => {
+    if (!data?.total) return
+    const args = buildArgs(1)
+    args.page_size = data.total
+    const result = await fetchExportSurvey(args).unwrap().catch(() => null)
+    const allRows = Array.isArray(result?.data) ? result.data : []
     if (!allRows.length) return
     const sheetData = allRows.map((row, i) => ({
       '#':              i + 1,
@@ -614,11 +619,11 @@ export default function PreGateInOut() {
               </button>
               <button
                 onClick={handleExport}
-                disabled={!data?.data?.length}
+                disabled={!data?.data?.length || isExporting}
                 className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-40"
               >
-                <FiDownload size={13} />
-                Excel
+                <FiDownload size={13} className={isExporting ? 'animate-pulse' : ''} />
+                {isExporting ? 'Exporting…' : 'Excel'}
               </button>
             </div>
           </div>

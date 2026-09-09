@@ -1025,7 +1025,6 @@ const AdminDashboard = () => {
   const [heatmapView, setHeatmapView] = useState("heat");
   const [shippingView, setShippingView] = useState("chart");
   const [yardInvView, setYardInvView] = useState("table");
-  const [shiplineView, setShiplineView] = useState("table");
   const [inOutView, setInOutView] = useState("chart");
   const [topView, setTopView] = useState("chart");
   const [activityView, setActivityView] = useState("stream");
@@ -1345,27 +1344,24 @@ const AdminDashboard = () => {
     return buckets;
   }, [containers, now]);
 
-  // ── Shipping Line Wise Inventory ─────────────────────────────────────────────
+  // ── Shipping Line Wise Inventory — GET_DASHBOARD_SHIPLINE (real line
+  // names from the SP, not a container-number-prefix guess) ──────────────
   const shippingLineData = useMemo(() => {
-    const map = new Map();
-    containers.forEach((c) => {
-      const no = String(get(c, "CONTAINER_NO", "container_no") || "");
-      const line = no.length >= 4 ? no.slice(0, 4).toUpperCase() : "OTHER";
-      const sz = String(get(c, "CONTAINER_SIZE", "container_size") || "").toUpperCase();
-      const is40 = sz.startsWith("40") || sz.includes("HC") || sz.includes("HQ");
-      if (!map.has(line)) map.set(line, { name: line, size20: 0, size40: 0 });
-      const e = map.get(line);
-      if (is40) e.size40++; else e.size20++;
+    const rows = Array.isArray(shiplineApi?.data) ? shiplineApi.data : [];
+    const mapped = rows.map((r) => {
+      const size20 = Number(get(r, "Size20", "SIZE20", "size20") || 0);
+      const size40 = Number(get(r, "Size40", "SIZE40", "size40") || 0);
+      return {
+        name: String(get(r, "Line_NO", "LINE_NO", "line_no") || "OTHERS").trim(),
+        size20, size40,
+        total: size20 + size40,
+      };
     });
-    return Array.from(map.values())
-      .map((e) => ({ ...e, total: e.size20 + e.size40 }))
+    const grand = mapped.reduce((s, r) => s + r.total, 0);
+    return mapped
       .sort((a, b) => b.total - a.total)
-      .slice(0, 15)
-      .map((e, i, arr) => {
-        const grand = arr.reduce((s, x) => s + x.total, 0);
-        return { ...e, pct: grand > 0 ? +((e.total / grand) * 100).toFixed(2) : 0 };
-      });
-  }, [containers]);
+      .map((r) => ({ ...r, pct: grand > 0 ? +((r.total / grand) * 100).toFixed(2) : 0 }));
+  }, [shiplineApi]);
 
   // ── Yard Inventory by Block — GET_DASHBOARD_YARDINVENTORY (real capacity/utilization) ──
   const yardInventoryData = useMemo(() => {
@@ -1388,24 +1384,6 @@ const AdminDashboard = () => {
       })
       .sort((a, b) => b.count - a.count);
   }, [yardInvApi]);
-
-  // ── In-yard containers by Shipping Line — GET_DASHBOARD_SHIPLINE ──
-  const shiplineData = useMemo(() => {
-    const rows = Array.isArray(shiplineApi?.data) ? shiplineApi.data : [];
-    return rows
-      .map((r) => ({
-        line: String(get(r, "Line_NO", "LINE_NO", "line_no") || "OTHERS").trim(),
-        empty20: Number(get(r, "Empty20", "EMPTY20", "empty20") || 0),
-        laden20: Number(get(r, "Laden20", "LADEN20", "laden20") || 0),
-        empty40: Number(get(r, "Empty40", "EMPTY40", "empty40") || 0),
-        laden40: Number(get(r, "Laden40", "LADEN40", "laden40") || 0),
-        size20: Number(get(r, "Size20", "SIZE20", "size20") || 0),
-        size40: Number(get(r, "Size40", "SIZE40", "size40") || 0),
-        size45: Number(get(r, "Size45", "SIZE45", "size45") || 0),
-        teus: Number(get(r, "SizeTeus", "SIZETEUS", "sizeteus") || 0),
-      }))
-      .sort((a, b) => b.teus - a.teus);
-  }, [shiplineApi]);
 
   // ── Container In/Out monthly (uses status report for full history incl. gate-outs) ──
   const containerInOutData = useMemo(() => {
@@ -2345,63 +2323,6 @@ const AdminDashboard = () => {
               )}
             </Panel>
 
-          </div>
-
-          {/* Shipping Line — GET_DASHBOARD_SHIPLINE */}
-          <div className="grid grid-cols-1 gap-3 md:gap-4">
-            <Panel title="Shipping Line" subtitle={shiplineLoading ? "Loading…" : `${shiplineData.length} lines`} icon={FiPackage}
-              accent={T.pink} className="h-[360px]"
-              right={
-                <ViewSwitch value={shiplineView} onChange={setShiplineView}
-                  options={[
-                    { value: "table", label: "Table", icon: FiList },
-                    { value: "chart", label: "Chart", icon: FiBarChart2 },
-                  ]}
-                />
-              }
-            >
-              {shiplineData.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-xs" style={{ color: T.textMute }}>No shipping line data</div>
-              ) : shiplineView === "chart" ? (
-                <div className="flex-1 min-h-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={shiplineData} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
-                      <XAxis dataKey="line" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textDim, fontWeight: 700 }} interval={0} angle={-20} textAnchor="end" height={50} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} />
-                      <Tooltip content={<Tip />} />
-                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                      <Bar dataKey="laden20" name="Laden 20'" stackId="a" fill={T.blue} barSize={26} />
-                      <Bar dataKey="empty20" name="Empty 20'" stackId="a" fill={T.cyan} barSize={26} />
-                      <Bar dataKey="laden40" name="Laden 40'" stackId="a" fill={T.teal} barSize={26} />
-                      <Bar dataKey="empty40" name="Empty 40'" stackId="a" fill={T.emerald} radius={[4, 4, 0, 0]} barSize={26} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <DataTable
-                  cols={[
-                    { label: "Line", key: "line", bold: true },
-                    { label: "Laden 20'", key: "laden20", align: "right", render: (v) => <span style={{ color: T.blue }}>{fmtNumber(v)}</span> },
-                    { label: "Empty 20'", key: "empty20", align: "right", render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
-                    { label: "Laden 40'", key: "laden40", align: "right", render: (v) => <span style={{ color: T.teal }}>{fmtNumber(v)}</span> },
-                    { label: "Empty 40'", key: "empty40", align: "right", render: (v) => <span style={{ color: T.emerald }}>{fmtNumber(v)}</span> },
-                    { label: "45'", key: "size45", align: "right", render: (v) => v > 0 ? fmtNumber(v) : <span style={{ color: T.textMute }}>—</span> },
-                    { label: "TEUs", key: "teus", align: "right", render: (v) => <b>{fmtNumber(v)}</b> },
-                  ]}
-                  rows={shiplineData}
-                  footerRow={[
-                    "Total",
-                    fmtNumber(shiplineData.reduce((s, r) => s + r.laden20, 0)),
-                    fmtNumber(shiplineData.reduce((s, r) => s + r.empty20, 0)),
-                    fmtNumber(shiplineData.reduce((s, r) => s + r.laden40, 0)),
-                    fmtNumber(shiplineData.reduce((s, r) => s + r.empty40, 0)),
-                    fmtNumber(shiplineData.reduce((s, r) => s + r.size45, 0)),
-                    fmtNumber(shiplineData.reduce((s, r) => s + r.teus, 0)),
-                  ]}
-                />
-              )}
-            </Panel>
           </div>
 
           {/* ── Equipment Daily Utilization ─────────────────────────────── */}

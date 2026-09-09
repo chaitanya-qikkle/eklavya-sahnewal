@@ -60,7 +60,7 @@ def get_pre_gate_survey(
     gate_name:    Optional[str] = None,
     plant_id:     int = Query(0),
     page:      int = Query(1,  ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100000),
 ):
     """
     Paginated pre-gate e-survey report using GET_ESURVEY_DETAIL SP.
