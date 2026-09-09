@@ -314,6 +314,41 @@ const Tip = ({ active, payload, label }) => {
   );
 };
 
+// ─── Container Ageing tooltip — mini breakdown table (Import/Export/Domestic/Empty) ──
+const AgeingTip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const b = payload[0]?.payload;
+  if (!b) return null;
+  const rows = [
+    { label: "Import",   value: b.import,   color: T.purple },
+    { label: "Export",   value: b.export,   color: T.teal },
+    { label: "Domestic", value: b.domestic, color: T.blue },
+    { label: "Empty",    value: b.empty,    color: T.textMute },
+  ];
+  return (
+    <div className="rounded-xl px-3 py-2 text-xs"
+      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text, minWidth: 150 }}>
+      <div className="flex items-center gap-1.5 font-bold text-[11px] mb-1.5" style={{ color: T.textMute }}>
+        <span className="w-2 h-2 rounded-full" style={{ background: b.color }} />
+        {b.label}
+      </div>
+      {rows.map((r) => (
+        <div key={r.label} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full" style={{ background: r.color }} />
+            <span style={{ color: T.textDim }}>{r.label}</span>
+          </span>
+          <span className="font-black tabular-nums">{fmtNumber(r.value)}</span>
+        </div>
+      ))}
+      <div className="flex items-center justify-between gap-4 pt-1 mt-1 border-t" style={{ borderColor: T.border }}>
+        <span className="font-bold" style={{ color: T.textDim }}>Total</span>
+        <span className="font-black tabular-nums">{fmtNumber(b.count)}</span>
+      </div>
+    </div>
+  );
+};
+
 // ─── Radial Gauge ────────────────────────────────────────────────────────────
 const RadialGauge = ({ value, max = 100, color = T.cyan, label, size = 180, suffix = "%", subtitle }) => {
   const v = Math.max(0, Math.min(Number(value) || 0, max));
@@ -563,7 +598,7 @@ const _localDate = (offset = 0) => {
 const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoading, allEquipment }) => {
   // Single date — always one day so expected hrs = 18
   const [selDate, setSelDate] = useState(() => _localDate(-1));
-  const [chartType, setChartType] = useState("bar"); // table | bar | composed
+  const [chartType, setChartType] = useState("composed"); // table | bar | composed
 
   const rows = useMemo(() => Array.isArray(utilizationApi?.data) ? utilizationApi.data : [], [utilizationApi]);
 
@@ -945,7 +980,7 @@ const AdminDashboard = () => {
   const [chartView, setChartView] = useState("area");
   const [eqpView, setEqpView] = useState("table");
   const [yardView, setYardView] = useState("bars");
-  const [processView, setProcessView] = useState("chart");
+  const [processView, setProcessView] = useState("pie");
   const [ageingView, setAgeingView] = useState("chart");
   const [heatmapView, setHeatmapView] = useState("heat");
   const [shippingView, setShippingView] = useState("chart");
@@ -1636,17 +1671,6 @@ const AdminDashboard = () => {
         { name: "Breakdown", value: equipmentStats.breakdown, color: T.red },
         { name: "Offline", value: Math.max(equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown, 0), color: T.textMute },
       ],
-      table: {
-        title: "Equipment status",
-        cols: ["Equipment", "Owner", "Status", "Container", "Last Seen"],
-        rows: liveEquipment.slice(0, 15).map((e) => [
-          e.name,
-          e.owner || "—",
-          e.status.toUpperCase(),
-          e.container || "—",
-          fmtRelative(e.lastAt),
-        ]),
-      },
     },
     {
       key: "gateIn",
@@ -1871,7 +1895,7 @@ const AdminDashboard = () => {
                 />
               }
             >
-              <div className="flex items-center gap-6 mb-3 text-[10px] font-black">
+              <div className="flex items-center gap-6 mb-3 text-[10px] font-black flex-wrap">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.cyan }} />
                   <span style={{ color: T.textDim }}>IN</span>
@@ -1882,6 +1906,20 @@ const AdminDashboard = () => {
                   <span style={{ color: T.textDim }}>OUT</span>
                   <span className="font-black tabular-nums" style={{ color: T.text }}>{totalOut24h}</span>
                 </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.indigo }} />
+                  <span style={{ color: T.textDim }}>20'</span>
+                  <span className="font-black tabular-nums" style={{ color: T.text }}>
+                    {fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in20 + r.out20, 0))}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.purple }} />
+                  <span style={{ color: T.textDim }}>40'</span>
+                  <span className="font-black tabular-nums" style={{ color: T.text }}>
+                    {fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in40 + r.out40, 0))}
+                  </span>
+                </span>
               </div>
               <div className="flex-1 min-h-0">
                 {chartView === "table" ? (
@@ -1890,16 +1928,31 @@ const AdminDashboard = () => {
                       { label: "Hour", key: "hourSlot", bold: true },
                       { label: "Gate-In", key: "in", align: "right",
                         render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
+                      { label: "In 20'", key: "in20", align: "right",
+                        render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
+                      { label: "In 40'", key: "in40", align: "right",
+                        render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
                       { label: "Gate-Out", key: "out", align: "right",
                         render: (v) => <span style={{ color: T.pink }}>{fmtNumber(v)}</span> },
+                      { label: "Out 20'", key: "out20", align: "right",
+                        render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
+                      { label: "Out 40'", key: "out40", align: "right",
+                        render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
                     ]}
                     rows={hourlyThroughput}
-                    footerRow={["Total", fmtNumber(totalIn24h), fmtNumber(totalOut24h)]}
+                    footerRow={[
+                      "Total", fmtNumber(totalIn24h),
+                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in20, 0)),
+                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in40, 0)),
+                      fmtNumber(totalOut24h),
+                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.out20, 0)),
+                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.out40, 0)),
+                    ]}
                   />
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   {chartView === "area" ? (
-                    <AreaChart data={hourlyThroughput} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                    <ComposedChart data={hourlyThroughput} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                       <defs>
                         <linearGradient id="thIn" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={T.cyan} stopOpacity={0.5} />
@@ -1914,17 +1967,23 @@ const AdminDashboard = () => {
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                       <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
                       <Tooltip content={<Tip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                       <Area type="monotone" dataKey="in" name="In" stroke={T.cyan} strokeWidth={2.5} fill="url(#thIn)" />
                       <Area type="monotone" dataKey="out" name="Out" stroke={T.pink} strokeWidth={2.5} fill="url(#thOut)" />
-                    </AreaChart>
+                      <Line type="monotone" dataKey="in20" name="In 20'" stroke={T.indigo} strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                      <Line type="monotone" dataKey="in40" name="In 40'" stroke={T.purple} strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                    </ComposedChart>
                   ) : chartView === "bar" ? (
                     <BarChart data={hourlyThroughput} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                       <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
                       <Tooltip content={<Tip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
-                      <Bar dataKey="in" name="In" fill={T.cyan} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="out" name="Out" fill={T.pink} radius={[4, 4, 0, 0]} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+                      <Bar dataKey="in20" name="In 20'" stackId="in" fill={T.cyan} radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="in40" name="In 40'" stackId="in" fill={T.indigo} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="out20" name="Out 20'" stackId="out" fill={T.pink} radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="out40" name="Out 40'" stackId="out" fill={T.purple} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   ) : (
                     <LineChart data={hourlyThroughput} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -1932,8 +1991,13 @@ const AdminDashboard = () => {
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                       <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
                       <Tooltip content={<Tip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                       <Line type="monotone" dataKey="in" name="In" stroke={T.cyan} strokeWidth={3} dot={{ fill: T.cyan, r: 3 }} />
                       <Line type="monotone" dataKey="out" name="Out" stroke={T.pink} strokeWidth={3} dot={{ fill: T.pink, r: 3 }} />
+                      <Line type="monotone" dataKey="in20" name="In 20'" stroke={T.indigo} strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                      <Line type="monotone" dataKey="in40" name="In 40'" stroke={T.purple} strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                      <Line type="monotone" dataKey="out20" name="Out 20'" stroke={T.amber} strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                      <Line type="monotone" dataKey="out40" name="Out 40'" stroke={T.teal} strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                     </LineChart>
                   )}
                 </ResponsiveContainer>
@@ -1953,7 +2017,8 @@ const AdminDashboard = () => {
                   value={processView}
                   onChange={setProcessView}
                   options={[
-                    { value: "chart", label: "Chart", icon: FiBarChart2 },
+                    { value: "pie", label: "Pie", icon: FiPieChart },
+                    { value: "bar", label: "Bar", icon: FiBarChart2 },
                     { value: "table", label: "Table", icon: FiList },
                   ]}
                 />
@@ -1986,7 +2051,7 @@ const AdminDashboard = () => {
                     fmtNumber(processData.reduce((s, r) => s + r.teus, 0)),
                   ]}
                 />
-              ) : (
+              ) : processView === "bar" ? (
                 <div className="flex-1 min-h-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={processData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -1999,6 +2064,33 @@ const AdminDashboard = () => {
                       <Bar dataKey="size40" name="40ft" stackId="a" fill={T.indigo} radius={[4, 4, 0, 0]} barSize={26} />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 flex items-center gap-2">
+                  <ResponsiveContainer width="60%" height="100%">
+                    <PieChart>
+                      <Tooltip content={<Tip />} />
+                      <Pie
+                        data={processData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius="55%"
+                        outerRadius="85%"
+                        paddingAngle={2}
+                      >
+                        {processData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    {processData.map((d) => (
+                      <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
+                        <span className="font-bold truncate" style={{ color: T.textDim }}>{d.name}</span>
+                        <span className="ml-auto font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(d.value)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </Panel>
@@ -2190,7 +2282,7 @@ const AdminDashboard = () => {
                     <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                     <YAxis dataKey="name" type="category" width={90} tickLine={false} axisLine={false}
                       tick={{ fontSize: 10, fill: T.textDim, fontWeight: 800 }} />
-                    <Tooltip content={<Tip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
+                    <Tooltip content={<AgeingTip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
                     <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={20}>
                       {ageingBuckets.map((d, i) => <Cell key={i} fill={d.color} />)}
                     </Bar>
