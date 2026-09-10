@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import {
-  FiAlertTriangle, FiTool, FiCheckCircle, FiClock, FiEdit2, FiTrash2,
+  FiAlertTriangle, FiTool, FiCheckCircle, FiClock, FiEdit2,
   FiPlus, FiX, FiSave, FiRefreshCw, FiSearch, FiActivity,
   FiCalendar, FiZap, FiShield, FiSettings
 } from 'react-icons/fi'
@@ -42,6 +42,15 @@ function fmtDT(val) {
   if (isNaN(d)) return val
   const p = (n) => String(n).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// Current time as "YYYY-MM-DD HH:mm:ss" in the browser's local timezone —
+// new Date().toISOString() converts to UTC first, which shifted the sent
+// end_time hours behind the real current time for IST users.
+function nowLocalDT() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
 const getEqpId   = (eqp) => eqp?.Eqp_ID   ?? eqp?.eqp_id   ?? eqp?.EQP_ID
@@ -189,7 +198,7 @@ export default function Breakdown() {
 
   const handleClose = async (row) => {
     const brkid = row.BRKID || row.BrkId || row.brkid
-    const now   = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    const now   = nowLocalDT()
     try {
       const res = await closeBreakdown({ brkid, end_time: now }).unwrap()
       if (res.status === 'success') { notify.success('Breakdown closed'); refetch() }
@@ -665,13 +674,6 @@ export default function Breakdown() {
                               title="Edit"
                             >
                               <FiEdit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(row)}
-                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                              title="Delete"
-                            >
-                              <FiTrash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
