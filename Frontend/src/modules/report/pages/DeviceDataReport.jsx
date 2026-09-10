@@ -10,6 +10,18 @@ import {
 } from "../../../store/api/ymsApi";
 import Swal from "sweetalert2";
 
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const todayLocalDT = () => toLocalInputValue(new Date());
+const yesterdayLocalDT = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toLocalInputValue(d);
+};
+
 const DeviceDataReport = () => {
   const [zoomedImage, setZoomedImage] = useState(null);
   // Stores selected DEVICE_ID values (so we can query the transaction table directly)
@@ -17,8 +29,8 @@ const DeviceDataReport = () => {
   const [searchMachine, setSearchMachine] = useState("");
   const [showMachineDropdown, setShowMachineDropdown] = useState(false);
   const eqpDropdownRef = useRef(null);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(yesterdayLocalDT());
+  const [toDate, setToDate] = useState(todayLocalDT());
   const [selectedType, setSelectedType] = useState("All");
   const [selectedLocation, setSelectedLocation] = useState("All");
   const [sortConfig, setSortConfig] = useState({ key: "TRANSACTION DATETIME", direction: "desc" });
@@ -282,8 +294,8 @@ const DeviceDataReport = () => {
   };
 
   const handleClear = () => {
-    setFromDate("");
-    setToDate("");
+    setFromDate(yesterdayLocalDT());
+    setToDate(todayLocalDT());
     setSelectedType("All");
     setSelectedLocation("All");
     setSelectedMachines([]);

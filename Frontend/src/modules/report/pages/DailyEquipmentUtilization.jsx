@@ -11,7 +11,7 @@ const DailyEquipmentUtilization = () => {
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [fromDate, setFromDate]         = useState(yesterday)
-  const [toDate, setToDate]             = useState(yesterday)
+  const [toDate, setToDate]             = useState(today)
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortConfig, setSortConfig]     = useState({ key: null, direction: 'asc' })
   const [currentPage, setCurrentPage]   = useState(1)
@@ -124,7 +124,7 @@ const DailyEquipmentUtilization = () => {
 
   const handleClear = () => {
     setFromDate(yesterday)
-    setToDate(yesterday)
+    setToDate(today)
     setGlobalSearch('')
     setCurrentPage(1)
     fetchUtilization({ eqp_no: allEquipment.join(','), from_date: yesterday, to_date: yesterday })

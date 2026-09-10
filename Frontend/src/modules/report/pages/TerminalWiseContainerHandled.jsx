@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { useLazyGetMonthWiseInventoryQuery } from '../../../store/api/ymsApi'
 
 const today = new Date().toISOString().split('T')[0]
-const fromDefault = new Date(Date.now() - 90 * 864e5).toISOString().split('T')[0]
+const fromDefault = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
 const LOCATIONS = [
   { key: 'GHH',    label: 'GHH' },

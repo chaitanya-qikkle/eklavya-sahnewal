@@ -6,6 +6,9 @@ import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useGetUsersQuery, useLazyGetLoginHistoryQuery } from '../../../store/api/ymsApi'
 
+const today = new Date().toISOString().split('T')[0]
+const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+
 const fmtDate = (val) => {
   if (!val) return '—'
   const d = new Date(String(val).replace(' ', 'T'))
@@ -28,8 +31,8 @@ const LoginHistoryReport = () => {
   const [fetchHistory, { data, isFetching, isError }] = useLazyGetLoginHistoryQuery()
 
   const [userId, setUserId] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [fromDate, setFromDate] = useState(yesterday)
+  const [toDate, setToDate] = useState(today)
   const [search, setSearch] = useState('')
   const [hasQueried, setHasQueried] = useState(false)
 
@@ -50,8 +53,8 @@ const LoginHistoryReport = () => {
 
   const handleClear = () => {
     setUserId('')
-    setFromDate('')
-    setToDate('')
+    setFromDate(yesterday)
+    setToDate(today)
     setSearch('')
     setHasQueried(true)
     fetchHistory({})

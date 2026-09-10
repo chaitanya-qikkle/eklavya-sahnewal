@@ -19,9 +19,12 @@ const mockData = [
   { containerNo: "WHMU5216830", transactionDate: "09-12-2025 17:46:14" },
 ]
 
+const today = new Date().toISOString().split('T')[0]
+const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+
 const MonthWiseInventory = () => {
-  const [fromDate, setFromDate] = useState('2025-12-03')
-  const [toDate, setToDate] = useState('2025-12-13')
+  const [fromDate, setFromDate] = useState(yesterday)
+  const [toDate, setToDate] = useState(today)
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null })
   const [currentPage, setCurrentPage] = useState(1)

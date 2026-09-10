@@ -7,7 +7,7 @@ import Footer from '../../../components/layout/Footer'
 import { useLazyGetRailPlanNameListQuery, useLazyGetRailPlanDetailQuery } from '../../../store/api/ymsApi'
 
 const today = new Date().toISOString().split('T')[0]
-const fromDefault = new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0]
+const fromDefault = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
 const fmtDate = (val) => {
   if (!val) return '—'

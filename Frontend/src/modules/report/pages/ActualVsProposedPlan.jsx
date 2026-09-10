@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { useLazyGetActualVsProposedPlanQuery } from '../../../store/api/ymsApi'
 
 const today = new Date().toISOString().split('T')[0]
-const fromDefault = new Date(Date.now() - 7 * 864e5).toISOString().split('T')[0]
+const fromDefault = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
 const fmtDate = (val) => {
   if (!val) return '—'

@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { useLazyGetPhysicalInventoryLogQuery } from '../../../store/api/ymsApi'
 
 const today = new Date().toISOString().split('T')[0]
+const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -26,8 +27,8 @@ const COLUMNS = [
 
 const PhysicalInventoryLog = () => {
   const [fetchLog, { data, isFetching, isError }] = useLazyGetPhysicalInventoryLogQuery()
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [fromDate, setFromDate] = useState(yesterday)
+  const [toDate, setToDate] = useState(today)
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [hasQueried, setHasQueried] = useState(false)
@@ -44,8 +45,8 @@ const PhysicalInventoryLog = () => {
   }
 
   const handleClear = () => {
-    setFromDate('')
-    setToDate('')
+    setFromDate(yesterday)
+    setToDate(today)
     setSearch('')
     setCurrentPage(1)
     setHasQueried(true)

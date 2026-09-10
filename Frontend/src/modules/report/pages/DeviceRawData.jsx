@@ -26,6 +26,18 @@ const formatDateTime = (value) => {
   return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
 }
 
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
+
 const COLUMNS = [
   { key: 'PACKET_ID',      label: 'Packet ID' },
   { key: 'GPS_FIX',       label: 'GPS Fix' },
@@ -79,8 +91,8 @@ const DeviceRawData = () => {
   }, [kalmarListApi])
 
   const [selectedImei, setSelectedImei]     = useState('')
-  const [fromDate, setFromDate]             = useState('')
-  const [toDate, setToDate]                 = useState('')
+  const [fromDate, setFromDate]             = useState(yesterdayLocalDT())
+  const [toDate, setToDate]                 = useState(todayLocalDT())
   const [search, setSearch]                 = useState('')
   const [rows, setRows]                     = useState([])
   const [totalCount, setTotalCount]         = useState(null)
@@ -117,8 +129,8 @@ const DeviceRawData = () => {
 
   const handleCancel = () => {
     setSelectedImei('')
-    setFromDate('')
-    setToDate('')
+    setFromDate(yesterdayLocalDT())
+    setToDate(todayLocalDT())
     setSearch('')
     setRows([])
     setTotalCount(null)
