@@ -2148,6 +2148,8 @@ const AdminDashboard = () => {
                     { label: "40'", key: "s40", align: "right", render: (v) => <span style={{ color: T.teal }}>{fmtNumber(v)}</span> },
                     { label: "Count", key: "count", align: "right", render: (v) => <b>{fmtNumber(v)}</b> },
                     { label: "TEUs", key: "teus", align: "right", render: (v) => <span style={{ color: T.blue }}>{fmtNumber(v)}</span> },
+                    { label: "Ground Slots", key: "slot", align: "right",
+                      render: (v) => v > 0 ? <span style={{ color: T.textDim }}>{fmtNumber(v)}</span> : <span style={{ color: T.textMute }}>—</span> },
                     { label: "Slot Cap.", key: "capacity", align: "right",
                       render: (v) => v > 0 ? <span style={{ color: T.textDim }}>{fmtNumber(v)}</span> : <span style={{ color: T.textMute }}>—</span> },
                     { label: "Utilization", key: "utilization", align: "right",
@@ -2173,6 +2175,7 @@ const AdminDashboard = () => {
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.s40, 0)),
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.count, 0)),
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.teus, 0)),
+                    fmtNumber(yardInventoryData.reduce((s, r) => s + r.slot, 0)),
                     fmtNumber(yardInventoryData.reduce((s, r) => s + r.capacity, 0)),
                     "",
                   ]}
