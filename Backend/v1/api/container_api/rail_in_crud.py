@@ -8,12 +8,12 @@ Frontend contract:
       -> serves a Camera1/Camera2 snapshot image
 
 GET_RPT_RAIL_IN returns absolute Windows paths under two camera-specific
-base directories (D:\\QKL\\Rail-OCR\\Rail\\Frames\\Rail-In-123 for Camera1,
-...\\Rail-In-124 for Camera2). Both live under one common root
-(RAIL_IN_IMG_ROOT), so the API strips that shared root off before sending
-rows to the frontend, and the /img endpoint re-joins a relative path onto
-the same root — same scoped-serving pattern as esurvey_crud.py/
-gate_detection_crud.py's image endpoints.
+base directories (D:\\Application\\eklavya-budget-main\\stitching\\RAILGATE
+for Camera1, ...\\RAILGATE2 for Camera2). Both live under one common root
+(RAIL_IN_IMG_ROOT = .../stitching), so the API strips that shared root off
+before sending rows to the frontend, and the /img endpoint re-joins a
+relative path onto the same root — same scoped-serving pattern as
+esurvey_crud.py/gate_detection_crud.py's image endpoints.
 """
 import logging
 import os
@@ -28,11 +28,11 @@ from utils.db_utils import SQLManager
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-RAIL_IN_IMG_ROOT = pathlib.Path(os.getenv("RAIL_IN_IMG_ROOT", r"D:\QKL\Rail-OCR\Rail\Frames"))
+RAIL_IN_IMG_ROOT = pathlib.Path(os.getenv("RAIL_IN_IMG_ROOT", r"D:\Application\eklavya-budget-main\stitching"))
 
 
 def _img_url(abs_path):
-    """Absolute Windows path (under either Rail-In-123 or Rail-In-124) -> a
+    """Absolute Windows path (under either RAILGATE or RAILGATE2) -> a
     servable API URL, only if the file actually exists on disk."""
     if not abs_path:
         return None
