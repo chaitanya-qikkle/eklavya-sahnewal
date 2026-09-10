@@ -1339,7 +1339,7 @@ const AdminDashboard = () => {
         const s20 = Number(get(r, "SIZE20", "size20") || 0);
         const s40 = Number(get(r, "SIZE40", "size40") || 0);
         const capacity = Number(get(r, "YARD_CAPACITY", "yard_capacity") || 0);
-        const slot = Number(get(r, "SLOT", "slot") || 0);
+        const slot = Number(get(r, "GROUND_SLOTS", "ground_slots", "SLOT", "slot") || 0);
         return {
           location: String(get(r, "YARDNAME", "yardname") || "—").trim(),
           s20, s40,
