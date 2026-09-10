@@ -48,16 +48,13 @@ const getEqpId   = (eqp) => eqp?.Eqp_ID   ?? eqp?.eqp_id   ?? eqp?.EQP_ID
 const getEqpName = (eqp) => eqp?.Equipment_Name ?? eqp?.equipment_name ?? eqp?.EQUIPMENT_NAME ?? `EQP-${getEqpId(eqp)}`
 const getEqpType = (eqp) => eqp?.Equipment_Type ?? eqp?.equipment_type ?? eqp?.EQUIPMENT_TYPE ?? 'Equipment'
 
-// A breakdown is closed once MaintanceEnd is set — that always wins.
-// IsActive is only consulted as a fallback when MaintanceEnd is missing
-// (some rows come back with IsActive left stale in the DB).
+// IsActive comes back stale/unreliable from the SP in both directions (seen
+// closed rows with IsActive=1 and open rows with IsActive=0), so it can't be
+// trusted. MaintanceEnd is the one field that's always accurate: open = no
+// end date yet, closed = end date set.
 const isRowOpen = (row) => {
   const end = row?.MaintanceEnd ?? row?.MAINTANCEEND
-  if (end) return false
-  const v = row?.IsActive ?? row?.ISACTIVE
-  if (v === true || v === 1 || v === '1') return true
-  if (v === false || v === 0 || v === '0') return false
-  return true // no end date and no IsActive info → treat as open
+  return !end
 }
 
 export default function Breakdown() {

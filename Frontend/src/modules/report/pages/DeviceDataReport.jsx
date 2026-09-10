@@ -46,7 +46,7 @@ const DeviceDataReport = () => {
 
   const AWS_IMAGE_PATH =
     "https://container-datasets.s3.ap-south-1.amazonaws.com/reach-tracker-live-ocr";
-  // Backend returns bare filenames (e.g. <DeviceID>_<ddMMyyyyHHmmss>_camN_1.jpg) — build the full URL
+  // Backend returns bare filenames (e.g. <DeviceID>_<ddMMyyyyHHmmss>_camN_1.jpg) 
   const imgUrl = (name) => (name ? `${AWS_IMAGE_PATH}/${name}` : "");
   // The actually-captured frame varies (_1/_2/_3), so build all three candidates to fall back through
   const camSrcs = (name, camN) => {
