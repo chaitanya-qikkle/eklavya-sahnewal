@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+pillow
+opencv-python
+torch
+torchvision
+scipy
+regex
+requests
+scikit-image
+python-multipart
+Pillow
+PyYAML
+ultralytics
+numpy==1.26.4
+
+

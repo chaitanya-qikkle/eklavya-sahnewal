@@ -34,7 +34,7 @@ from utils.db_utils import SQLManager
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-DETECTION_IMG_DIR = pathlib.Path(os.getenv("GATE_DETECTION_IMG_DIR", r"D:\QKL\Rail-OCR\Rail\Frames"))
+DETECTION_IMG_DIR = pathlib.Path(os.getenv("GATE_DETECTION_IMG_DIR", r"D:\Application\eklavya-budget-main\stitching\RAILGATE2"))
 
 
 def _img_url(abs_path):
