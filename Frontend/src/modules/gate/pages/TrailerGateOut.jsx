@@ -40,7 +40,6 @@ const columns = [
   { key: "trailerNo", label: "Trailer No", sortable: true },
   { key: "activityName", label: "Activity Name", sortable: true },
   { key: "inContainerNo", label: "In Container No.", sortable: true },
-  { key: "outContainerNo", label: "Out Container No.", sortable: true },
   { key: "size", label: "Size", sortable: true },
   { key: "type", label: "Type", sortable: true },
   { key: "transactionType", label: "Transaction Type", sortable: true },
@@ -415,9 +414,6 @@ const TrailerGateOut = () => {
                         </td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">
                           <span className="font-mono tracking-wide">{record.inContainerNo}</span>
-                        </td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">
-                          <span className="font-mono tracking-wide">{record.outContainerNo}</span>
                         </td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">
                           {record.size}
