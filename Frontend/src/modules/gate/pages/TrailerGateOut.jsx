@@ -25,7 +25,16 @@ const filterOptions = [
   { label: "All Entries", value: "all" },
   { label: "Export", value: "EXPORT" },
   { label: "Import", value: "IMPORT" },
+  { label: "Empty", value: "EMPTY" },
 ];
+
+function formatDate(raw) {
+  if (!raw) return "—";
+  const d = new Date(String(raw).replace(" ", "T"));
+  if (isNaN(d.getTime())) return String(raw);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 const columns = [
   { key: "trailerNo", label: "Trailer No", sortable: true },
@@ -146,11 +155,19 @@ const TrailerGateOut = () => {
     const importCount = gateOutRecords.filter(
       (record) => record.transactionType === "IMPORT"
     ).length;
-    return { total, exportCount, importCount };
+    const emptyCount = gateOutRecords.filter(
+      (record) => record.transactionType === "EMPTY"
+    ).length;
+    return { total, exportCount, importCount, emptyCount };
   }, [gateOutRecords]);
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(sortedAndFilteredRecords);
+    const exportRows = sortedAndFilteredRecords.map((r) => ({
+      ...r,
+      gateInDate: formatDate(r.gateInDate),
+      gateOutDate: formatDate(r.gateOutDate),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "TrailerGateOut");
     XLSX.writeFile(workbook, "trailer-gate-out.xlsx");
@@ -309,7 +326,7 @@ const TrailerGateOut = () => {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
+                <div className="grid grid-cols-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[680px] shrink-0">
                   <StatTile
                     label="Total Entries"
                     value={stats.total}
@@ -335,6 +352,15 @@ const TrailerGateOut = () => {
                     tone="emerald"
                     isActive={filter === "IMPORT"}
                     onClick={() => setFilter("IMPORT")}
+                    total={stats.total}
+                  />
+                  <StatTile
+                    label="Empty"
+                    value={stats.emptyCount}
+                    icon={FiPackage}
+                    tone="violet"
+                    isActive={filter === "EMPTY"}
+                    onClick={() => setFilter("EMPTY")}
                     total={stats.total}
                   />
                 </div>
@@ -403,7 +429,11 @@ const TrailerGateOut = () => {
                           <span
                             className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${record.transactionType === "EXPORT"
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
+                              : record.transactionType === "IMPORT"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : record.transactionType === "EMPTY"
+                              ? "bg-violet-50 text-violet-700 border-violet-200"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
                               }`}
                           >
                             {record.transactionType}
@@ -412,11 +442,11 @@ const TrailerGateOut = () => {
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">
                           <span className="font-semibold text-slate-900">{record.lineName}</span>
                         </td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">
-                          {record.gateInDate}
+                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                          {formatDate(record.gateInDate)}
                         </td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">
-                          {record.gateOutDate}
+                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                          {formatDate(record.gateOutDate)}
                         </td>
                         <td className="px-4 sm:px-5 py-3 border-r border-slate-200 last:border-r-0">
                           <div className="flex items-center gap-2">
@@ -473,6 +503,10 @@ const TrailerGateOut = () => {
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-amber-500 border border-amber-600"></span>
                     <span className="text-slate-700">Import</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-violet-500 border border-violet-600"></span>
+                    <span className="text-slate-700">Empty</span>
                   </div>
                 </div>
               </footer>
