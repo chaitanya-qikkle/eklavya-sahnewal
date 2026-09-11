@@ -118,28 +118,33 @@ const LiveStatus = () => {
   const allRowsRef = useRef([]);          // full snapshot from the SP
   const activeFilterRef = useRef("all");  // current process filter
 
-  const isUCC = (r) => String(r.BLOCK_NAME || "").toUpperCase().includes("UCC");
+  const isSize20 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().startsWith("20");
+  const isSize40 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().startsWith("40");
 
   const computeStats = (rows) => {
     const total = rows.length;
-    let importCount = 0, exportCount = 0, emptyCount = 0, uccCount = 0;
+    let importCount = 0, exportCount = 0, emptyCount = 0, domesticCount = 0, size20Count = 0, size40Count = 0;
     for (const r of rows) {
       const p = String(r.CONTAINER_PROCESS || "").toLowerCase();
-      if (isUCC(r)) uccCount++;
-      else if (p === "import") importCount++;
+      if (p === "import") importCount++;
       else if (p === "export") exportCount++;
       else if (p === "empty") emptyCount++;
+      else if (p === "domestic") domesticCount++;
+      if (isSize20(r)) size20Count++;
+      else if (isSize40(r)) size40Count++;
     }
-    return { total, importCount, exportCount, emptyCount, uccCount };
+    return { total, importCount, exportCount, emptyCount, domesticCount, size20Count, size40Count };
   };
 
   const applyClientSlice = (page, size, processType) => {
     const all = allRowsRef.current;
     const filtered = processType === "all"
       ? all
-      : processType === "Domestic"
-        ? all.filter((r) => isUCC(r))
-        : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(processType).toLowerCase());
+      : processType === "20ft"
+        ? all.filter((r) => isSize20(r))
+        : processType === "40ft"
+          ? all.filter((r) => isSize40(r))
+          : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(processType).toLowerCase());
 
     const totalRecords = filtered.length;
     const totalPages = Math.max(1, Math.ceil(totalRecords / size));
@@ -664,7 +669,7 @@ const LiveStatus = () => {
               </div>
 
               {/* Stat strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 border-t border-slate-200 rounded-b-2xl overflow-hidden">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 border-t border-slate-200 rounded-b-2xl overflow-hidden">
                 <StatTile
                   label="Total Inventory"
                   value={totalStats.total}
@@ -702,12 +707,30 @@ const LiveStatus = () => {
                   total={totalStats.total}
                 />
                 <StatTile
-                  label="UCC"
-                  value={totalStats.uccCount}
+                  label="Domestic"
+                  value={totalStats.domesticCount}
                   icon={FiTruck}
                   tone="violet"
                   isActive={filter === "Domestic"}
                   onClick={() => handleStatCardClick("Domestic")}
+                  total={totalStats.total}
+                />
+                <StatTile
+                  label="20 ft"
+                  value={totalStats.size20Count}
+                  icon={FiPackage}
+                  tone="emerald"
+                  isActive={filter === "20ft"}
+                  onClick={() => handleStatCardClick("20ft")}
+                  total={totalStats.total}
+                />
+                <StatTile
+                  label="40 ft"
+                  value={totalStats.size40Count}
+                  icon={FiPackage}
+                  tone="amber"
+                  isActive={filter === "40ft"}
+                  onClick={() => handleStatCardClick("40ft")}
                   total={totalStats.total}
                 />
               </div>
@@ -722,7 +745,7 @@ const LiveStatus = () => {
                   </div>
                   <div>
                     <h2 className="text-xl sm:text-2xl font-semibold tracking-wide">
-                      {filter === "Domestic" ? "UCC Containers" : filter !== "all" ? `${filter} Containers` : "All Containers"} (
+                      {filter === "20ft" ? "20 ft Containers" : filter === "40ft" ? "40 ft Containers" : filter !== "all" ? `${filter} Containers` : "All Containers"} (
                       <span className="text-emerald-200">{backendPagination.totalRecords}</span>)
                     </h2>
                     <p className="text-xs sm:text-sm text-white/80">
@@ -888,7 +911,7 @@ const LiveStatus = () => {
                       <LegendDot color="bg-emerald-500" label="Import" />
                       <LegendDot color="bg-amber-500" label="Export" />
                       <LegendDot color="bg-slate-500" label="Empty" />
-                      <LegendDot color="bg-violet-500" label="UCC" />
+                      <LegendDot color="bg-violet-500" label="Domestic" />
                     </div>
                   </div>
 
