@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   FiSearch, FiCalendar, FiX, FiZoomIn, FiRefreshCw,
   FiFilter, FiChevronDown, FiMapPin, FiClock, FiCamera,
@@ -227,9 +228,53 @@ const ModalImg = ({ label, srcs = [], flipped, onFlip, onZoom }) => {
   );
 };
 
+// ─── Suggestion dropdown — portaled to document.body so it floats above
+// everything instead of being clipped by the modal's own scroll container ──
+const SuggestionDropdown = ({ anchorRef, items, onSelect }) => {
+  const [rect, setRect] = useState(null);
+
+  useEffect(() => {
+    const update = () => {
+      if (anchorRef.current) setRect(anchorRef.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [anchorRef, items]);
+
+  if (!rect || !items.length) return null;
+
+  return createPortal(
+    <ul
+      className="fixed z-[10000] bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto"
+      style={{ top: rect.bottom + 4, left: rect.left, width: rect.width }}
+    >
+      {items.map((c, i) => {
+        const val = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
+        const loc = typeof c === "object" ? c?.Last_Loc || c?.last_loc || c?.LAST_LOCATION_NAME || "" : "";
+        return (
+          <li
+            key={i}
+            onMouseDown={() => onSelect(c)}
+            className="px-4 py-3 flex items-center justify-between gap-2 hover:bg-[#0e4a78]/5 cursor-pointer border-b border-slate-100 last:border-0"
+          >
+            <span className="text-base font-black font-mono text-slate-800">{val}</span>
+            {loc && <span className="text-xs text-slate-400 shrink-0">{loc}</span>}
+          </li>
+        );
+      })}
+    </ul>,
+    document.body
+  );
+};
+
 // ─── Transaction Card ────────────────────────────────────────────────────────
 const TransactionCard = ({
-  row, onUpdate, searchContainer, currentList, autoOpen, onAutoOpened,
+  row, onUpdate, searchContainer, currentList, autoOpen, onAutoOpened, onNavigate,
 }) => {
   const [contNo, setContNo] = useState(() => {
     const raw = getField(row, "ContNo", "contno", "RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id") ?? "";
@@ -259,6 +304,21 @@ const TransactionCard = ({
   const location = getField(row, "Location", "location", "LOCATION", "BLOCK_NAME", "block_name") ?? "-";
   const dateTime = formatDateTime(getField(row, "TransDate", "transdate", "DATE_TIME", "date_time"));
   const transId = getField(row, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
+
+  // This card's position within the currently visible list — drives the
+  // prev/next transaction buttons in both modals.
+  const listIdx = Array.isArray(currentList)
+    ? currentList.findIndex((r) => {
+        const id = getField(r, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
+        return id != null && transId != null && String(id) === String(transId);
+      })
+    : -1;
+  const prevTid = listIdx > 0 ? getField(currentList[listIdx - 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
+  const nextTid = listIdx >= 0 && listIdx < (currentList?.length ?? 0) - 1 ? getField(currentList[listIdx + 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
+  const hasPrevTx = prevTid != null;
+  const hasNextTx = nextTid != null;
+  const goToPrevTx = () => { if (hasPrevTx) { closeModal(); onNavigate?.(String(prevTid)); } };
+  const goToNextTx = () => { if (hasNextTx) { closeModal(); onNavigate?.(String(nextTid)); } };
 
   // Backend builds CameraImage1/2/3 as <DeviceID>_<ddMMyyyyHHmmss>_camN_1.jpg,
   // but the actually-captured frame varies (_1/_2/_3) — try all three.
@@ -538,11 +598,33 @@ const TransactionCard = ({
                 </button>
               )}
             </div>
-            {zSrcs.length > 1 && (
-              <span className="text-white/50 text-xs font-semibold">
-                Frame {zIdx + 1} / {zSrcs.length}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {zSrcs.length > 1 && (
+                <span className="text-white/50 text-xs font-semibold">
+                  Frame {zIdx + 1} / {zSrcs.length}
+                </span>
+              )}
+              {(hasPrevTx || hasNextTx) && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => { setZoomState(null); goToPrevTx(); }}
+                    disabled={!hasPrevTx}
+                    className="w-7 h-7 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                    title="Previous transaction"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                  </button>
+                  <button
+                    onClick={() => { setZoomState(null); goToNextTx(); }}
+                    disabled={!hasNextTx}
+                    className="w-7 h-7 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                    title="Next transaction"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-colors"
               onClick={() => setZoomState(null)}
@@ -686,12 +768,34 @@ const TransactionCard = ({
                   <FiClock className="w-3 h-3" />{dateTime}
                 </div>
               </div>
-              <button
-                onClick={closeModal}
-                className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
-              >
-                <FiX size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                {(hasPrevTx || hasNextTx) && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={goToPrevTx}
+                      disabled={!hasPrevTx}
+                      className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                      title="Previous transaction"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <button
+                      onClick={goToNextTx}
+                      disabled={!hasNextTx}
+                      className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                      title="Next transaction"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={closeModal}
+                  className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
+                >
+                  <FiX size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="p-3 space-y-2">
@@ -737,22 +841,7 @@ const TransactionCard = ({
                   </span>
                 )}
                 {modalShowSug && modalSuggestions.length > 0 && (
-                  <ul className="absolute top-full mt-1 left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-44 overflow-y-auto">
-                    {modalSuggestions.map((c, i) => {
-                      const val = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
-                      const loc = typeof c === "object" ? c?.Last_Loc || c?.last_loc || c?.LAST_LOCATION_NAME || "" : "";
-                      return (
-                        <li
-                          key={i}
-                          onMouseDown={() => selectModalSug(c)}
-                          className="px-4 py-3 flex items-center justify-between gap-2 hover:bg-[#0e4a78]/5 cursor-pointer border-b border-slate-100 last:border-0"
-                        >
-                          <span className="text-base font-black font-mono text-slate-800">{val}</span>
-                          {loc && <span className="text-xs text-slate-400 shrink-0">{loc}</span>}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <SuggestionDropdown anchorRef={modalInputRef} items={modalSuggestions} onSelect={selectModalSug} />
                 )}
               </div>
 
@@ -1176,11 +1265,17 @@ const ServiceDashboard = () => {
                     <AccRing pct={reportStats.accuracyPct} size={60} />
                   </div>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden mt-auto" style={{ background: "rgba(255,255,255,0.08)" }}>
-                  <div className="h-full rounded-full transition-all duration-700" style={{
-                    width: loading || reportStats.accuracyPct === null ? "0%" : `${reportStats.accuracyPct}%`,
-                    background: reportStats.accuracyPct !== null && reportStats.accuracyPct >= 80 ? "linear-gradient(90deg,#10b981,#4ade80)" : reportStats.accuracyPct !== null && reportStats.accuracyPct >= 60 ? "linear-gradient(90deg,#d97706,#fbbf24)" : "linear-gradient(90deg,#dc2626,#f87171)",
-                  }} />
+                <div className="flex items-center gap-3 mt-auto">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: "0 0 5px #4ade80" }} />
+                    <span className="text-[11px] text-white/40">OCR</span>
+                    <span className="text-[12px] font-bold text-emerald-400">{loading ? "—" : reportStats.nonMissing}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: "#f87171", boxShadow: "0 0 5px #f87171" }} />
+                    <span className="text-[11px] text-white/40">Missing</span>
+                    <span className="text-[12px] font-bold" style={{ color: "#f87171" }}>{loading ? "—" : reportStats.missing}</span>
+                  </div>
                 </div>
               </div>
 
@@ -1490,6 +1585,7 @@ const ServiceDashboard = () => {
                           currentList={displayRows}
                           autoOpen={tid != null && autoOpenTid === String(tid)}
                           onAutoOpened={() => setAutoOpenTid(null)}
+                          onNavigate={(nextTid) => setAutoOpenTid(nextTid)}
                         />
                       );
                     })}
@@ -1524,6 +1620,7 @@ const ServiceDashboard = () => {
                             currentList={displayNonMissingRows}
                             autoOpen={tid != null && autoOpenTid === String(tid)}
                             onAutoOpened={() => setAutoOpenTid(null)}
+                            onNavigate={(nextTid) => setAutoOpenTid(nextTid)}
                           />
                         );
                       })}
