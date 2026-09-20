@@ -274,7 +274,7 @@ const RadialGauge = ({ value, max = 100, color = T.cyan, label, size = 150, suff
           <div className="text-2xl font-black tabular-nums leading-none" style={{ color: T.text }}>
             <AnimatedNumber value={v} decimals={1} />
           </div>
-          <span className="text-xs font-bold mt-1" style={{ color }}>{suffix}</span>
+          <span className="text-[9px] font-bold mt-0.5" style={{ color }}>{suffix}</span>
         </div>
       </div>
       {subtitle && <div className="text-[10px] mt-1 uppercase tracking-wider font-bold text-center" style={{ color: T.textMute }}>{subtitle}</div>}
@@ -1411,7 +1411,7 @@ const DeveloperDashboard = () => {
                     style={{ background: "#f8fafc", border: `1px solid ${T.border}`, color: T.text }}
                   />
                   {showContSug && contSuggestions.length > 0 && (
-                    <ul className="absolute bottom-full mb-1 left-0 right-0 z-50 bg-white rounded-lg shadow-2xl max-h-40 overflow-y-auto"
+                    <ul className="absolute top-full mt-1 left-0 right-0 z-50 bg-white rounded-lg shadow-2xl max-h-40 overflow-y-auto"
                       style={{ border: `1px solid ${T.border}` }}>
                       {contSuggestions.map((c, i) => {
                         const val = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
