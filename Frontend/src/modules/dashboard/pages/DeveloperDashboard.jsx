@@ -5,16 +5,13 @@ import {
   FiWifiOff, FiCalendar, FiGrid, FiList, FiChevronRight, FiAward,
   FiAlertCircle, FiLayers,
 } from "react-icons/fi";
-import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  RadialBarChart, RadialBar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ComposedChart, Line,
-} from "recharts";
+import Chart from "react-apexcharts";
 import Navbar from "../../../components/layout/Navbar";
 import {
   useGetEquipmentQuery,
   useLazyGetEquipmentAccuracyQuery,
   useLazyGetDeviceLockReportQuery,
+  useGetDeviceDataLiveLocationsQuery,
 } from "../../../store/api/ymsApi";
 
 // ─── Theme — dark monitoring console ────────────────────────────────────────
@@ -181,72 +178,70 @@ const Segmented = ({ options, value, onChange }) => (
   </div>
 );
 
-const ChartTip = ({ active, payload, label, pct }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "#0b1220", border: `1px solid ${T.borderStrong}`, boxShadow: "0 12px 32px rgba(0,0,0,0.5)", color: T.text }}>
-      {label != null && <div className="font-bold text-[10px] mb-1.5" style={{ color: T.textMute }}>{label}</div>}
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.fill }} />
-            <span style={{ color: T.textDim }}>{p.name}</span>
-          </span>
-          <span className="font-bold tabular-nums">{typeof p.value === "number" ? p.value.toFixed(pct ? 1 : 0) : p.value}{pct ? "%" : ""}</span>
-        </div>
-      ))}
-    </div>
-  );
+// ─── ApexCharts base options (dark, transparent, no toolbar) ───────────────
+const apexBase = {
+  chart: { toolbar: { show: false }, background: "transparent", fontFamily: "inherit", foreColor: T.textMute },
+  grid: { borderColor: T.border, strokeDashArray: 3 },
+  tooltip: { theme: "dark" },
+  legend: { labels: { colors: T.textMute } },
 };
 
 const RadialGauge = ({ value, color = T.cyan, size = 128, label }) => {
   const v = Math.max(0, Math.min(Number(value) || 0, 100));
-  const data = [{ value: v, fill: color }];
+  const options = {
+    ...apexBase,
+    chart: { ...apexBase.chart, type: "radialBar", sparkline: { enabled: true } },
+    colors: [color],
+    plotOptions: {
+      radialBar: {
+        hollow: { size: "62%" },
+        track: { background: "rgba(255,255,255,0.06)" },
+        dataLabels: {
+          name: { show: false },
+          value: {
+            offsetY: 6, fontSize: "20px", fontWeight: 800, color: T.text,
+            formatter: (val) => `${val.toFixed(1)}%`,
+          },
+        },
+      },
+    },
+    fill: { type: "gradient", gradient: { shade: "dark", type: "horizontal", gradientToColors: [color], stops: [0, 100], opacityFrom: 1, opacityTo: 0.75 } },
+    stroke: { lineCap: "round" },
+  };
   return (
-    <div className="relative flex flex-col items-center" style={{ width: size }}>
-      <div style={{ width: size, height: size }}>
-        <ResponsiveContainer>
-          <RadialBarChart cx="50%" cy="50%" innerRadius="72%" outerRadius="100%" data={data} startAngle={90} endAngle={-270}>
-            <RadialBar background={{ fill: "rgba(255,255,255,0.06)" }} dataKey="value" cornerRadius={30} fill={color} />
-          </RadialBarChart>
-        </ResponsiveContainer>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ marginTop: -size + 4 }}>
-          <div className="text-xl font-extrabold tabular-nums" style={{ color: T.text }}><AnimatedNumber value={v} decimals={1} />%</div>
-        </div>
-      </div>
-      <div className="text-[10px] font-bold uppercase tracking-wide mt-1 text-center" style={{ color: T.textMute }}>{label}</div>
+    <div className="flex flex-col items-center" style={{ width: size }}>
+      <Chart type="radialBar" height={size} width={size} series={[v]} options={options} />
+      <div className="text-[10px] font-bold uppercase tracking-wide -mt-2 text-center" style={{ color: T.textMute }}>{label}</div>
     </div>
   );
 };
 
-// hour(0-23) x weekday(0-6) activity heatmap
+// hour(0-23) x weekday(0-6) activity heatmap via ApexCharts native heatmap
 const Heatmap = ({ data, color = T.indigo }) => {
-  const max = Math.max(1, ...data.map((d) => d.v));
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  return (
-    <div className="flex flex-col gap-1 flex-1 justify-center">
-      <div className="flex gap-[3px] ml-8 text-[8px] font-bold" style={{ color: T.textMute }}>
-        {Array.from({ length: 24 }, (_, h) => <div key={h} className="flex-1 text-center min-w-0">{h % 4 === 0 ? String(h).padStart(2, "0") : ""}</div>)}
-      </div>
-      {days.map((d, wd) => (
-        <div key={d} className="flex items-center gap-1">
-          <div className="w-7 text-[9px] font-bold shrink-0" style={{ color: T.textDim }}>{d}</div>
-          <div className="flex-1 flex gap-[3px]">
-            {Array.from({ length: 24 }, (_, h) => {
-              const cell = data.find((x) => x.wd === wd && x.h === h);
-              const v = cell?.v || 0;
-              const intensity = max > 0 ? v / max : 0;
-              return (
-                <div key={h} title={`${d} ${String(h).padStart(2, "0")}:00 — ${v} scans`}
-                  className="flex-1 aspect-square rounded-[3px] min-w-0"
-                  style={{ background: intensity === 0 ? "rgba(255,255,255,0.04)" : color, opacity: intensity === 0 ? 1 : 0.2 + intensity * 0.8 }} />
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  const series = days.map((d, wd) => ({
+    name: d,
+    data: Array.from({ length: 24 }, (_, h) => ({ x: String(h).padStart(2, "0"), y: data.find((c) => c.wd === wd && c.h === h)?.v || 0 })),
+  })).reverse();
+  const options = {
+    ...apexBase,
+    chart: { ...apexBase.chart, type: "heatmap" },
+    dataLabels: { enabled: false },
+    plotOptions: {
+      heatmap: {
+        radius: 3,
+        colorScale: {
+          ranges: [
+            { from: 0, to: 0, color: "rgba(255,255,255,0.05)" },
+            { from: 1, to: 999999, color, name: "scans" },
+          ],
+        },
+      },
+    },
+    xaxis: { labels: { style: { colors: T.textMute, fontSize: "9px" } }, axisBorder: { show: false }, axisTicks: { show: false } },
+    yaxis: { labels: { style: { colors: T.textMute, fontSize: "10px" } } },
+  };
+  return <Chart type="heatmap" height={200} series={series} options={options} />;
 };
 
 const RANGE_PRESETS = [
@@ -275,6 +270,7 @@ const DeveloperDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: equipmentApi } = useGetEquipmentQuery(undefined, { pollingInterval: 30000 });
+  const { data: liveLocApi } = useGetDeviceDataLiveLocationsQuery(undefined, { pollingInterval: 15000 });
   const [fetchAccuracy, { data: accData, isFetching: accLoading }] = useLazyGetEquipmentAccuracyQuery();
   const [fetchLockReport, { data: lockData, isFetching: lockLoading }] = useLazyGetDeviceLockReportQuery();
 
@@ -370,10 +366,9 @@ const DeveloperDashboard = () => {
     .sort((a, b) => new Date(String(b.row.TransDate || "").replace(" ", "T")) - new Date(String(a.row.TransDate || "").replace(" ", "T"))),
   [lockRows]);
 
-  const filteredScans = useMemo(() => {
-    const list = imgFilter === "all" ? classifiedScans : classifiedScans.filter((x) => x.cls === imgFilter);
-    return list.slice(0, 60);
-  }, [classifiedScans, imgFilter]);
+  const filteredScans = useMemo(() => (
+    imgFilter === "all" ? classifiedScans : classifiedScans.filter((x) => x.cls === imgFilter)
+  ), [classifiedScans, imgFilter]);
 
   const classCounts = useMemo(() => {
     const c = { auto: 0, manual: 0, missing: 0 };
@@ -381,28 +376,38 @@ const DeveloperDashboard = () => {
     return c;
   }, [classifiedScans]);
 
+  // Equipment fleet status — same source AdminDashboard's "Active Equipment"
+  // uses: GET_EQUIPMENT master list (name/deviceId/breakdown flag) cross-
+  // referenced against live GPS pings (GET_DEVICE_DATA_LIVE_LOCATIONS), not
+  // the OCR lock-report scan timestamps.
   const equipmentHealth = useMemo(() => {
-    const lastSeen = new Map();
-    for (const row of lockRows) {
-      const name = row.EqpName || row.KalmarNo || "—";
-      const t = new Date(String(row.TransDate || "").replace(" ", "T"));
+    const liveRows = Array.isArray(liveLocApi?.data) ? liveLocApi.data : [];
+    const lastSeenByDevice = new Map();
+    for (const r of liveRows) {
+      const dev = String(r.DEVICE_IMEI || r.device_imei || r.DEVICE_ID || r.device_id || "").trim().toUpperCase();
+      if (!dev) continue;
+      const t = new Date(String(r.LAST_AT || r.last_at || r.DATE_TIME || r.date_time || r.LAST_TRANSACTION_DATE || r.last_transaction_date || "").replace(" ", "T"));
       if (isNaN(t)) continue;
-      const prev = lastSeen.get(name);
-      if (!prev || t > prev) lastSeen.set(name, t);
+      const prev = lastSeenByDevice.get(dev);
+      if (!prev || t > prev) lastSeenByDevice.set(dev, t);
     }
+
+    const eqRows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : [];
     const nowMs = now.getTime();
-    const rows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : [];
-    const names = rows.length ? rows.map((r) => r?.Equipment_Name ?? r?.equipment_name ?? r?.EQUIPMENT_NAME ?? "—") : Array.from(lastSeen.keys());
-    return Array.from(new Set(names)).map((name) => {
-      const seen = lastSeen.get(name);
+    return eqRows.map((item, i) => {
+      const name = String(item?.Equipment_Code ?? item?.equipment_code ?? item?.EQUIPMENT_CODE ?? item?.Equipment_Name ?? item?.equipment_name ?? item?.EQUIPMENT_NAME ?? `EQP-${i + 1}`).trim();
+      const deviceId = String(item?.Device_ID ?? item?.device_id ?? item?.DEVICE_ID ?? "").trim().toUpperCase();
+      const statusCode = String(item?.Status ?? item?.status ?? item?.STATUS ?? "").toLowerCase();
+      const isBreakdown = statusCode === "breakdown" || statusCode === "break" || statusCode === "fault";
+      const seen = deviceId ? lastSeenByDevice.get(deviceId) : null;
       const ageMs = seen ? nowMs - seen.getTime() : Infinity;
-      const status = !seen ? "offline" : ageMs <= ONLINE_MS ? "online" : ageMs <= IDLE_MS ? "idle" : "offline";
-      return { name, seen, status };
-    }).sort((a, b) => (a.seen && b.seen ? b.seen - a.seen : a.seen ? -1 : 1));
-  }, [equipmentApi, lockRows, now]);
+      const status = isBreakdown ? "breakdown" : !seen ? "offline" : ageMs <= ONLINE_MS ? "online" : ageMs <= IDLE_MS ? "idle" : "offline";
+      return { name, deviceId, seen, status };
+    }).filter((e) => e.name).sort((a, b) => (a.seen && b.seen ? b.seen - a.seen : a.seen ? -1 : 1));
+  }, [equipmentApi, liveLocApi, now]);
 
   const healthCounts = useMemo(() => {
-    const c = { online: 0, idle: 0, offline: 0 };
+    const c = { online: 0, idle: 0, offline: 0, breakdown: 0 };
     for (const e of equipmentHealth) c[e.status]++;
     return c;
   }, [equipmentHealth]);
@@ -486,27 +491,33 @@ const DeveloperDashboard = () => {
         {/* Main grid: trend (wide) + gauges + fleet status */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
           <Panel title="Accuracy & Volume Trend" icon={FiTrendingUp} accent={T.cyan} className="xl:col-span-8 h-[300px]">
-            <div style={{ width: "100%", height: 230 }}>
-              <ResponsiveContainer>
-                <ComposedChart data={trend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={T.cyan} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={T.cyan} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 10 }} axisLine={{ stroke: T.border }} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
-                  <Tooltip content={<ChartTip />} />
-                  <Legend wrapperStyle={{ fontSize: 10, color: T.textMute }} />
-                  <Area yAxisId="left" type="monotone" dataKey="Total" stroke={T.cyan} strokeWidth={1.5} fill="url(#volGrad)" name="Total Scans" />
-                  <Line yAxisId="right" type="monotone" dataKey="Overall Accuracy" stroke={T.emerald} strokeWidth={2.5} dot={false} name="Overall Accuracy" />
-                  <Line yAxisId="right" type="monotone" dataKey="OCR Accuracy" stroke={T.amber} strokeWidth={2} dot={false} strokeDasharray="4 3" name="OCR Accuracy" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            <Chart
+              type="line"
+              height={230}
+              series={[
+                { name: "Total Scans", type: "area", data: trend.map((t) => t.Total) },
+                { name: "Overall Accuracy", type: "line", data: trend.map((t) => t["Overall Accuracy"]) },
+                { name: "OCR Accuracy", type: "line", data: trend.map((t) => t["OCR Accuracy"]) },
+              ]}
+              options={{
+                ...apexBase,
+                chart: { ...apexBase.chart, type: "line", stacked: false, animations: { easing: "easeinout", speed: 500 } },
+                colors: [T.cyan, T.emerald, T.amber],
+                stroke: { width: [0, 2.5, 2], curve: "smooth", dashArray: [0, 0, 4] },
+                fill: {
+                  type: ["gradient", "solid", "solid"],
+                  gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0, stops: [0, 100] },
+                },
+                xaxis: { categories: trend.map((t) => t.date), labels: { style: { colors: T.textMute, fontSize: "10px" } }, axisBorder: { show: false }, axisTicks: { show: false } },
+                yaxis: [
+                  { seriesName: "Total Scans", labels: { style: { colors: T.textMute, fontSize: "10px" } } },
+                  { seriesName: "Overall Accuracy", opposite: true, min: 0, max: 100, labels: { style: { colors: T.textMute, fontSize: "10px" }, formatter: (v) => `${v}%` } },
+                  { seriesName: "OCR Accuracy", show: false, min: 0, max: 100 },
+                ],
+                legend: { ...apexBase.legend, position: "top", horizontalAlign: "right", fontSize: "11px" },
+                dataLabels: { enabled: false },
+              }}
+            />
           </Panel>
 
           <Panel title="System Health" icon={FiZap} accent={T.emerald} className="xl:col-span-4 h-[300px]">
@@ -519,16 +530,21 @@ const DeveloperDashboard = () => {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
           <Panel title="Detection Mix" icon={FiLayers} accent={T.violet} className="xl:col-span-3 h-[280px]">
-            <div style={{ width: "100%", height: 150 }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={mixData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={68} paddingAngle={3} cornerRadius={5} stroke="none">
-                    {mixData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                  </Pie>
-                  <Tooltip content={<ChartTip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <Chart
+              type="donut"
+              height={160}
+              series={mixData.map((d) => d.value)}
+              options={{
+                ...apexBase,
+                chart: { ...apexBase.chart, type: "donut" },
+                labels: mixData.map((d) => d.name),
+                colors: mixData.map((d) => d.color),
+                stroke: { width: 2, colors: [T.panel] },
+                dataLabels: { enabled: false },
+                plotOptions: { pie: { donut: { size: "68%", labels: { show: true, total: { show: true, color: T.text, fontSize: "16px", fontWeight: 800, formatter: (w) => fmtNum(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) } } } } },
+                legend: { show: false },
+              }}
+            />
             <div className="space-y-1.5 mt-1">
               {mixData.map((d) => (
                 <div key={d.name} className="flex items-center justify-between text-[10px]">
@@ -548,17 +564,26 @@ const DeveloperDashboard = () => {
               <span className="flex items-center gap-2 text-[9px] font-bold">
                 <span style={{ color: T.emerald }}>{healthCounts.online} ON</span>
                 <span style={{ color: T.amber }}>{healthCounts.idle} IDLE</span>
+                <span style={{ color: T.rose }}>{healthCounts.breakdown} DOWN</span>
                 <span style={{ color: T.textMute }}>{healthCounts.offline} OFF</span>
               </span>
             }>
             <div className="flex-1 overflow-auto space-y-1.5 -mr-1 pr-1">
               {equipmentHealth.length === 0 && <div className="text-[11px] text-center py-6" style={{ color: T.textMute }}>No equipment data</div>}
               {equipmentHealth.map((e) => {
-                const color = e.status === "online" ? T.emerald : e.status === "idle" ? T.amber : "#4b5768";
+                const color = e.status === "online" ? T.emerald : e.status === "idle" ? T.amber : e.status === "breakdown" ? T.rose : "#4b5768";
+                const stats = perEquipment.find((p) => p.name === e.name);
                 return (
                   <div key={e.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg" style={{ background: T.panel2 }}>
                     <PulseDot color={color} size={6} />
                     <span className="text-[11px] font-semibold flex-1 truncate" style={{ color: T.textDim }}>{e.name}</span>
+                    {stats && stats.TotalCount > 0 && (
+                      <span className="flex items-center gap-1 text-[8px] font-bold shrink-0">
+                        <span style={{ color: T.cyan }}>{fmtNum(stats.ocrDetected)}A</span>
+                        <span style={{ color: T.violet }}>{fmtNum(stats.M)}M</span>
+                        <span style={{ color: T.rose }}>{fmtNum(stats.Missing)}X</span>
+                      </span>
+                    )}
                     <span className="text-[9px] font-mono" style={{ color: T.textMute }}>{e.seen ? fmtTime(e.seen) : "—"}</span>
                   </div>
                 );
@@ -567,50 +592,84 @@ const DeveloperDashboard = () => {
           </Panel>
         </div>
 
-        {/* Ranked equipment table + performers */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
-          <Panel title="Equipment Accuracy Ranking" icon={FiAward} accent={T.blue} className="xl:col-span-5 h-[360px]">
-            <div className="flex-1 overflow-auto -mr-1 pr-1">
-              <table className="w-full text-[11px]">
-                <thead className="sticky top-0" style={{ background: T.panel }}>
-                  <tr style={{ color: T.textMute }}>
-                    <th className="text-left py-1.5 font-bold">#</th>
-                    <th className="text-left py-1.5 font-bold">Equipment</th>
-                    <th className="text-right py-1.5 font-bold">Total</th>
-                    <th className="text-right py-1.5 font-bold">Acc.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ranked.length === 0 && <tr><td colSpan={4} className="text-center py-8" style={{ color: T.textMute }}>{accLoading ? "Loading…" : "No data"}</td></tr>}
-                  {ranked.map((r, i) => (
+        {/* Equipment accuracy ranking — full width, with auto/manual/missing breakdown */}
+        <Panel title="Equipment Accuracy Ranking" icon={FiAward} accent={T.blue} className="mb-3"
+          subtitle={`${ranked.length} equipment ranked by detection accuracy`}>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full text-[11px] min-w-[720px]">
+              <thead>
+                <tr style={{ color: T.textMute, borderBottom: `1px solid ${T.border}` }}>
+                  <th className="text-left py-2 font-bold w-8">#</th>
+                  <th className="text-left py-2 font-bold">Equipment</th>
+                  <th className="text-right py-2 font-bold">Total</th>
+                  <th className="text-right py-2 font-bold" style={{ color: T.cyan }}>Auto</th>
+                  <th className="text-right py-2 font-bold" style={{ color: T.violet }}>Manual</th>
+                  <th className="text-right py-2 font-bold" style={{ color: T.rose }}>Missing</th>
+                  <th className="text-right py-2 font-bold">Accuracy</th>
+                  <th className="text-left py-2 font-bold w-40">Distribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.length === 0 && <tr><td colSpan={8} className="text-center py-8" style={{ color: T.textMute }}>{accLoading ? "Loading…" : "No data"}</td></tr>}
+                {ranked.map((r, i) => {
+                  const accColor = r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.rose;
+                  const total = r.TotalCount || 1;
+                  const ocrPct = (r.ocrDetected / total) * 100;
+                  const manPct = (r.M / total) * 100;
+                  const missPct = (r.Missing / total) * 100;
+                  return (
                     <tr key={r.name} style={{ borderTop: `1px solid ${T.border}` }}>
-                      <td className="py-1.5" style={{ color: T.textMute }}>{i + 1}</td>
-                      <td className="py-1.5 font-semibold truncate max-w-[140px]" style={{ color: T.text }}>{r.name}</td>
-                      <td className="py-1.5 text-right tabular-nums" style={{ color: T.textDim }}>{fmtNum(r.TotalCount)}</td>
-                      <td className="py-1.5 text-right font-bold tabular-nums" style={{ color: r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.rose }}>{fmtPct(r.accuracy)}</td>
+                      <td className="py-2" style={{ color: T.textMute }}>{i + 1}</td>
+                      <td className="py-2 font-semibold truncate max-w-[160px]" style={{ color: T.text }}>{r.name}</td>
+                      <td className="py-2 text-right tabular-nums font-bold" style={{ color: T.textDim }}>{fmtNum(r.TotalCount)}</td>
+                      <td className="py-2 text-right tabular-nums" style={{ color: T.cyan }}>{fmtNum(r.ocrDetected)}</td>
+                      <td className="py-2 text-right tabular-nums" style={{ color: T.violet }}>{fmtNum(r.M)}</td>
+                      <td className="py-2 text-right tabular-nums" style={{ color: T.rose }}>{fmtNum(r.Missing)}</td>
+                      <td className="py-2 text-right font-bold tabular-nums" style={{ color: accColor }}>{fmtPct(r.accuracy)}</td>
+                      <td className="py-2">
+                        <div className="flex h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                          <div style={{ width: `${ocrPct}%`, background: T.cyan }} />
+                          <div style={{ width: `${manPct}%`, background: T.violet }} />
+                          <div style={{ width: `${missPct}%`, background: T.rose }} />
+                        </div>
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Panel>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
 
-          <Panel title="Accuracy Bar Comparison" icon={FiTarget} accent={T.cyan} className="xl:col-span-7 h-[360px]">
-            <div style={{ width: "100%", height: 290 }}>
-              <ResponsiveContainer>
-                <BarChart data={ranked} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: T.textMute, fontSize: 9 }} axisLine={{ stroke: T.border }} tickLine={false} interval={0} angle={-35} textAnchor="end" height={60} />
-                  <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
-                  <Tooltip content={<ChartTip pct />} />
-                  <Bar dataKey="accuracy" name="Accuracy" radius={[6, 6, 0, 0]}>
-                    {ranked.map((r, i) => <Cell key={i} fill={r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.rose} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Panel>
-        </div>
+        {/* Stacked auto/manual/missing volume comparison — full width */}
+        <Panel title="Detection Breakdown by Equipment" icon={FiTarget} accent={T.cyan} className="mb-3 h-[340px]"
+          right={
+            <span className="flex items-center gap-3 text-[9px] font-bold">
+              <span className="flex items-center gap-1" style={{ color: T.cyan }}><span className="w-2 h-2 rounded-full" style={{ background: T.cyan }} />Auto</span>
+              <span className="flex items-center gap-1" style={{ color: T.violet }}><span className="w-2 h-2 rounded-full" style={{ background: T.violet }} />Manual</span>
+              <span className="flex items-center gap-1" style={{ color: T.rose }}><span className="w-2 h-2 rounded-full" style={{ background: T.rose }} />Missing</span>
+            </span>
+          }>
+          <Chart
+            type="bar"
+            height={270}
+            series={[
+              { name: "Auto", data: ranked.map((r) => r.ocrDetected) },
+              { name: "Manual", data: ranked.map((r) => r.M) },
+              { name: "Missing", data: ranked.map((r) => r.Missing) },
+            ]}
+            options={{
+              ...apexBase,
+              chart: { ...apexBase.chart, type: "bar", stacked: true },
+              colors: [T.cyan, T.violet, T.rose],
+              plotOptions: { bar: { columnWidth: "55%", borderRadius: 4, borderRadiusApplication: "end", borderRadiusWhenStacked: "last" } },
+              xaxis: { categories: ranked.map((r) => r.name), labels: { style: { colors: T.textMute, fontSize: "9px" }, rotate: -35, trim: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+              yaxis: { labels: { style: { colors: T.textMute, fontSize: "10px" } } },
+              legend: { show: false },
+              dataLabels: { enabled: false },
+            }}
+          />
+        </Panel>
 
         {/* Image gallery */}
         <Panel
