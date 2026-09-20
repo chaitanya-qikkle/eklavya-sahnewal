@@ -3,19 +3,21 @@ import {
   FiCpu, FiCheckCircle, FiEdit3, FiAlertTriangle, FiTarget, FiZap,
   FiRefreshCw, FiActivity, FiImage, FiX, FiClock, FiTrendingUp, FiWifi,
   FiWifiOff, FiCalendar, FiGrid, FiList, FiAward, FiLayers, FiMaximize2,
-  FiArrowUpRight, FiArrowDownRight,
+  FiArrowUpRight, FiArrowDownRight, FiChevronLeft, FiChevronRight, FiSave,
 } from "react-icons/fi";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   RadialBarChart, RadialBar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line,
 } from "recharts";
+import Swal from "sweetalert2";
 import Navbar from "../../../components/layout/Navbar";
 import {
   useGetEquipmentQuery,
   useLazyGetEquipmentAccuracyQuery,
   useLazyGetDeviceLockReportQuery,
   useGetDeviceDataLiveLocationsQuery,
+  useUpdateDeviceDataContainerMutation,
 } from "../../../store/api/ymsApi";
 
 // ─── Theme tokens (light) — same palette as AdminDashboard.jsx ─────────────
@@ -332,7 +334,7 @@ const HourlyBars = ({ data, color = T.indigo }) => (
 );
 
 // ─── DataTable (verbatim pattern from AdminDashboard.jsx) ───────────────────
-const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "100%" }) => (
+const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "100%", onRowClick }) => (
   <div className="flex-1 overflow-auto rounded-lg" style={{ background: "white", maxHeight, border: `1px solid ${T.border}` }}>
     <table className="w-full text-xs">
       <thead className="sticky top-0 z-10" style={{ background: "#f8fafc" }}>
@@ -350,7 +352,8 @@ const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "1
         {(!rows || rows.length === 0) ? (
           <tr><td colSpan={cols.length} className="text-center py-8 text-xs" style={{ color: T.textMute }}>{emptyMsg}</td></tr>
         ) : rows.map((r, i) => (
-          <tr key={i} className="hover:bg-indigo-50/50 transition-colors" style={{ borderBottom: `1px solid ${T.border}` }}>
+          <tr key={i} onClick={onRowClick ? () => onRowClick(r, i) : undefined}
+            className={`hover:bg-indigo-50/50 transition-colors ${onRowClick ? "cursor-pointer" : ""}`} style={{ borderBottom: `1px solid ${T.border}` }}>
             {cols.map((c, j) => {
               const v = c.key ? r[c.key] : r[j];
               return (
@@ -379,8 +382,69 @@ const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "1
   </div>
 );
 
+// One camera's image with a manual left/right frame switcher — a machine
+// captures up to 3 frames per camera (_cam{N}_1/2/3.jpg) and the correct one
+// varies per scan, so the operator can page through them instead of relying
+// on a single silent fallback.
+const CameraPanel = ({ label, srcs, alt }) => {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => setFrame(0), [srcs]);
+  const valid = srcs.filter(Boolean);
+  const hasImage = valid.length > 0;
+  const src = valid[frame] || valid[0];
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${T.border}`, background: "white" }}>
+      <div className="flex items-center justify-between px-3 py-1.5" style={{ background: "#f8fafc", borderBottom: `1px solid ${T.border}` }}>
+        <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textDim }}>{label}</span>
+        {valid.length > 1 && (
+          <span className="text-[9px] font-bold" style={{ color: T.textMute }}>Frame {frame + 1} / {valid.length}</span>
+        )}
+      </div>
+      <div className="aspect-video relative flex items-center justify-center" style={{ background: "#eef2f7" }}>
+        {hasImage ? (
+          <img
+            key={src}
+            src={src}
+            alt={alt}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              const next = frame + 1;
+              if (next < valid.length) setFrame(next);
+              else e.target.style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-1" style={{ color: T.textMute }}>
+            <FiImage size={20} />
+            <span className="text-[10px] font-bold">No image</span>
+          </div>
+        )}
+        {valid.length > 1 && (
+          <>
+            <button
+              onClick={() => setFrame((f) => (f - 1 + valid.length) % valid.length)}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+              style={{ background: "rgba(255,255,255,0.9)", border: `1px solid ${T.border}`, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+            >
+              <FiChevronLeft size={14} style={{ color: T.text }} />
+            </button>
+            <button
+              onClick={() => setFrame((f) => (f + 1) % valid.length)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+              style={{ background: "rgba(255,255,255,0.9)", border: `1px solid ${T.border}`, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+            >
+              <FiChevronRight size={14} style={{ color: T.text }} />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const RANGE_PRESETS = [
-  { label: "1D", from: 0, to: 0 },
+  { label: "1D", from: -1, to: 0 },
   { label: "7D", from: -6, to: 0 },
   { label: "14D", from: -13, to: 0 },
   { label: "30D", from: -29, to: 0 },
@@ -388,20 +452,23 @@ const RANGE_PRESETS = [
 
 const IMAGE_FILTERS = [
   { key: "all", label: "All" },
-  { key: "auto", label: "Auto" },
-  { key: "manual", label: "Manual" },
-  { key: "missing", label: "Missing" },
+  { key: "auto", label: "Detect" },
+  { key: "manual", label: "Updated" },
+  { key: "missing", label: "Missed" },
 ];
 
 const DeveloperDashboard = () => {
-  const [fromDate, setFromDate] = useState(_localDate(0));
+  const [fromDate, setFromDate] = useState(_localDate(-1));
   const [toDate, setToDate] = useState(_localDate(0));
   const [activePreset, setActivePreset] = useState("1D");
   const [now, setNow] = useState(new Date());
   const [online, setOnline] = useState(true);
   const [imgFilter, setImgFilter] = useState("all");
   const [gridView, setGridView] = useState("grid");
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const [editContNo, setEditContNo] = useState("");
+  const [savingCont, setSavingCont] = useState(false);
+  const [updateDeviceContainer] = useUpdateDeviceDataContainerMutation();
   const [refreshing, setRefreshing] = useState(false);
 
   const [trendView, setTrendView] = useState("area");
@@ -706,8 +773,8 @@ const DeveloperDashboard = () => {
             <KpiCard icon={FiTarget} label="OCR Detected" value={totals.ocrDetected} suffix={fmtPct(totals.ocrAccuracy)} accent={T.cyan} loading={accLoading} history={trend.map((t) => t.OCR)} />
             <KpiCard icon={FiEdit3} label="Manual Entry" value={totals.M} suffix={fmtPct(totals.manualPct)} accent={T.purple} loading={accLoading} history={trend.map((t) => t.Manual)} />
             <KpiCard icon={FiAlertTriangle} label="Missing" value={totals.Missing} suffix={fmtPct(totals.missingPct)} accent={T.red} loading={accLoading} history={trend.map((t) => t.Missing)} />
-            <KpiCard icon={FiCheckCircle} label="Overall Accuracy" value={totals.overallAccuracy} decimals={1} suffix="%" sub={`${fmtNumber(totals.NonMissing)} detected`} accent={T.emerald} loading={accLoading} history={trend.map((t) => t.accuracy)} />
             <KpiCard icon={FiZap} label="OCR Accuracy" value={totals.ocrAccuracy} decimals={1} suffix="%" sub={`${fmtNumber(totals.ocrDetected)} via OCR`} accent={T.amber} loading={accLoading} history={trend.map((t) => t.ocrAccuracy)} />
+            <KpiCard icon={FiCheckCircle} label="Overall Accuracy" value={totals.overallAccuracy} decimals={1} suffix="%" sub={`${fmtNumber(totals.NonMissing)} detected`} accent={T.emerald} loading={accLoading} history={trend.map((t) => t.accuracy)} />
           </div>
 
           {/* Trend + gauges */}
@@ -793,8 +860,8 @@ const DeveloperDashboard = () => {
               {healthView === "gauge" ? (
                 <div className="flex-1 flex flex-col items-center justify-center gap-4">
                   <div className="flex items-center justify-around w-full">
-                    <RadialGauge value={totals.overallAccuracy} color={T.emerald} subtitle="Overall Accuracy" size={130} />
                     <RadialGauge value={totals.ocrAccuracy} color={T.cyan} subtitle="OCR Accuracy" size={130} />
+                    <RadialGauge value={totals.overallAccuracy} color={T.emerald} subtitle="Overall Accuracy" size={130} />
                   </div>
                   <div className="flex items-center gap-4 text-[11px] font-bold">
                     <span style={{ color: T.purple }}>{fmtPct(totals.manualPct)} Manual</span>
@@ -1114,10 +1181,10 @@ const DeveloperDashboard = () => {
 
           {/* Image gallery */}
           <Panel
-            title="Container Scan Gallery"
+            title="Transaction Detect Missed Updated"
             icon={FiImage}
             accent={T.pink}
-            subtitle={`${classCounts.auto} auto · ${classCounts.manual} manual · ${classCounts.missing} missing`}
+            subtitle={`${classCounts.auto} detect · ${classCounts.manual} updated · ${classCounts.missing} missed`}
             right={
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="inline-flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(0,0,0,0.04)", border: `1px solid ${T.border}` }}>
@@ -1143,33 +1210,47 @@ const DeveloperDashboard = () => {
                   {lockLoading ? "Loading scans…" : "No scans for this filter"}
                 </div>
               ) : gridView === "grid" ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {filteredScans.map(({ row, cls }, idx) => {
                     const cont = String(row.ContNo || row.RFIDDATA || "—").split(" ")[0];
                     const srcs = camSrcs(row.CameraImage1 || row.cameraimage1, 1);
                     const thumb = srcs[0];
                     const cfg = CLASS_CFG[cls];
+                    const location = row.Location || row.location || "—";
                     return (
                       <button
                         key={idx}
-                        onClick={() => thumb && setSelectedImage({ srcs, row, cont, cls })}
-                        className="text-left rounded-xl overflow-hidden group hover:-translate-y-0.5 hover:shadow-lg transition-all"
-                        style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+                        onClick={() => thumb && setSelectedIdx(idx)}
+                        className="text-left rounded-2xl overflow-hidden group hover:-translate-y-1 transition-all duration-200"
+                        style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 2px 10px -2px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.05)" }}
                       >
-                        <div className="aspect-video relative overflow-hidden" style={{ background: "#eef2f7" }}>
+                        <div className="aspect-video relative overflow-hidden" style={{ background: "linear-gradient(145deg, #eef2f7, #e2e8f0)" }}>
                           {thumb ? (
-                            <img src={thumb} alt={cont} className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            <img src={thumb} alt={cont} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                               onError={(e) => { e.target.style.display = "none"; }} />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><FiImage style={{ color: T.textMute }} size={20} /></div>
                           )}
-                          <span className="absolute top-1.5 right-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: cfg.color, color: "white" }}>
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "linear-gradient(to top, rgba(15,23,42,0.55), transparent 55%)" }} />
+                          <span className="absolute top-2 right-2 text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm" style={{ background: cfg.color, color: "white" }}>
                             {cfg.label}
                           </span>
+                          <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[9px] font-bold text-white">
+                            <FiMaximize2 size={10} /> View &amp; edit
+                          </div>
                         </div>
-                        <div className="px-2 py-1.5">
-                          <div className="text-[11px] font-black truncate" style={{ color: T.text }}>{cont}</div>
-                          <div className="text-[10px] truncate" style={{ color: T.textMute }}>{row.EqpName || row.KalmarNo || "—"} · {fmtTime(row.TransDate)}</div>
+                        <div className="px-3 py-2.5">
+                          <div className="text-[12px] font-black tracking-wide truncate" style={{ color: T.text }}>{cont}</div>
+                          <div className="flex items-center gap-1 text-[10px] truncate mt-1" style={{ color: T.textDim }}>
+                            <FiCpu size={10} style={{ color: T.indigo }} className="shrink-0" />
+                            <span className="truncate">{row.EqpName || row.KalmarNo || "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[10px] truncate mt-0.5" style={{ color: T.textMute }}>
+                            <FiCalendar size={10} className="shrink-0" />
+                            <span className="truncate">{location}</span>
+                            <span className="mx-0.5">·</span>
+                            <span className="font-mono shrink-0">{fmtTime(row.TransDate)}</span>
+                          </div>
                         </div>
                       </button>
                     );
@@ -1178,8 +1259,9 @@ const DeveloperDashboard = () => {
               ) : (
                 <DataTable
                   cols={[
-                    { key: "cont", label: "Container" },
+                    { key: "cont", label: "Container", bold: true },
                     { key: "eqp", label: "Equipment" },
+                    { key: "location", label: "Location" },
                     { key: "time", label: "Time" },
                     {
                       key: "cls", label: "Status", align: "right",
@@ -1189,9 +1271,14 @@ const DeveloperDashboard = () => {
                   rows={filteredScans.map(({ row, cls }) => ({
                     cont: String(row.ContNo || row.RFIDDATA || "—").split(" ")[0],
                     eqp: row.EqpName || row.KalmarNo || "—",
+                    location: row.Location || row.location || "—",
                     time: fmtTime(row.TransDate),
                     cls,
                   }))}
+                  onRowClick={(_r, i) => {
+                    const srcs = camSrcs(filteredScans[i]?.row?.CameraImage1 || filteredScans[i]?.row?.cameraimage1, 1);
+                    if (srcs[0]) setSelectedIdx(i);
+                  }}
                 />
               )}
             </div>
@@ -1199,33 +1286,100 @@ const DeveloperDashboard = () => {
         </main>
       </div>
 
-      {/* Image modal */}
-      {selectedImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setSelectedImage(null)}>
-          <div className="rounded-2xl max-w-2xl w-full p-4" style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 24px 60px -16px rgba(99,102,241,0.2), 0 8px 24px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-black" style={{ color: T.text }}>{selectedImage.cont}</h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: `${CLASS_CFG[selectedImage.cls].color}18`, color: CLASS_CFG[selectedImage.cls].color }}>
-                  {CLASS_CFG[selectedImage.cls].label}
-                </span>
+      {/* Image modal — dual-camera frame switching + scan prev/next + container-number edit */}
+      {selectedIdx != null && filteredScans[selectedIdx] && (() => {
+        const { row, cls } = filteredScans[selectedIdx];
+        const cont = String(row.ContNo || row.RFIDDATA || "—").split(" ")[0];
+        const srcsCam1 = camSrcs(row.CameraImage1 || row.cameraimage1, 1);
+        const srcsCam2 = camSrcs(row.CameraImage2 || row.cameraimage2, 2);
+        const transId = row.DeviceTransID ?? row.EqpTransID ?? row.devicetransid ?? row.eqptransid;
+        const hasPrev = selectedIdx > 0;
+        const hasNext = selectedIdx < filteredScans.length - 1;
+
+        const goPrev = () => { if (hasPrev) { setSelectedIdx(selectedIdx - 1); setEditContNo(""); } };
+        const goNext = () => { if (hasNext) { setSelectedIdx(selectedIdx + 1); setEditContNo(""); } };
+
+        const handleSaveContNo = async () => {
+          const newCont = editContNo.trim().toUpperCase();
+          if (!newCont) { Swal.fire("Warning", "Please enter a container number.", "warning"); return; }
+          if (newCont.length !== 11) { Swal.fire("Warning", "Container number must be exactly 11 characters long.", "warning"); return; }
+          if (!transId) { Swal.fire("Error", "Transaction ID not found for this scan.", "error"); return; }
+          setSavingCont(true);
+          try {
+            const res = await updateDeviceContainer({ eqp_trans_id: parseInt(transId), cont_no: newCont }).unwrap();
+            Swal.fire("Success", res?.message || "Container updated successfully", "success");
+            setEditContNo("");
+            load();
+          } catch (err) {
+            Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container", "error");
+          } finally {
+            setSavingCont(false);
+          }
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm"
+            onClick={() => { setSelectedIdx(null); setEditContNo(""); }}
+            onKeyDown={(e) => { if (e.key === "ArrowLeft") goPrev(); if (e.key === "ArrowRight") goNext(); if (e.key === "Escape") setSelectedIdx(null); }}
+            tabIndex={-1}
+          >
+            <div className="rounded-2xl max-w-3xl w-full p-4 relative" style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 24px 60px -16px rgba(99,102,241,0.2), 0 8px 24px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-black" style={{ color: T.text }}>{cont}</h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: `${CLASS_CFG[cls].color}18`, color: CLASS_CFG[cls].color }}>
+                    {CLASS_CFG[cls].label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={goPrev} disabled={!hasPrev} className="w-7 h-7 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: "#f8fafc", border: `1px solid ${T.border}` }}>
+                    <FiChevronLeft size={14} style={{ color: T.text }} />
+                  </button>
+                  <span className="text-[10px] font-bold" style={{ color: T.textMute }}>{selectedIdx + 1} / {filteredScans.length}</span>
+                  <button onClick={goNext} disabled={!hasNext} className="w-7 h-7 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                    style={{ background: "#f8fafc", border: `1px solid ${T.border}` }}>
+                    <FiChevronRight size={14} style={{ color: T.text }} />
+                  </button>
+                  <button onClick={() => { setSelectedIdx(null); setEditContNo(""); }} className="text-slate-400 hover:text-slate-700 transition-colors ml-1"><FiX size={18} /></button>
+                </div>
               </div>
-              <button onClick={() => setSelectedImage(null)} className="text-slate-400 hover:text-slate-700 transition-colors"><FiX size={18} /></button>
-            </div>
-            <img
-              src={selectedImage.srcs[0]}
-              alt={selectedImage.cont}
-              className="w-full rounded-lg"
-              style={{ border: `1px solid ${T.border}` }}
-              onError={(e) => { const next = selectedImage.srcs[1]; if (next && e.target.src !== next) e.target.src = next; }}
-            />
-            <div className="mt-3 text-xs grid grid-cols-2 gap-2" style={{ color: T.textMute }}>
-              <div>Equipment: <span className="font-bold" style={{ color: T.text }}>{selectedImage.row.EqpName || "—"}</span></div>
-              <div>Time: <span className="font-bold" style={{ color: T.text }}>{fmtTime(selectedImage.row.TransDate)}</span></div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <CameraPanel label="Camera 1" srcs={srcsCam1} alt={`${cont} camera 1`} />
+                <CameraPanel label="Camera 2" srcs={srcsCam2} alt={`${cont} camera 2`} />
+              </div>
+
+              <div className="mt-3 text-xs grid grid-cols-2 gap-2" style={{ color: T.textMute }}>
+                <div>Equipment: <span className="font-bold" style={{ color: T.text }}>{row.EqpName || "—"}</span></div>
+                <div>Time: <span className="font-bold" style={{ color: T.text }}>{fmtTime(row.TransDate)}</span></div>
+                <div>Location: <span className="font-bold" style={{ color: T.text }}>{row.Location || row.location || "—"}</span></div>
+              </div>
+
+              <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: `1px solid ${T.border}` }}>
+                <input
+                  type="text"
+                  value={editContNo}
+                  onChange={(e) => setEditContNo(e.target.value.toUpperCase().slice(0, 11))}
+                  placeholder={`Correct container no. (currently ${cont})`}
+                  maxLength={11}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-mono tracking-wider"
+                  style={{ background: "#f8fafc", border: `1px solid ${T.border}`, color: T.text }}
+                />
+                <button
+                  onClick={handleSaveContNo}
+                  disabled={savingCont || !editContNo.trim()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black disabled:opacity-50 transition-all"
+                  style={{ background: T.indigo, color: "white" }}
+                >
+                  <FiSave size={13} className={savingCont ? "animate-pulse" : ""} /> {savingCont ? "Saving…" : "Update"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
