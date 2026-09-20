@@ -310,7 +310,7 @@ const ContainerHistoryStatus = () => {
                         { key: 'type', label: 'Type' },
                         { key: 'transactionType', label: 'Transaction Type' },
                         { key: 'documentNo', label: 'Document No' },
-                        { key: 'bookingNo', label: 'Booking No' },
+                        { key: 'bookingNo', label: 'Container Status' },
                         { key: 'mode', label: 'Mode' },
                         { key: 'gateInDate', label: 'GATE IN DATE' },
                         { key: 'gateOutDate', label: 'GATE OUT DATE' },
