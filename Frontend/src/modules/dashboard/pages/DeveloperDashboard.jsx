@@ -389,10 +389,11 @@ const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "1
 // on a single silent fallback.
 const CameraPanel = ({ label, srcs, alt }) => {
   const [frame, setFrame] = useState(0);
-  useEffect(() => setFrame(0), [srcs]);
+  const key = srcs.join("|");
+  useEffect(() => setFrame(0), [key]);
   const valid = srcs.filter(Boolean);
   const hasImage = valid.length > 0;
-  const src = valid[frame] || valid[0];
+  const src = valid[Math.min(frame, valid.length - 1)];
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${T.border}`, background: "white" }}>
