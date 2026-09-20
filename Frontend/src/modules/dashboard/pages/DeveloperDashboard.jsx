@@ -471,6 +471,7 @@ const DeveloperDashboard = () => {
   const [contSuggestions, setContSuggestions] = useState([]);
   const [showContSug, setShowContSug] = useState(false);
   const [savingCont, setSavingCont] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [updateDeviceContainer] = useUpdateDeviceDataContainerMutation();
   const [searchContainer] = useLazySearchContainerQuery();
   const [refreshing, setRefreshing] = useState(false);
@@ -626,6 +627,7 @@ const DeveloperDashboard = () => {
     setEditContNo(isMissing ? "" : raw);
     setContSuggestions([]);
     setShowContSug(false);
+    setJustSaved(false);
   }, [selectedIdx, filteredScans]);
 
   const handleContNoChange = async (val) => {
@@ -1346,14 +1348,18 @@ const DeveloperDashboard = () => {
           if (!transId) { Swal.fire("Error", "Transaction ID not found for this scan.", "error"); return; }
           setSavingCont(true);
           try {
-            const res = await updateDeviceContainer({ eqp_trans_id: parseInt(transId), cont_no: newCont }).unwrap();
-            Swal.fire("Success", res?.message || "Container updated successfully", "success");
-            setEditContNo("");
-            load();
-          } catch (err) {
-            Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container", "error");
-          } finally {
+            await updateDeviceContainer({ eqp_trans_id: parseInt(transId), cont_no: newCont }).unwrap();
             setSavingCont(false);
+            setJustSaved(true);
+            load();
+            setTimeout(() => {
+              setJustSaved(false);
+              if (hasNext) setSelectedIdx(selectedIdx + 1);
+              else { setSelectedIdx(null); setEditContNo(""); }
+            }, 900);
+          } catch (err) {
+            setSavingCont(false);
+            Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container", "error");
           }
         };
 
@@ -1364,7 +1370,7 @@ const DeveloperDashboard = () => {
             onKeyDown={(e) => { if (e.key === "ArrowLeft") goPrev(); if (e.key === "ArrowRight") goNext(); if (e.key === "Escape") setSelectedIdx(null); }}
             tabIndex={-1}
           >
-            <div className="rounded-2xl max-w-3xl w-full p-4 relative" style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 24px 60px -16px rgba(99,102,241,0.2), 0 8px 24px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-2xl max-w-5xl w-full p-5 relative" style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 24px 60px -16px rgba(99,102,241,0.2), 0 8px 24px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <h4 className="text-sm font-black" style={{ color: T.text }}>{cont}</h4>
@@ -1430,11 +1436,15 @@ const DeveloperDashboard = () => {
                 </div>
                 <button
                   onClick={handleSaveContNo}
-                  disabled={savingCont || editContNo.trim().length !== 11}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black disabled:opacity-50 transition-all shrink-0"
-                  style={{ background: T.indigo, color: "white" }}
+                  disabled={savingCont || justSaved || editContNo.trim().length !== 11}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black disabled:opacity-70 transition-all shrink-0"
+                  style={{ background: justSaved ? T.emerald : T.indigo, color: "white" }}
                 >
-                  <FiSave size={13} className={savingCont ? "animate-pulse" : ""} /> {savingCont ? "Saving…" : "Update"}
+                  {justSaved ? (
+                    <><FiCheckCircle size={13} /> Saved</>
+                  ) : (
+                    <><FiSave size={13} className={savingCont ? "animate-pulse" : ""} /> {savingCont ? "Saving…" : "Update"}</>
+                  )}
                 </button>
               </div>
             </div>
