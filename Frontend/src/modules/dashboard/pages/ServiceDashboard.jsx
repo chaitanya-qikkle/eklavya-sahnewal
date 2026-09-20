@@ -229,7 +229,7 @@ const ModalImg = ({ label, srcs = [], flipped, onFlip, onZoom }) => {
 
 // ─── Transaction Card ────────────────────────────────────────────────────────
 const TransactionCard = ({
-  row, onUpdate, searchContainer,
+  row, onUpdate, searchContainer, currentList, autoOpen, onAutoOpened,
 }) => {
   const [contNo, setContNo] = useState(() => {
     const raw = getField(row, "ContNo", "contno", "RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id") ?? "";
@@ -245,6 +245,7 @@ const TransactionCard = ({
   const [modalSuggestions, setModalSuggestions] = useState([]);
   const [modalShowSug, setModalShowSug] = useState(false);
   const [modalSaving, setModalSaving] = useState(false);
+  const [modalJustSaved, setModalJustSaved] = useState(false);
   const [imgFlipped, setImgFlipped] = useState([false, false]);
   const [zoomedFlipped, setZoomedFlipped] = useState(false);
   const inputRef = useRef(null);
@@ -337,6 +338,17 @@ const TransactionCard = ({
     setModalShowSug(false);
   };
 
+  // Parent asks this card to open itself — used right after the previously
+  // open card was removed from the grid on save, so "next transaction" opens
+  // whichever card now sits in that slot.
+  useEffect(() => {
+    if (autoOpen) {
+      openModal();
+      onAutoOpened?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen]);
+
   const handleModalOverlayClick = (e) => {
     if (e.target === modalOverlayRef.current) closeModal();
   };
@@ -381,15 +393,22 @@ const TransactionCard = ({
     }
     setModalSaving(true);
     try {
-      const res = await onUpdate({ eqp_trans_id: parseInt(transId), cont_no: modalContNo }, row);
+      const res = await onUpdate({ eqp_trans_id: parseInt(transId), cont_no: modalContNo }, row, currentList);
       if (res?.error) throw res.error;
       setContNo(modalContNo);
-      closeModal();
-      Swal.fire({ icon: "success", title: "Updated", text: res?.data?.message || "Container updated.", timer: 1800, showConfirmButton: false });
-    } catch (err) {
-      Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container.", "error");
-    } finally {
       setModalSaving(false);
+      setModalJustSaved(true);
+      setTimeout(() => {
+        setModalJustSaved(false);
+        closeModal();
+        // The saved row drops out of the list immediately (see removedIds
+        // in the parent) and the parent sets autoOpenTid to whichever
+        // transaction now occupies this card's old slot — that card opens
+        // itself via the autoOpen effect above.
+      }, 900);
+    } catch (err) {
+      setModalSaving(false);
+      Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container.", "error");
     }
   };
 
@@ -653,10 +672,10 @@ const TransactionCard = ({
       {showModal && (
         <div
           ref={modalOverlayRef}
-          className="fixed inset-0 z-[9998] bg-black/80 backdrop-blur-sm flex items-start justify-center pt-4 px-4 pb-4"
+          className="fixed inset-0 z-[9998] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={handleModalOverlayClick}
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto overflow-y-auto max-h-[96vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto overflow-y-auto max-h-[90vh]">
             {/* Header */}
             <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-5 py-3.5 flex items-center justify-between">
               <div>
@@ -739,13 +758,17 @@ const TransactionCard = ({
 
               <button
                 onClick={handleModalSave}
-                disabled={modalSaving || !modalIsComplete}
+                disabled={modalSaving || modalJustSaved || !modalIsComplete}
                 className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-black tracking-wide transition-all shadow-md
-                  ${modalIsComplete && !modalSaving
-                    ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+                  ${modalJustSaved
+                    ? "bg-emerald-600 text-white"
+                    : modalIsComplete && !modalSaving
+                      ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
               >
-                {modalSaving ? (
+                {modalJustSaved ? (
+                  <><FiCheckCircle className="w-5 h-5" />Saved</>
+                ) : modalSaving ? (
                   <><FiRefreshCw className="w-5 h-5 animate-spin" />Updating…</>
                 ) : (
                   <><FiCheck className="w-5 h-5" />Update Container</>
@@ -772,6 +795,7 @@ const ServiceDashboard = () => {
   const [hasSearched, setHasSearched]         = useState(false);
   const [searchCards, setSearchCards]         = useState("");
   const [removedIds, setRemovedIds]           = useState(new Set());
+  const [autoOpenTid, setAutoOpenTid]         = useState(null);
   const [activeTab, setActiveTab]             = useState("missing");
   const ddRef = useRef(null);
 
@@ -950,11 +974,24 @@ const ServiceDashboard = () => {
     doFetch([], from, to);
   };
 
-  const handleUpdateContainer = async (payload, row) => {
+  const handleUpdateContainer = async (payload, row, listBeforeUpdate) => {
     const res = await updateDeviceContainer(payload);
     if (!res?.error) {
       const tid = String(payload.eqp_trans_id);
       setRemovedIds((prev) => new Set([...prev, tid]));
+      // Whichever transaction currently sits right after this one will slide
+      // into its grid slot once it's removed — open that one automatically.
+      if (Array.isArray(listBeforeUpdate)) {
+        const idx = listBeforeUpdate.findIndex((r) => {
+          const id = getField(r, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
+          return id != null && String(id) === tid;
+        });
+        const nextRow = idx >= 0 ? listBeforeUpdate[idx + 1] : null;
+        const nextTid = nextRow
+          ? getField(nextRow, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id")
+          : null;
+        setAutoOpenTid(nextTid != null ? String(nextTid) : null);
+      }
     }
     return res;
   };
@@ -1450,6 +1487,9 @@ const ServiceDashboard = () => {
                           row={row}
                           onUpdate={handleUpdateContainer}
                           searchContainer={searchContainerQuery}
+                          currentList={displayRows}
+                          autoOpen={tid != null && autoOpenTid === String(tid)}
+                          onAutoOpened={() => setAutoOpenTid(null)}
                         />
                       );
                     })}
@@ -1481,6 +1521,9 @@ const ServiceDashboard = () => {
                             row={row}
                             onUpdate={handleUpdateContainer}
                             searchContainer={searchContainerQuery}
+                            currentList={displayNonMissingRows}
+                            autoOpen={tid != null && autoOpenTid === String(tid)}
+                            onAutoOpened={() => setAutoOpenTid(null)}
                           />
                         );
                       })}
