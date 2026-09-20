@@ -1,6 +1,10 @@
 stitching/
 *.zip
 
+# OCR uploads — runtime-generated, not source
+ocr_images/
+Backend/v1/api/ocr_api/ocr_images/
+
 # Yard Builder — local safety backups, not meant to be committed
 Frontend/public/yard-layout-sahnewal.json.bak-*
 Frontend/public/models/custom/_originals_backup/
