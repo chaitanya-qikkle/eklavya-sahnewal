@@ -18,6 +18,7 @@ import {
   useLazyGetDeviceLockReportQuery,
   useGetDeviceDataLiveLocationsQuery,
   useUpdateDeviceDataContainerMutation,
+  useLazySearchContainerQuery,
 } from "../../../store/api/ymsApi";
 
 // ─── Theme tokens (light) — same palette as AdminDashboard.jsx ─────────────
@@ -322,12 +323,12 @@ const Heatmap = ({ data, color = T.indigo }) => {
 const HourlyBars = ({ data, color = T.indigo }) => (
   <div style={{ width: "100%", height: 220 }}>
     <ResponsiveContainer>
-      <BarChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+      <BarChart data={data} barCategoryGap={data.length <= 3 ? "60%" : "30%"} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-        <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 9 }} axisLine={{ stroke: T.border }} tickLine={false} interval={2} />
+        <XAxis dataKey="date" tick={{ fill: T.textDim, fontSize: 10, fontWeight: 600 }} axisLine={{ stroke: T.border }} tickLine={false} interval={data.length > 12 ? 2 : 0} />
         <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} />
         <Tooltip content={<Tip />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
-        <Bar dataKey="Total" name="Scans" radius={[4, 4, 0, 0]} fill={color} />
+        <Bar dataKey="Total" name="Scans" radius={[4, 4, 0, 0]} fill={color} maxBarSize={64} />
       </BarChart>
     </ResponsiveContainer>
   </div>
@@ -467,8 +468,11 @@ const DeveloperDashboard = () => {
   const [gridView, setGridView] = useState("grid");
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [editContNo, setEditContNo] = useState("");
+  const [contSuggestions, setContSuggestions] = useState([]);
+  const [showContSug, setShowContSug] = useState(false);
   const [savingCont, setSavingCont] = useState(false);
   const [updateDeviceContainer] = useUpdateDeviceDataContainerMutation();
+  const [searchContainer] = useLazySearchContainerQuery();
   const [refreshing, setRefreshing] = useState(false);
 
   const [trendView, setTrendView] = useState("area");
@@ -609,6 +613,43 @@ const DeveloperDashboard = () => {
   const filteredScans = useMemo(() => (
     imgFilter === "all" ? classifiedScans : classifiedScans.filter((x) => x.cls === imgFilter)
   ), [classifiedScans, imgFilter]);
+
+  // Prefill the update field with the detected number so the operator only
+  // has to type when it's actually wrong — but leave it blank for a missed
+  // detection (the "00000000000" sentinel), same as Service Dashboard.
+  useEffect(() => {
+    if (selectedIdx == null) return;
+    const scan = filteredScans[selectedIdx];
+    if (!scan) return;
+    const raw = String(scan.row.ContNo || scan.row.RFIDDATA || "").trim().split(" ")[0];
+    const isMissing = !raw || raw.replace(/0/g, "") === "";
+    setEditContNo(isMissing ? "" : raw);
+    setContSuggestions([]);
+    setShowContSug(false);
+  }, [selectedIdx, filteredScans]);
+
+  const handleContNoChange = async (val) => {
+    const up = val.toUpperCase().slice(0, 11);
+    setEditContNo(up);
+    if (up.length >= 1) {
+      try {
+        const res = await searchContainer(up).unwrap();
+        setContSuggestions(res?.data || res || []);
+        setShowContSug(true);
+      } catch {
+        setContSuggestions([]);
+      }
+    } else {
+      setContSuggestions([]);
+      setShowContSug(false);
+    }
+  };
+
+  const selectContSuggestion = (c) => {
+    const no = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
+    setEditContNo(no);
+    setShowContSug(false);
+  };
 
   const classCounts = useMemo(() => {
     const c = { auto: 0, manual: 0, missing: 0 };
@@ -915,7 +956,7 @@ const DeveloperDashboard = () => {
 
           {/* Detection mix + scan activity + fleet status */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <Panel title="Detection Mix" icon={FiLayers} accent={T.purple} className="xl:col-span-3 h-[320px]"
+            <Panel title="Detection Mix" icon={FiLayers} accent={T.purple} className="xl:col-span-3 h-[440px]"
               right={
                 <ViewSwitch
                   value={mixView}
@@ -965,7 +1006,7 @@ const DeveloperDashboard = () => {
               </div>
             </Panel>
 
-            <Panel title="Scan Activity" icon={FiActivity} accent={T.indigo} className="xl:col-span-5 h-[320px]"
+            <Panel title="Scan Activity" icon={FiActivity} accent={T.indigo} className="xl:col-span-5 h-[440px]"
               subtitle={
                 activityView === "heatmap" ? "hour × weekday, darker = busier"
                 : isSingleDay ? "scans per hour, today" : "scans per day"
@@ -1001,7 +1042,7 @@ const DeveloperDashboard = () => {
               )}
             </Panel>
 
-            <Panel title="Fleet Status" icon={FiCpu} accent={T.emerald} className="xl:col-span-4 h-[320px]"
+            <Panel title="Fleet Status" icon={FiCpu} accent={T.emerald} className="xl:col-span-4 h-[440px]"
               right={
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "#ecfdf5", color: T.emerald }}>{healthCounts.online} ON</span>
@@ -1009,31 +1050,31 @@ const DeveloperDashboard = () => {
                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "#fef2f2", color: T.red }}>{healthCounts.breakdown} DOWN</span>
                 </div>
               }>
-              <div className="flex-1 overflow-auto space-y-1.5 -mx-1 px-1">
+              <div className="flex-1 overflow-auto space-y-2 -mx-1 px-1">
                 {equipmentHealth.length === 0 && <div className="text-[11px] text-center py-6" style={{ color: T.textMute }}>No equipment data</div>}
                 {equipmentHealth.map((e) => {
                   const color = e.status === "online" ? T.emerald : e.status === "idle" ? T.amber : e.status === "breakdown" ? T.red : "#94a3b8";
                   const statusLabel = e.status === "online" ? "Online" : e.status === "idle" ? "Idle" : e.status === "breakdown" ? "Breakdown" : "Offline";
                   const stats = perEquipment.find((p) => p.name === e.name);
                   return (
-                    <div key={e.name} className="rounded-xl px-3 py-2" style={{ background: "white", border: `1px solid ${T.border}` }}>
+                    <div key={e.name} className="rounded-xl px-3.5 py-3" style={{ background: "white", border: `1px solid ${T.border}` }}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${e.status === "online" ? "animate-pulse" : ""}`} style={{ background: color }} />
-                          <span className="text-[12px] font-bold truncate" style={{ color: T.text }}>{e.name}</span>
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${e.status === "online" ? "animate-pulse" : ""}`} style={{ background: color }} />
+                          <span className="text-[13px] font-bold truncate" style={{ color: T.text }}>{e.name}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: `${color}18`, color }}>{statusLabel}</span>
-                          <span className="text-[9px] font-mono" style={{ color: T.textMute }}>{e.seen ? fmtTime(e.seen) : "no signal"}</span>
-                        </div>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-md shrink-0" style={{ background: `${color}18`, color }}>{statusLabel}</span>
                       </div>
-                      {stats && stats.TotalCount > 0 && (
-                        <div className="flex items-center gap-3 mt-1.5 text-[9px] font-bold">
-                          <span style={{ color: T.cyan }}>{fmtNumber(stats.ocrDetected)} auto</span>
-                          <span style={{ color: T.purple }}>{fmtNumber(stats.M)} manual</span>
-                          <span style={{ color: T.red }}>{fmtNumber(stats.Missing)} missing</span>
-                        </div>
-                      )}
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        {stats && stats.TotalCount > 0 ? (
+                          <div className="flex items-center gap-3 text-[10px] font-bold">
+                            <span style={{ color: T.cyan }}>{fmtNumber(stats.ocrDetected)} auto</span>
+                            <span style={{ color: T.purple }}>{fmtNumber(stats.M)} manual</span>
+                            <span style={{ color: T.red }}>{fmtNumber(stats.Missing)} missing</span>
+                          </div>
+                        ) : <span />}
+                        <span className="text-[10px] font-mono shrink-0" style={{ color: T.textMute }}>{e.seen ? fmtTime(e.seen) : "no signal"}</span>
+                      </div>
                     </div>
                   );
                 })}
@@ -1220,17 +1261,19 @@ const DeveloperDashboard = () => {
                     return (
                       <button
                         key={idx}
-                        onClick={() => thumb && setSelectedIdx(idx)}
+                        onClick={() => setSelectedIdx(idx)}
                         className="text-left rounded-2xl overflow-hidden group hover:-translate-y-1 transition-all duration-200"
                         style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 2px 10px -2px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.05)" }}
                       >
                         <div className="aspect-video relative overflow-hidden" style={{ background: "linear-gradient(145deg, #eef2f7, #e2e8f0)" }}>
                           {thumb ? (
                             <img src={thumb} alt={cont} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                              onError={(e) => { e.target.style.display = "none"; }} />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center"><FiImage style={{ color: T.textMute }} size={20} /></div>
-                          )}
+                              onError={(e) => { e.target.style.display = "none"; e.target.nextElementSibling.style.display = "flex"; }} />
+                          ) : null}
+                          <div className="absolute inset-0 flex-col items-center justify-center gap-1" style={{ display: thumb ? "none" : "flex", color: T.textMute }}>
+                            <FiImage size={20} />
+                            <span className="text-[9px] font-bold">No image</span>
+                          </div>
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "linear-gradient(to top, rgba(15,23,42,0.55), transparent 55%)" }} />
                           <span className="absolute top-2 right-2 text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm" style={{ background: cfg.color, color: "white" }}>
                             {cfg.label}
@@ -1275,10 +1318,7 @@ const DeveloperDashboard = () => {
                     time: fmtTime(row.TransDate),
                     cls,
                   }))}
-                  onRowClick={(_r, i) => {
-                    const srcs = camSrcs(filteredScans[i]?.row?.CameraImage1 || filteredScans[i]?.row?.cameraimage1, 1);
-                    if (srcs[0]) setSelectedIdx(i);
-                  }}
+                  onRowClick={(_r, i) => setSelectedIdx(i)}
                 />
               )}
             </div>
@@ -1296,8 +1336,8 @@ const DeveloperDashboard = () => {
         const hasPrev = selectedIdx > 0;
         const hasNext = selectedIdx < filteredScans.length - 1;
 
-        const goPrev = () => { if (hasPrev) { setSelectedIdx(selectedIdx - 1); setEditContNo(""); } };
-        const goNext = () => { if (hasNext) { setSelectedIdx(selectedIdx + 1); setEditContNo(""); } };
+        const goPrev = () => { if (hasPrev) setSelectedIdx(selectedIdx - 1); };
+        const goNext = () => { if (hasNext) setSelectedIdx(selectedIdx + 1); };
 
         const handleSaveContNo = async () => {
           const newCont = editContNo.trim().toUpperCase();
@@ -1358,19 +1398,40 @@ const DeveloperDashboard = () => {
               </div>
 
               <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: `1px solid ${T.border}` }}>
-                <input
-                  type="text"
-                  value={editContNo}
-                  onChange={(e) => setEditContNo(e.target.value.toUpperCase().slice(0, 11))}
-                  placeholder={`Correct container no. (currently ${cont})`}
-                  maxLength={11}
-                  className="flex-1 px-3 py-2 rounded-lg text-xs font-mono tracking-wider"
-                  style={{ background: "#f8fafc", border: `1px solid ${T.border}`, color: T.text }}
-                />
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={editContNo}
+                    onChange={(e) => handleContNoChange(e.target.value)}
+                    onFocus={() => contSuggestions.length > 0 && setShowContSug(true)}
+                    onBlur={() => setTimeout(() => setShowContSug(false), 150)}
+                    placeholder={cls === "missing" ? "No container detected — enter number" : `Correct container no. (currently ${cont})`}
+                    maxLength={11}
+                    className="w-full px-3 py-2 rounded-lg text-xs font-mono tracking-wider"
+                    style={{ background: "#f8fafc", border: `1px solid ${T.border}`, color: T.text }}
+                  />
+                  {showContSug && contSuggestions.length > 0 && (
+                    <ul className="absolute bottom-full mb-1 left-0 right-0 z-50 bg-white rounded-lg shadow-2xl max-h-40 overflow-y-auto"
+                      style={{ border: `1px solid ${T.border}` }}>
+                      {contSuggestions.map((c, i) => {
+                        const val = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
+                        const loc = typeof c === "object" ? c?.Last_Loc || c?.last_loc || c?.LAST_LOCATION_NAME || "" : "";
+                        return (
+                          <li key={i} onMouseDown={() => selectContSuggestion(c)}
+                            className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-indigo-50 cursor-pointer text-xs"
+                            style={{ borderBottom: `1px solid ${T.border}` }}>
+                            <span className="font-bold font-mono" style={{ color: T.text }}>{val}</span>
+                            {loc && <span style={{ color: T.textMute }}>{loc}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
                 <button
                   onClick={handleSaveContNo}
-                  disabled={savingCont || !editContNo.trim()}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black disabled:opacity-50 transition-all"
+                  disabled={savingCont || editContNo.trim().length !== 11}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black disabled:opacity-50 transition-all shrink-0"
                   style={{ background: T.indigo, color: "white" }}
                 >
                   <FiSave size={13} className={savingCont ? "animate-pulse" : ""} /> {savingCont ? "Saving…" : "Update"}
