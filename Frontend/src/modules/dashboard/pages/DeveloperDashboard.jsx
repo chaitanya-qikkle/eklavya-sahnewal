@@ -959,7 +959,7 @@ const DeveloperDashboard = () => {
 
           {/* Detection mix + scan activity + fleet status */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <Panel title="Detection Mix" icon={FiLayers} accent={T.purple} className="xl:col-span-3 h-[440px]"
+            <Panel title="Detection Mix" icon={FiLayers} accent={T.purple} className="xl:col-span-3 h-[500px]"
               right={
                 <ViewSwitch
                   value={mixView}
@@ -1009,7 +1009,7 @@ const DeveloperDashboard = () => {
               </div>
             </Panel>
 
-            <Panel title="Scan Activity" icon={FiActivity} accent={T.indigo} className="xl:col-span-5 h-[440px]"
+            <Panel title="Scan Activity" icon={FiActivity} accent={T.indigo} className="xl:col-span-5 h-[500px]"
               subtitle={
                 activityView === "heatmap" ? "hour × weekday, darker = busier"
                 : isSingleDay ? "scans per hour, today" : "scans per day"
@@ -1045,7 +1045,7 @@ const DeveloperDashboard = () => {
               )}
             </Panel>
 
-            <Panel title="Fleet Status" icon={FiCpu} accent={T.emerald} className="xl:col-span-4 h-[440px]"
+            <Panel title="Fleet Status" icon={FiCpu} accent={T.emerald} className="xl:col-span-4 h-[500px]"
               right={
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "#ecfdf5", color: T.emerald }}>{healthCounts.online} ON</span>
@@ -1096,7 +1096,6 @@ const DeveloperDashboard = () => {
                 options={[
                   { value: "table", label: "Table", icon: FiList },
                   { value: "bar", label: "Bar", icon: FiActivity },
-                  { value: "radial", label: "Radial", icon: FiTarget },
                 ]}
               />
             }
@@ -1131,7 +1130,7 @@ const DeveloperDashboard = () => {
                 ]}
                 rows={ranked}
               />
-            ) : rankView === "bar" ? (
+            ) : (
               <div style={{ width: "100%", height: 370 }}>
                 <ResponsiveContainer>
                   <BarChart data={ranked} barCategoryGap="30%" margin={{ top: 5, right: 20, left: -10, bottom: 10 }}>
@@ -1144,14 +1143,6 @@ const DeveloperDashboard = () => {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {ranked.map((r) => (
-                  <div key={r.name} className="flex flex-col items-center rounded-xl p-3" style={{ background: "white", border: `1px solid ${T.border}` }}>
-                    <RadialGauge value={r.accuracy} color={r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.red} size={90} subtitle={r.name} />
-                  </div>
-                ))}
               </div>
             )}
           </Panel>
@@ -1257,8 +1248,14 @@ const DeveloperDashboard = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {filteredScans.map(({ row, cls }, idx) => {
                     const cont = String(row.ContNo || row.RFIDDATA || "—").split(" ")[0];
-                    const srcs = camSrcs(row.CameraImage1 || row.cameraimage1, 1);
-                    const thumb = srcs[0];
+                    // Try every frame of both cameras — whichever one actually
+                    // exists on S3 first is shown, instead of only checking
+                    // Camera 1's first frame and giving up.
+                    const thumbCandidates = [
+                      ...camSrcs(row.CameraImage1 || row.cameraimage1, 1),
+                      ...camSrcs(row.CameraImage2 || row.cameraimage2, 2),
+                    ].filter(Boolean);
+                    const thumb = thumbCandidates[0];
                     const cfg = CLASS_CFG[cls];
                     const location = row.Location || row.location || "—";
                     return (
@@ -1271,7 +1268,16 @@ const DeveloperDashboard = () => {
                         <div className="aspect-video relative overflow-hidden" style={{ background: "linear-gradient(145deg, #eef2f7, #e2e8f0)" }}>
                           {thumb ? (
                             <img src={thumb} alt={cont} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                              onError={(e) => { e.target.style.display = "none"; e.target.nextElementSibling.style.display = "flex"; }} />
+                              onError={(e) => {
+                                const next = Number(e.target.dataset.i || 0) + 1;
+                                if (next < thumbCandidates.length) {
+                                  e.target.dataset.i = String(next);
+                                  e.target.src = thumbCandidates[next];
+                                } else {
+                                  e.target.style.display = "none";
+                                  e.target.nextElementSibling.style.display = "flex";
+                                }
+                              }} />
                           ) : null}
                           <div className="absolute inset-0 flex-col items-center justify-center gap-1" style={{ display: thumb ? "none" : "flex", color: T.textMute }}>
                             <FiImage size={20} />
