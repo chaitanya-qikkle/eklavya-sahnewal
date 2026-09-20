@@ -2,10 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiCpu, FiCheckCircle, FiEdit3, FiAlertTriangle, FiTarget, FiZap,
   FiRefreshCw, FiActivity, FiImage, FiX, FiClock, FiTrendingUp, FiWifi,
-  FiWifiOff, FiCalendar, FiGrid, FiList, FiChevronRight, FiAward,
-  FiAlertCircle, FiLayers,
+  FiWifiOff, FiCalendar, FiGrid, FiList, FiAward, FiLayers, FiMaximize2,
+  FiArrowUpRight, FiArrowDownRight,
 } from "react-icons/fi";
-import Chart from "react-apexcharts";
+import {
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  RadialBarChart, RadialBar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  LineChart, Line,
+} from "recharts";
 import Navbar from "../../../components/layout/Navbar";
 import {
   useGetEquipmentQuery,
@@ -14,25 +18,26 @@ import {
   useGetDeviceDataLiveLocationsQuery,
 } from "../../../store/api/ymsApi";
 
-// ─── Theme — dark monitoring console ────────────────────────────────────────
+// ─── Theme tokens (light) — same palette as AdminDashboard.jsx ─────────────
 const T = {
-  bg: "#070b14",
-  panel: "#0f1626",
-  panel2: "#131c30",
-  border: "rgba(148,163,184,0.14)",
-  borderStrong: "rgba(148,163,184,0.26)",
-  text: "#eef2f9",
-  textDim: "#aab4c8",
-  textMute: "#6b7788",
-  cyan: "#22d3ee",
-  blue: "#5b9dff",
-  indigo: "#818cf8",
-  violet: "#c084fc",
-  pink: "#f472b6",
-  rose: "#fb7185",
-  amber: "#fbbf24",
-  emerald: "#34d399",
-  teal: "#2dd4bf",
+  bg: "#f0f4ff",
+  bg2: "#e8eeff",
+  card: "rgba(255,255,255,0.95)",
+  border: "rgba(148,163,184,0.22)",
+  borderStrong: "rgba(100,116,139,0.38)",
+  text: "#0f172a",
+  textDim: "#374151",
+  textMute: "#6b7280",
+  cyan: "#0891b2",
+  blue: "#2563eb",
+  indigo: "#4f46e5",
+  purple: "#7c3aed",
+  pink: "#db2777",
+  red: "#dc2626",
+  orange: "#ea580c",
+  amber: "#d97706",
+  emerald: "#059669",
+  teal: "#0d9488",
 };
 
 const AWS_IMAGE_PATH =
@@ -45,7 +50,7 @@ const camSrcs = (name, camN) => {
   return [1, 2, 3].map((f) => imgUrl(clean.replace(re, `_cam${camN}_${f}.jpg`)));
 };
 
-const fmtNum = (n) => Number(n || 0).toLocaleString("en-IN");
+const fmtNumber = (n) => Number(n || 0).toLocaleString("en-IN");
 const fmtPct = (n) => `${Number(n || 0).toFixed(1)}%`;
 const fmtDateShort = (val) => {
   if (!val) return "—";
@@ -79,15 +84,15 @@ const classifyRow = (row) => {
 
 const CLASS_CFG = {
   auto:    { label: "Auto (OCR)", color: T.cyan },
-  manual:  { label: "Manual",     color: T.violet },
-  missing: { label: "Missing",    color: T.rose },
+  manual:  { label: "Manual",     color: T.purple },
+  missing: { label: "Missing",    color: T.red },
 };
 
 const ONLINE_MS = 10 * 60 * 1000;
 const IDLE_MS = 30 * 60 * 1000;
 
-// ─── Animated counter ────────────────────────────────────────────────────────
-const useCountUp = (target, duration = 800) => {
+// ─── Animated counter (verbatim pattern from AdminDashboard.jsx) ───────────
+const useCountUp = (target, duration = 900) => {
   const [value, setValue] = useState(0);
   const fromRef = useRef(0);
   const startRef = useRef(0);
@@ -100,7 +105,8 @@ const useCountUp = (target, duration = 800) => {
       const elapsed = t - startRef.current;
       const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      setValue(fromRef.current + (Number(target) - fromRef.current) * eased);
+      const v = fromRef.current + (Number(target) - fromRef.current) * eased;
+      setValue(v);
       if (p < 1) rafRef.current = requestAnimationFrame(animate);
     };
     rafRef.current = requestAnimationFrame(animate);
@@ -109,143 +115,272 @@ const useCountUp = (target, duration = 800) => {
   }, [target]);
   return value;
 };
-const AnimatedNumber = ({ value, decimals = 0 }) => {
+const AnimatedNumber = ({ value, decimals = 0, format = fmtNumber }) => {
   const v = useCountUp(Number.isFinite(value) ? value : 0);
-  return <>{decimals > 0 ? v.toFixed(decimals) : fmtNum(Math.round(v))}</>;
+  if (decimals > 0) return <>{v.toFixed(decimals)}</>;
+  return <>{format(Math.round(v))}</>;
 };
 
-const PulseDot = ({ color, size = 7 }) => (
-  <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
-    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70" style={{ background: color }} />
-    <span className="relative inline-flex rounded-full h-full w-full" style={{ background: color }} />
-  </span>
-);
+// ─── Mini Sparkline ──────────────────────────────────────────────────────────
+const Sparkline = ({ data, color = T.cyan, height = 36 }) => {
+  if (!data || data.length < 2) {
+    return <div style={{ height }} className="opacity-30 text-[10px] flex items-center text-slate-500">—</div>;
+  }
+  const chartData = data.map((v, i) => ({ i, v }));
+  return (
+    <div style={{ height, width: "100%" }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`dev-spark-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.5} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2}
+            fill={`url(#dev-spark-${color.replace("#", "")})`} dot={false} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
 
-// ─── Metric tile — compact, ring-accented ───────────────────────────────────
-const MetricTile = ({ icon: Icon, label, value, suffix, sub, accent, loading, decimals }) => (
-  <div className="relative rounded-2xl p-4 overflow-hidden" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
-    <div className="absolute inset-0 opacity-[0.08]" style={{ background: `radial-gradient(120px 80px at 90% -10%, ${accent}, transparent)` }} />
-    <div className="relative flex items-center gap-3">
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${accent}1a`, color: accent }}>
-        <Icon size={18} strokeWidth={2.2} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: T.textMute }}>{label}</div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-xl font-extrabold tabular-nums" style={{ color: T.text }}>
-            {loading ? <span className="opacity-30">···</span> : <AnimatedNumber value={value} decimals={decimals || 0} />}
-          </span>
-          {suffix && !loading && <span className="text-[11px] font-bold" style={{ color: accent }}>{suffix}</span>}
+// ─── KPI Card (verbatim pattern from AdminDashboard.jsx) ────────────────────
+const KpiCard = ({ icon: Icon, label, value, suffix, sub, trend, accent, loading, decimals, history }) => {
+  const isUp = trend != null && trend >= 0;
+  return (
+    <div
+      className="group relative text-left w-full overflow-hidden rounded-2xl transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+      style={{
+        background: "linear-gradient(145deg, #ffffff, #f8faff)",
+        border: `1px solid ${T.border}`,
+        boxShadow: "0 2px 12px -2px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full opacity-[0.06] blur-3xl group-hover:opacity-[0.12] transition-opacity" style={{ background: accent }} />
+      <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${accent}80, transparent)` }} />
+      <div className="relative p-4 md:p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}25` }}>
+            <Icon className="w-5 h-5" strokeWidth={2.2} />
+          </div>
+          {trend != null && !loading && (
+            <div className={`flex items-center gap-0.5 text-[10px] font-black px-2 py-1 rounded-full border ${isUp ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-rose-700 bg-rose-50 border-rose-200"}`}>
+              {isUp ? <FiArrowUpRight className="w-3 h-3" /> : <FiArrowDownRight className="w-3 h-3" />}
+              {Math.abs(trend).toFixed(1)}%
+            </div>
+          )}
         </div>
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] mb-1.5" style={{ color: T.textDim }}>{label}</div>
+        <div className="flex items-baseline gap-1.5 mb-2">
+          <div className="text-3xl md:text-4xl font-black tabular-nums tracking-tight leading-none" style={{ color: T.text }}>
+            {loading ? <span className="opacity-20">···</span> : <AnimatedNumber value={value} decimals={decimals || 0} />}
+          </div>
+          {suffix && !loading && <span className="text-base font-bold" style={{ color: accent }}>{suffix}</span>}
+        </div>
+        {sub && <div className="text-[11px] truncate" style={{ color: T.textMute }}>{sub}</div>}
+        <div className="mt-2 -mx-1"><Sparkline data={history} color={accent} height={32} /></div>
       </div>
     </div>
-    {sub && <div className="relative text-[10px] mt-2 truncate" style={{ color: T.textMute }}>{sub}</div>}
-  </div>
-);
+  );
+};
 
-// ─── Panel shell ─────────────────────────────────────────────────────────────
-const Panel = ({ title, subtitle, icon: Icon, right, children, className = "", accent = T.cyan }) => (
-  <div className={`rounded-2xl overflow-hidden flex flex-col ${className}`} style={{ background: T.panel, border: `1px solid ${T.border}` }}>
+// ─── Glass Panel (verbatim pattern from AdminDashboard.jsx) ─────────────────
+const Panel = ({ title, subtitle, icon: Icon, right, children, className = "", noPad, accent = T.cyan }) => (
+  <div
+    className={`rounded-2xl overflow-hidden flex flex-col ${className}`}
+    style={{
+      background: "linear-gradient(145deg, #ffffff, #f8faff)",
+      border: `1px solid ${T.border}`,
+      boxShadow: "0 2px 12px -2px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.05)",
+    }}
+  >
     {(title || right) && (
-      <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-2" style={{ borderBottom: `1px solid ${T.border}` }}>
-        <div className="flex items-center gap-2 min-w-0">
-          {Icon && <Icon size={14} style={{ color: accent }} className="shrink-0" />}
+      <div className="flex items-center justify-between px-4 md:px-5 py-3 border-b flex-wrap gap-2" style={{ borderColor: T.border }}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          {Icon && (
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${accent}15`, color: accent, border: `1px solid ${accent}20` }}>
+              <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </div>
+          )}
           <div className="min-w-0">
-            <span className="text-[12px] font-bold truncate" style={{ color: T.text }}>{title}</span>
-            {subtitle && <span className="text-[10px] ml-2" style={{ color: T.textMute }}>{subtitle}</span>}
+            <div className="text-[11px] md:text-xs font-black uppercase tracking-[0.15em] truncate" style={{ color: T.text }}>{title}</div>
+            {subtitle && <div className="text-[10px] truncate mt-0.5" style={{ color: T.textMute }}>{subtitle}</div>}
           </div>
         </div>
         {right && <div className="shrink-0">{right}</div>}
       </div>
     )}
-    <div className="flex-1 p-4 flex flex-col min-h-0">{children}</div>
+    <div className={noPad ? "flex-1 flex flex-col min-h-0" : "flex-1 p-4 md:p-5 flex flex-col min-h-0"}>{children}</div>
   </div>
 );
 
-const Segmented = ({ options, value, onChange }) => (
-  <div className="inline-flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+// ─── Tabbed View Switcher (verbatim pattern from AdminDashboard.jsx) ────────
+const ViewSwitch = ({ options, value, onChange }) => (
+  <div className="inline-flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(0,0,0,0.04)", border: `1px solid ${T.border}` }}>
     {options.map((opt) => (
       <button
         key={opt.value}
         onClick={() => onChange(opt.value)}
-        className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all"
-        style={{ background: value === opt.value ? "rgba(255,255,255,0.1)" : "transparent", color: value === opt.value ? T.text : T.textMute }}
+        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
+          value === opt.value ? "bg-white shadow text-slate-900" : "text-slate-400 hover:text-slate-700 hover:bg-white/50"
+        }`}
       >
-        {opt.icon && <opt.icon size={11} />}
+        {opt.icon && <opt.icon className="w-3 h-3" />}
         {opt.label}
       </button>
     ))}
   </div>
 );
 
-// ─── ApexCharts base options (dark, transparent, no toolbar) ───────────────
-const apexBase = {
-  chart: { toolbar: { show: false }, background: "transparent", fontFamily: "inherit", foreColor: T.textMute },
-  grid: { borderColor: T.border, strokeDashArray: 3 },
-  tooltip: { theme: "dark" },
-  legend: { labels: { colors: T.textMute } },
-};
-
-const RadialGauge = ({ value, color = T.cyan, size = 128, label }) => {
-  const v = Math.max(0, Math.min(Number(value) || 0, 100));
-  const options = {
-    ...apexBase,
-    chart: { ...apexBase.chart, type: "radialBar", sparkline: { enabled: true } },
-    colors: [color],
-    plotOptions: {
-      radialBar: {
-        hollow: { size: "62%" },
-        track: { background: "rgba(255,255,255,0.06)" },
-        dataLabels: {
-          name: { show: false },
-          value: {
-            offsetY: 6, fontSize: "20px", fontWeight: 800, color: T.text,
-            formatter: (val) => `${val.toFixed(1)}%`,
-          },
-        },
-      },
-    },
-    fill: { type: "gradient", gradient: { shade: "dark", type: "horizontal", gradientToColors: [color], stops: [0, 100], opacityFrom: 1, opacityTo: 0.75 } },
-    stroke: { lineCap: "round" },
-  };
+// ─── Chart Tooltip (verbatim pattern from AdminDashboard.jsx) ───────────────
+const Tip = ({ active, payload, label, pct }) => {
+  if (!active || !payload?.length) return null;
   return (
-    <div className="flex flex-col items-center" style={{ width: size }}>
-      <Chart type="radialBar" height={size} width={size} series={[v]} options={options} />
-      <div className="text-[10px] font-bold uppercase tracking-wide -mt-2 text-center" style={{ color: T.textMute }}>{label}</div>
+    <div className="rounded-xl px-3 py-2 text-xs"
+      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text }}>
+      {label != null && <div className="font-bold text-[11px] mb-1.5" style={{ color: T.textMute }}>{label}</div>}
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.fill }} />
+            <span className="capitalize" style={{ color: T.textDim }}>{p.name}</span>
+          </span>
+          <span className="font-black tabular-nums">{typeof p.value === "number" ? (pct ? p.value.toFixed(1) : fmtNumber(p.value)) : p.value}{pct ? "%" : ""}</span>
+        </div>
+      ))}
     </div>
   );
 };
 
-// hour(0-23) x weekday(0-6) activity heatmap via ApexCharts native heatmap
-const Heatmap = ({ data, color = T.indigo }) => {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const series = days.map((d, wd) => ({
-    name: d,
-    data: Array.from({ length: 24 }, (_, h) => ({ x: String(h).padStart(2, "0"), y: data.find((c) => c.wd === wd && c.h === h)?.v || 0 })),
-  })).reverse();
-  const options = {
-    ...apexBase,
-    chart: { ...apexBase.chart, type: "heatmap" },
-    dataLabels: { enabled: false },
-    plotOptions: {
-      heatmap: {
-        radius: 3,
-        colorScale: {
-          ranges: [
-            { from: 0, to: 0, color: "rgba(255,255,255,0.05)" },
-            { from: 1, to: 999999, color, name: "scans" },
-          ],
-        },
-      },
-    },
-    xaxis: { labels: { style: { colors: T.textMute, fontSize: "9px" } }, axisBorder: { show: false }, axisTicks: { show: false } },
-    yaxis: { labels: { style: { colors: T.textMute, fontSize: "10px" } } },
-  };
-  return <Chart type="heatmap" height={200} series={series} options={options} />;
+// ─── Radial Gauge (verbatim pattern from AdminDashboard.jsx) ────────────────
+const RadialGauge = ({ value, max = 100, color = T.cyan, label, size = 150, suffix = "%", subtitle }) => {
+  const v = Math.max(0, Math.min(Number(value) || 0, max));
+  const data = [{ name: label || "v", value: v, fill: color }];
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative" style={{ width: size, height: size }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RadialBarChart cx="50%" cy="50%" innerRadius="68%" outerRadius="100%"
+            data={data} startAngle={210} endAngle={-30}>
+            <RadialBar background={{ fill: "rgba(0,0,0,0.05)" }} dataKey="value"
+              cornerRadius={20} fill={color} />
+          </RadialBarChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ paddingBottom: size * 0.14 }}>
+          <div className="text-2xl font-black tabular-nums leading-none" style={{ color: T.text }}>
+            <AnimatedNumber value={v} decimals={1} />
+          </div>
+          <span className="text-xs font-bold mt-1" style={{ color }}>{suffix}</span>
+        </div>
+      </div>
+      {subtitle && <div className="text-[10px] mt-1 uppercase tracking-wider font-bold text-center" style={{ color: T.textMute }}>{subtitle}</div>}
+    </div>
+  );
 };
 
+// ─── Heatmap (verbatim pattern from AdminDashboard.jsx) ─────────────────────
+const Heatmap = ({ data, color = T.indigo }) => {
+  const max = Math.max(1, ...data.map((d) => d.v));
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return (
+    <div className="flex-1 flex flex-col gap-1.5 min-h-0 p-1">
+      <div className="flex gap-1 ml-9 text-[8px] font-bold" style={{ color: T.textMute }}>
+        {Array.from({ length: 24 }, (_, h) => (
+          <div key={h} className="flex-1 text-center min-w-0">{h % 3 === 0 ? String(h).padStart(2, "0") : ""}</div>
+        ))}
+      </div>
+      {days.map((d, wd) => (
+        <div key={d} className="flex items-center gap-1">
+          <div className="w-8 text-[9px] font-bold" style={{ color: T.textDim }}>{d}</div>
+          <div className="flex-1 flex gap-1">
+            {Array.from({ length: 24 }, (_, h) => {
+              const cell = data.find((x) => x.wd === wd && x.h === h);
+              const v = cell?.v || 0;
+              const intensity = max > 0 ? v / max : 0;
+              return (
+                <div
+                  key={h}
+                  title={`${d} ${String(h).padStart(2, "0")}:00 — ${v} scans`}
+                  className="flex-1 aspect-square rounded transition-all hover:scale-125 cursor-pointer min-w-0"
+                  style={{
+                    background: v > 0 ? `${color}${Math.round(40 + intensity * 215).toString(16).padStart(2, "0")}` : "rgba(0,0,0,0.04)",
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// single-day fallback: hourly bars — a 7x24 heatmap is mostly empty on "today"
+const HourlyBars = ({ data, color = T.indigo }) => (
+  <div style={{ width: "100%", height: 220 }}>
+    <ResponsiveContainer>
+      <BarChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+        <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 9 }} axisLine={{ stroke: T.border }} tickLine={false} interval={2} />
+        <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} />
+        <Tooltip content={<Tip />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Bar dataKey="Total" name="Scans" radius={[4, 4, 0, 0]} fill={color} />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>
+);
+
+// ─── DataTable (verbatim pattern from AdminDashboard.jsx) ───────────────────
+const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "100%" }) => (
+  <div className="flex-1 overflow-auto rounded-lg" style={{ background: "white", maxHeight, border: `1px solid ${T.border}` }}>
+    <table className="w-full text-xs">
+      <thead className="sticky top-0 z-10" style={{ background: "#f8fafc" }}>
+        <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+          {cols.map((c, i) => (
+            <th key={i}
+              className={`px-3 py-2 font-black uppercase tracking-wider text-[10px] whitespace-nowrap ${c.align === "right" ? "text-right" : "text-left"}`}
+              style={{ color: T.textMute }}>
+              {c.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {(!rows || rows.length === 0) ? (
+          <tr><td colSpan={cols.length} className="text-center py-8 text-xs" style={{ color: T.textMute }}>{emptyMsg}</td></tr>
+        ) : rows.map((r, i) => (
+          <tr key={i} className="hover:bg-indigo-50/50 transition-colors" style={{ borderBottom: `1px solid ${T.border}` }}>
+            {cols.map((c, j) => {
+              const v = c.key ? r[c.key] : r[j];
+              return (
+                <td key={j} className={`px-3 py-2 ${c.align === "right" ? "text-right tabular-nums" : ""} ${c.mono ? "font-mono" : ""} ${c.bold ? "font-black" : ""}`}
+                  style={{ color: c.muted ? T.textMute : (c.dim ? T.textDim : T.text) }}>
+                  {c.render ? c.render(v, r) : (v ?? "—")}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+      {footerRow && (
+        <tfoot className="sticky bottom-0" style={{ background: "#f0f4ff" }}>
+          <tr style={{ borderTop: `1px solid ${T.borderStrong}` }}>
+            {footerRow.map((cell, i) => (
+              <td key={i} className={`px-3 py-2 text-[11px] font-black ${i === 0 ? "uppercase tracking-wider" : "text-right tabular-nums"}`}
+                style={{ color: i === 0 ? T.textDim : T.text }}>
+                {cell}
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      )}
+    </table>
+  </div>
+);
+
 const RANGE_PRESETS = [
-  { label: "Today", from: 0, to: 0 },
+  { label: "1D", from: 0, to: 0 },
   { label: "7D", from: -6, to: 0 },
   { label: "14D", from: -13, to: 0 },
   { label: "30D", from: -29, to: 0 },
@@ -259,15 +394,22 @@ const IMAGE_FILTERS = [
 ];
 
 const DeveloperDashboard = () => {
-  const [fromDate, setFromDate] = useState(_localDate(-6));
+  const [fromDate, setFromDate] = useState(_localDate(0));
   const [toDate, setToDate] = useState(_localDate(0));
-  const [activePreset, setActivePreset] = useState("7D");
+  const [activePreset, setActivePreset] = useState("1D");
   const [now, setNow] = useState(new Date());
   const [online, setOnline] = useState(true);
   const [imgFilter, setImgFilter] = useState("all");
   const [gridView, setGridView] = useState("grid");
   const [selectedImage, setSelectedImage] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [trendView, setTrendView] = useState("area");
+  const [mixView, setMixView] = useState("pie");
+  const [breakdownView, setBreakdownView] = useState("stacked");
+  const [healthView, setHealthView] = useState("gauge");
+  const [activityView, setActivityView] = useState("auto");
+  const [rankView, setRankView] = useState("table");
 
   const { data: equipmentApi } = useGetEquipmentQuery(undefined, { pollingInterval: 30000 });
   const { data: liveLocApi } = useGetDeviceDataLiveLocationsQuery(undefined, { pollingInterval: 15000 });
@@ -299,6 +441,7 @@ const DeveloperDashboard = () => {
   const equipmentCount = useMemo(() => (Array.isArray(equipmentApi?.data) ? equipmentApi.data.length : 0), [equipmentApi]);
   const accRows = useMemo(() => (Array.isArray(accData?.data) ? accData.data : []), [accData]);
   const lockRows = useMemo(() => (Array.isArray(lockData?.data) ? lockData.data : []), [lockData]);
+  const isSingleDay = fromDate === toDate;
 
   const totals = useMemo(() => {
     const t = { TotalCount: 0, Missing: 0, NonMissing: 0, M: 0 };
@@ -316,7 +459,35 @@ const DeveloperDashboard = () => {
     return { ...t, ocrDetected, overallAccuracy, ocrAccuracy, manualPct, missingPct };
   }, [accRows]);
 
+  // GET_EQUIPMENT_ACCURACY groups by day only — a single-day range would
+  // collapse to one flat point, so build an hourly trend from the lock
+  // report's per-transaction timestamps instead for that case.
   const trend = useMemo(() => {
+    if (isSingleDay) {
+      const byHour = new Map();
+      for (const row of lockRows) {
+        const t = new Date(String(row.TransDate || "").replace(" ", "T"));
+        if (isNaN(t)) continue;
+        const h = t.getHours();
+        if (!byHour.has(h)) byHour.set(h, { Total: 0, OCR: 0, Manual: 0, Missing: 0 });
+        const b = byHour.get(h);
+        const cls = classifyRow(row);
+        b.Total++;
+        if (cls === "auto") b.OCR++;
+        else if (cls === "manual") b.Manual++;
+        else b.Missing++;
+      }
+      return Array.from({ length: 24 }, (_, h) => {
+        const b = byHour.get(h) || { Total: 0, OCR: 0, Manual: 0, Missing: 0 };
+        const nonMissing = b.OCR + b.Manual;
+        return {
+          date: `${String(h).padStart(2, "0")}:00`,
+          accuracy: b.Total ? +((nonMissing / b.Total) * 100).toFixed(1) : 0,
+          ocrAccuracy: b.Total ? +((b.OCR / b.Total) * 100).toFixed(1) : 0,
+          Total: b.Total, OCR: b.OCR, Manual: b.Manual, Missing: b.Missing,
+        };
+      });
+    }
     const byDate = new Map();
     for (const r of accRows) {
       const d = String(r.TransDate || "").slice(0, 10);
@@ -332,17 +503,17 @@ const DeveloperDashboard = () => {
       const ocrDetected = Math.max(b.NonMissing - b.M, 0);
       return {
         date: fmtDateShort(date),
-        "Overall Accuracy": b.TotalCount ? +((b.NonMissing / b.TotalCount) * 100).toFixed(2) : 0,
-        "OCR Accuracy": b.TotalCount ? +((ocrDetected / b.TotalCount) * 100).toFixed(2) : 0,
+        accuracy: b.TotalCount ? +((b.NonMissing / b.TotalCount) * 100).toFixed(1) : 0,
+        ocrAccuracy: b.TotalCount ? +((ocrDetected / b.TotalCount) * 100).toFixed(1) : 0,
         Total: b.TotalCount, OCR: ocrDetected, Manual: b.M, Missing: b.Missing,
       };
     });
-  }, [accRows]);
+  }, [accRows, lockRows, isSingleDay]);
 
   const mixData = useMemo(() => ([
     { name: "Auto (OCR)", value: totals.ocrDetected, color: T.cyan },
-    { name: "Manual", value: totals.M, color: T.violet },
-    { name: "Missing", value: totals.Missing, color: T.rose },
+    { name: "Manual", value: totals.M, color: T.purple },
+    { name: "Missing", value: totals.Missing, color: T.red },
   ]), [totals]);
 
   const perEquipment = useMemo(() => {
@@ -361,6 +532,8 @@ const DeveloperDashboard = () => {
       .sort((a, b) => b.TotalCount - a.TotalCount);
   }, [accRows]);
 
+  const ranked = useMemo(() => [...perEquipment].filter((e) => e.TotalCount > 0).sort((a, b) => b.accuracy - a.accuracy), [perEquipment]);
+
   const classifiedScans = useMemo(() => [...lockRows]
     .map((row) => ({ row, cls: classifyRow(row) }))
     .sort((a, b) => new Date(String(b.row.TransDate || "").replace(" ", "T")) - new Date(String(a.row.TransDate || "").replace(" ", "T"))),
@@ -376,10 +549,8 @@ const DeveloperDashboard = () => {
     return c;
   }, [classifiedScans]);
 
-  // Equipment fleet status — same source AdminDashboard's "Active Equipment"
-  // uses: GET_EQUIPMENT master list (name/deviceId/breakdown flag) cross-
-  // referenced against live GPS pings (GET_DEVICE_DATA_LIVE_LOCATIONS), not
-  // the OCR lock-report scan timestamps.
+  // Fleet status — same source AdminDashboard's "Active Equipment" uses:
+  // GET_EQUIPMENT master list cross-referenced against live GPS pings.
   const equipmentHealth = useMemo(() => {
     const liveRows = Array.isArray(liveLocApi?.data) ? liveLocApi.data : [];
     const lastSeenByDevice = new Map();
@@ -391,7 +562,6 @@ const DeveloperDashboard = () => {
       const prev = lastSeenByDevice.get(dev);
       if (!prev || t > prev) lastSeenByDevice.set(dev, t);
     }
-
     const eqRows = Array.isArray(equipmentApi?.data) ? equipmentApi.data : [];
     const nowMs = now.getTime();
     return eqRows.map((item, i) => {
@@ -425,346 +595,630 @@ const DeveloperDashboard = () => {
     return out;
   }, [lockRows]);
 
-  const ranked = useMemo(() => [...perEquipment].filter((e) => e.TotalCount > 0).sort((a, b) => b.accuracy - a.accuracy), [perEquipment]);
-
   return (
-    <div className="min-h-screen" style={{ background: T.bg }}>
-      <Navbar />
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{ background: "radial-gradient(1200px 500px at 15% -10%, rgba(34,211,238,0.05), transparent), radial-gradient(1000px 500px at 100% 0%, rgba(129,140,248,0.06), transparent)" }}
-      />
-      <div className="relative max-w-[1680px] mx-auto px-3 sm:px-6 py-5">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${T.cyan}18`, color: T.cyan, border: `1px solid ${T.cyan}30` }}>
-                <FiCpu size={16} />
+    <div className="w-full min-h-screen relative" style={{ background: "linear-gradient(145deg, #f0f4ff 0%, #e8eeff 40%, #f0f7ff 100%)" }}>
+      <div className="fixed inset-0 pointer-events-none" style={{
+        opacity: 0.35,
+        backgroundImage: `radial-gradient(circle at 1px 1px, rgba(99,102,241,0.12) 1px, transparent 0)`,
+        backgroundSize: "40px 40px",
+      }} />
+
+      <div className="relative z-10 min-h-screen flex flex-col">
+        <Navbar />
+
+        <main className="flex-1 px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-5">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-1 h-6 rounded-full bg-gradient-to-b from-cyan-400 via-blue-500 to-indigo-600" />
+                <span className="text-[10px] uppercase tracking-[0.3em] font-black" style={{ color: T.cyan }}>YMS COMMAND</span>
               </div>
-              <h1 className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: T.text }}>Developer Dashboard</h1>
-              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${online ? "" : ""}`}
-                style={{ background: online ? `${T.emerald}18` : `${T.rose}18`, color: online ? T.emerald : T.rose }}>
-                <PulseDot color={online ? T.emerald : T.rose} size={5} /> {online ? "LIVE" : "OFFLINE"}
-              </span>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight" style={{
+                background: "linear-gradient(135deg, #0f172a, #4f46e5)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}>
+                Developer Dashboard
+              </h1>
+              <p className="text-xs md:text-sm mt-1" style={{ color: T.textDim }}>
+                OCR detection accuracy &amp; device monitoring · {equipmentCount} equipment
+                <span className="mx-2" style={{ color: T.textMute }}>·</span>
+                <span className="font-mono tabular-nums">{now.toLocaleTimeString()}</span>
+              </p>
             </div>
-            <p className="text-[11px] mt-1 ml-10" style={{ color: T.textMute }}>
-              OCR detection accuracy &amp; device monitoring · {equipmentCount} equipment · {fmtTime(now).slice(0, 8)}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black ${online ? "text-emerald-700" : "text-rose-700"}`}
+                style={{ background: online ? "#ecfdf5" : "#fef2f2", border: `1px solid ${online ? "#a7f3d0" : "#fecaca"}` }}>
+                {online ? <FiWifi className="w-3.5 h-3.5" /> : <FiWifiOff className="w-3.5 h-3.5" />}
+                <span className={`w-1.5 h-1.5 rounded-full ${online ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                {online ? "LIVE" : "OFFLINE"}
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-700 text-xs font-black hover:bg-indigo-50 transition-all disabled:opacity-60"
+                style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+              >
+                <FiRefreshCw className={`w-3.5 h-3.5 ${refreshing || accLoading || lockLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
-              {RANGE_PRESETS.map((p) => (
-                <button key={p.label} onClick={() => applyPreset(p)}
-                  className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all"
-                  style={{ background: activePreset === p.label ? T.cyan : "transparent", color: activePreset === p.label ? "#04202a" : T.textMute }}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
-              <FiCalendar size={12} style={{ color: T.textMute }} />
-              <input type="date" value={fromDate} max={toDate} onChange={(e) => { setFromDate(e.target.value); setActivePreset(null); }}
-                className="bg-transparent text-[11px] font-mono outline-none" style={{ color: T.text, colorScheme: "dark" }} />
-              <span style={{ color: T.textMute }}>→</span>
-              <input type="date" value={toDate} min={fromDate} max={_localDate(0)} onChange={(e) => { setToDate(e.target.value); setActivePreset(null); }}
-                className="bg-transparent text-[11px] font-mono outline-none" style={{ color: T.text, colorScheme: "dark" }} />
-            </div>
-            <button onClick={handleRefresh} disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold disabled:opacity-60"
-              style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.text }}>
-              <FiRefreshCw size={13} className={refreshing || accLoading || lockLoading ? "animate-spin" : ""} /> Refresh
-            </button>
-          </div>
-        </div>
 
-        {/* KPI row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
-          <MetricTile icon={FiActivity} label="Total Containers" value={totals.TotalCount} accent={T.blue} loading={accLoading} />
-          <MetricTile icon={FiTarget} label="OCR Detected" value={totals.ocrDetected} suffix={fmtPct(totals.ocrAccuracy)} accent={T.cyan} loading={accLoading} />
-          <MetricTile icon={FiEdit3} label="Manual Entry" value={totals.M} suffix={fmtPct(totals.manualPct)} accent={T.violet} loading={accLoading} />
-          <MetricTile icon={FiAlertTriangle} label="Missing" value={totals.Missing} suffix={fmtPct(totals.missingPct)} accent={T.rose} loading={accLoading} />
-          <MetricTile icon={FiCheckCircle} label="Overall Accuracy" value={totals.overallAccuracy} decimals={1} suffix="%" sub={`${fmtNum(totals.NonMissing)} detected`} accent={T.emerald} loading={accLoading} />
-          <MetricTile icon={FiZap} label="OCR Accuracy" value={totals.ocrAccuracy} decimals={1} suffix="%" sub={`${fmtNum(totals.ocrDetected)} via OCR`} accent={T.amber} loading={accLoading} />
-        </div>
-
-        {/* Main grid: trend (wide) + gauges + fleet status */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
-          <Panel title="Accuracy & Volume Trend" icon={FiTrendingUp} accent={T.cyan} className="xl:col-span-8 h-[300px]">
-            <Chart
-              type="line"
-              height={230}
-              series={[
-                { name: "Total Scans", type: "area", data: trend.map((t) => t.Total) },
-                { name: "Overall Accuracy", type: "line", data: trend.map((t) => t["Overall Accuracy"]) },
-                { name: "OCR Accuracy", type: "line", data: trend.map((t) => t["OCR Accuracy"]) },
-              ]}
-              options={{
-                ...apexBase,
-                chart: { ...apexBase.chart, type: "line", stacked: false, animations: { easing: "easeinout", speed: 500 } },
-                colors: [T.cyan, T.emerald, T.amber],
-                stroke: { width: [0, 2.5, 2], curve: "smooth", dashArray: [0, 0, 4] },
-                fill: {
-                  type: ["gradient", "solid", "solid"],
-                  gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0, stops: [0, 100] },
-                },
-                xaxis: { categories: trend.map((t) => t.date), labels: { style: { colors: T.textMute, fontSize: "10px" } }, axisBorder: { show: false }, axisTicks: { show: false } },
-                yaxis: [
-                  { seriesName: "Total Scans", labels: { style: { colors: T.textMute, fontSize: "10px" } } },
-                  { seriesName: "Overall Accuracy", opposite: true, min: 0, max: 100, labels: { style: { colors: T.textMute, fontSize: "10px" }, formatter: (v) => `${v}%` } },
-                  { seriesName: "OCR Accuracy", show: false, min: 0, max: 100 },
-                ],
-                legend: { ...apexBase.legend, position: "top", horizontalAlign: "right", fontSize: "11px" },
-                dataLabels: { enabled: false },
-              }}
-            />
-          </Panel>
-
-          <Panel title="System Health" icon={FiZap} accent={T.emerald} className="xl:col-span-4 h-[300px]">
-            <div className="flex-1 flex items-center justify-around">
-              <RadialGauge value={totals.overallAccuracy} color={T.emerald} label="Overall" size={110} />
-              <RadialGauge value={totals.ocrAccuracy} color={T.cyan} label="OCR" size={110} />
-            </div>
-          </Panel>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
-          <Panel title="Detection Mix" icon={FiLayers} accent={T.violet} className="xl:col-span-3 h-[280px]">
-            <Chart
-              type="donut"
-              height={160}
-              series={mixData.map((d) => d.value)}
-              options={{
-                ...apexBase,
-                chart: { ...apexBase.chart, type: "donut" },
-                labels: mixData.map((d) => d.name),
-                colors: mixData.map((d) => d.color),
-                stroke: { width: 2, colors: [T.panel] },
-                dataLabels: { enabled: false },
-                plotOptions: { pie: { donut: { size: "68%", labels: { show: true, total: { show: true, color: T.text, fontSize: "16px", fontWeight: 800, formatter: (w) => fmtNum(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) } } } } },
-                legend: { show: false },
-              }}
-            />
-            <div className="space-y-1.5 mt-1">
-              {mixData.map((d) => (
-                <div key={d.name} className="flex items-center justify-between text-[10px]">
-                  <span className="flex items-center gap-1.5" style={{ color: T.textDim }}><span className="w-2 h-2 rounded-full" style={{ background: d.color }} />{d.name}</span>
-                  <span className="font-bold" style={{ color: T.text }}>{fmtNum(d.value)}</span>
+          {/* Date filter bar */}
+          <div className="rounded-2xl" style={{
+            background: "linear-gradient(145deg, #ffffff, #f8faff)",
+            border: `1px solid ${T.border}`,
+            boxShadow: "0 2px 12px -2px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.05)",
+          }}>
+            <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 mr-1">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${T.cyan}15`, color: T.cyan }}>
+                  <FiCalendar className="w-3.5 h-3.5" />
                 </div>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="Scan Activity" icon={FiActivity} accent={T.indigo} className="xl:col-span-5 h-[280px]" subtitle="hour × weekday">
-            <Heatmap data={heatmapData} color={T.indigo} />
-          </Panel>
-
-          <Panel title="Fleet Status" icon={FiCpu} accent={T.emerald} className="xl:col-span-4 h-[280px]"
-            right={
-              <span className="flex items-center gap-2 text-[9px] font-bold">
-                <span style={{ color: T.emerald }}>{healthCounts.online} ON</span>
-                <span style={{ color: T.amber }}>{healthCounts.idle} IDLE</span>
-                <span style={{ color: T.rose }}>{healthCounts.breakdown} DOWN</span>
-                <span style={{ color: T.textMute }}>{healthCounts.offline} OFF</span>
-              </span>
-            }>
-            <div className="flex-1 overflow-auto space-y-1.5 -mr-1 pr-1">
-              {equipmentHealth.length === 0 && <div className="text-[11px] text-center py-6" style={{ color: T.textMute }}>No equipment data</div>}
-              {equipmentHealth.map((e) => {
-                const color = e.status === "online" ? T.emerald : e.status === "idle" ? T.amber : e.status === "breakdown" ? T.rose : "#4b5768";
-                const stats = perEquipment.find((p) => p.name === e.name);
-                return (
-                  <div key={e.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg" style={{ background: T.panel2 }}>
-                    <PulseDot color={color} size={6} />
-                    <span className="text-[11px] font-semibold flex-1 truncate" style={{ color: T.textDim }}>{e.name}</span>
-                    {stats && stats.TotalCount > 0 && (
-                      <span className="flex items-center gap-1 text-[8px] font-bold shrink-0">
-                        <span style={{ color: T.cyan }}>{fmtNum(stats.ocrDetected)}A</span>
-                        <span style={{ color: T.violet }}>{fmtNum(stats.M)}M</span>
-                        <span style={{ color: T.rose }}>{fmtNum(stats.Missing)}X</span>
-                      </span>
-                    )}
-                    <span className="text-[9px] font-mono" style={{ color: T.textMute }}>{e.seen ? fmtTime(e.seen) : "—"}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </Panel>
-        </div>
-
-        {/* Equipment accuracy ranking — full width, with auto/manual/missing breakdown */}
-        <Panel title="Equipment Accuracy Ranking" icon={FiAward} accent={T.blue} className="mb-3"
-          subtitle={`${ranked.length} equipment ranked by detection accuracy`}>
-          <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full text-[11px] min-w-[720px]">
-              <thead>
-                <tr style={{ color: T.textMute, borderBottom: `1px solid ${T.border}` }}>
-                  <th className="text-left py-2 font-bold w-8">#</th>
-                  <th className="text-left py-2 font-bold">Equipment</th>
-                  <th className="text-right py-2 font-bold">Total</th>
-                  <th className="text-right py-2 font-bold" style={{ color: T.cyan }}>Auto</th>
-                  <th className="text-right py-2 font-bold" style={{ color: T.violet }}>Manual</th>
-                  <th className="text-right py-2 font-bold" style={{ color: T.rose }}>Missing</th>
-                  <th className="text-right py-2 font-bold">Accuracy</th>
-                  <th className="text-left py-2 font-bold w-40">Distribution</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranked.length === 0 && <tr><td colSpan={8} className="text-center py-8" style={{ color: T.textMute }}>{accLoading ? "Loading…" : "No data"}</td></tr>}
-                {ranked.map((r, i) => {
-                  const accColor = r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.rose;
-                  const total = r.TotalCount || 1;
-                  const ocrPct = (r.ocrDetected / total) * 100;
-                  const manPct = (r.M / total) * 100;
-                  const missPct = (r.Missing / total) * 100;
-                  return (
-                    <tr key={r.name} style={{ borderTop: `1px solid ${T.border}` }}>
-                      <td className="py-2" style={{ color: T.textMute }}>{i + 1}</td>
-                      <td className="py-2 font-semibold truncate max-w-[160px]" style={{ color: T.text }}>{r.name}</td>
-                      <td className="py-2 text-right tabular-nums font-bold" style={{ color: T.textDim }}>{fmtNum(r.TotalCount)}</td>
-                      <td className="py-2 text-right tabular-nums" style={{ color: T.cyan }}>{fmtNum(r.ocrDetected)}</td>
-                      <td className="py-2 text-right tabular-nums" style={{ color: T.violet }}>{fmtNum(r.M)}</td>
-                      <td className="py-2 text-right tabular-nums" style={{ color: T.rose }}>{fmtNum(r.Missing)}</td>
-                      <td className="py-2 text-right font-bold tabular-nums" style={{ color: accColor }}>{fmtPct(r.accuracy)}</td>
-                      <td className="py-2">
-                        <div className="flex h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                          <div style={{ width: `${ocrPct}%`, background: T.cyan }} />
-                          <div style={{ width: `${manPct}%`, background: T.violet }} />
-                          <div style={{ width: `${missPct}%`, background: T.rose }} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-
-        {/* Stacked auto/manual/missing volume comparison — full width */}
-        <Panel title="Detection Breakdown by Equipment" icon={FiTarget} accent={T.cyan} className="mb-3 h-[340px]"
-          right={
-            <span className="flex items-center gap-3 text-[9px] font-bold">
-              <span className="flex items-center gap-1" style={{ color: T.cyan }}><span className="w-2 h-2 rounded-full" style={{ background: T.cyan }} />Auto</span>
-              <span className="flex items-center gap-1" style={{ color: T.violet }}><span className="w-2 h-2 rounded-full" style={{ background: T.violet }} />Manual</span>
-              <span className="flex items-center gap-1" style={{ color: T.rose }}><span className="w-2 h-2 rounded-full" style={{ background: T.rose }} />Missing</span>
-            </span>
-          }>
-          <Chart
-            type="bar"
-            height={270}
-            series={[
-              { name: "Auto", data: ranked.map((r) => r.ocrDetected) },
-              { name: "Manual", data: ranked.map((r) => r.M) },
-              { name: "Missing", data: ranked.map((r) => r.Missing) },
-            ]}
-            options={{
-              ...apexBase,
-              chart: { ...apexBase.chart, type: "bar", stacked: true },
-              colors: [T.cyan, T.violet, T.rose],
-              plotOptions: { bar: { columnWidth: "55%", borderRadius: 4, borderRadiusApplication: "end", borderRadiusWhenStacked: "last" } },
-              xaxis: { categories: ranked.map((r) => r.name), labels: { style: { colors: T.textMute, fontSize: "9px" }, rotate: -35, trim: false }, axisBorder: { show: false }, axisTicks: { show: false } },
-              yaxis: { labels: { style: { colors: T.textMute, fontSize: "10px" } } },
-              legend: { show: false },
-              dataLabels: { enabled: false },
-            }}
-          />
-        </Panel>
-
-        {/* Image gallery */}
-        <Panel
-          title="Container Scan Gallery"
-          icon={FiImage}
-          accent={T.pink}
-          subtitle={`${classCounts.auto} auto · ${classCounts.manual} manual · ${classCounts.missing} missing`}
-          right={
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <div className="inline-flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(255,255,255,0.04)" }}>
-                {IMAGE_FILTERS.map((f) => (
-                  <button key={f.key} onClick={() => setImgFilter(f.key)}
-                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all"
-                    style={{ background: imgFilter === f.key ? (CLASS_CFG[f.key]?.color || T.indigo) : "transparent", color: imgFilter === f.key ? "#04121a" : T.textMute }}>
-                    {f.label}
+                <div className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: T.text }}>Date Range</div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {RANGE_PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => applyPreset(p)}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                    style={{
+                      background: activePreset === p.label ? T.indigo : "rgba(0,0,0,0.04)",
+                      color: activePreset === p.label ? "white" : T.textMute,
+                    }}
+                  >
+                    {p.label}
                   </button>
                 ))}
               </div>
-              <Segmented value={gridView} onChange={setGridView} options={[{ value: "grid", label: "", icon: FiGrid }, { value: "list", label: "", icon: FiList }]} />
-            </div>
-          }
-        >
-          <div className="max-h-[520px] overflow-auto -mx-1 px-1">
-            {filteredScans.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-xs" style={{ color: T.textMute }}>
-                {lockLoading ? "Loading scans…" : "No scans for this filter"}
+              <div className="flex items-center gap-2 text-xs">
+                <input
+                  type="date"
+                  value={fromDate}
+                  max={toDate}
+                  onChange={(e) => { setFromDate(e.target.value); setActivePreset(null); }}
+                  className="px-2 py-1.5 rounded-lg text-xs font-mono"
+                  style={{ background: "white", border: `1px solid ${T.border}`, color: T.text }}
+                />
+                <span style={{ color: T.textMute }}>→</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  min={fromDate}
+                  max={_localDate(0)}
+                  onChange={(e) => { setToDate(e.target.value); setActivePreset(null); }}
+                  className="px-2 py-1.5 rounded-lg text-xs font-mono"
+                  style={{ background: "white", border: `1px solid ${T.border}`, color: T.text }}
+                />
               </div>
-            ) : gridView === "grid" ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {filteredScans.map(({ row, cls }, idx) => {
-                  const cont = String(row.ContNo || row.RFIDDATA || "—").split(" ")[0];
-                  const srcs = camSrcs(row.CameraImage1 || row.cameraimage1, 1);
-                  const thumb = srcs[0];
-                  const cfg = CLASS_CFG[cls];
+              <span className="ml-auto tabular-nums text-[10px]" style={{ color: T.textMute }}>
+                <span className="font-black" style={{ color: T.cyan }}>{fmtNumber(totals.TotalCount)}</span> containers scanned
+              </span>
+            </div>
+          </div>
+
+          {/* KPI Row */}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
+            <KpiCard icon={FiActivity} label="Total Containers" value={totals.TotalCount} accent={T.blue} loading={accLoading} history={trend.map((t) => t.Total)} />
+            <KpiCard icon={FiTarget} label="OCR Detected" value={totals.ocrDetected} suffix={fmtPct(totals.ocrAccuracy)} accent={T.cyan} loading={accLoading} history={trend.map((t) => t.OCR)} />
+            <KpiCard icon={FiEdit3} label="Manual Entry" value={totals.M} suffix={fmtPct(totals.manualPct)} accent={T.purple} loading={accLoading} history={trend.map((t) => t.Manual)} />
+            <KpiCard icon={FiAlertTriangle} label="Missing" value={totals.Missing} suffix={fmtPct(totals.missingPct)} accent={T.red} loading={accLoading} history={trend.map((t) => t.Missing)} />
+            <KpiCard icon={FiCheckCircle} label="Overall Accuracy" value={totals.overallAccuracy} decimals={1} suffix="%" sub={`${fmtNumber(totals.NonMissing)} detected`} accent={T.emerald} loading={accLoading} history={trend.map((t) => t.accuracy)} />
+            <KpiCard icon={FiZap} label="OCR Accuracy" value={totals.ocrAccuracy} decimals={1} suffix="%" sub={`${fmtNumber(totals.ocrDetected)} via OCR`} accent={T.amber} loading={accLoading} history={trend.map((t) => t.ocrAccuracy)} />
+          </div>
+
+          {/* Trend + gauges */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <Panel
+              title="Accuracy Trend"
+              subtitle={isSingleDay ? "hourly, today" : "daily"}
+              icon={FiTrendingUp}
+              accent={T.indigo}
+              className="xl:col-span-8 h-[340px]"
+              right={
+                <ViewSwitch
+                  value={trendView}
+                  onChange={setTrendView}
+                  options={[
+                    { value: "area", label: "Area", icon: FiTrendingUp },
+                    { value: "line", label: "Line", icon: FiActivity },
+                    { value: "bar", label: "Bar", icon: FiGrid },
+                  ]}
+                />
+              }
+            >
+              <div style={{ width: "100%", height: 270 }}>
+                <ResponsiveContainer>
+                  {trendView === "area" ? (
+                    <AreaChart data={trend} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="dev-acc-area" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={T.emerald} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={T.emerald} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="dev-ocr-area" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={T.cyan} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={T.cyan} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} />
+                      <YAxis tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} unit="%" domain={[0, 100]} />
+                      <Tooltip content={<Tip pct />} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: T.textMute }} />
+                      <Area type="monotone" dataKey="accuracy" name="Overall Accuracy" stroke={T.emerald} strokeWidth={2} fill="url(#dev-acc-area)" />
+                      <Area type="monotone" dataKey="ocrAccuracy" name="OCR Accuracy" stroke={T.cyan} strokeWidth={2} fill="url(#dev-ocr-area)" />
+                    </AreaChart>
+                  ) : trendView === "line" ? (
+                    <LineChart data={trend} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} />
+                      <YAxis tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} unit="%" domain={[0, 100]} />
+                      <Tooltip content={<Tip pct />} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: T.textMute }} />
+                      <Line type="monotone" dataKey="accuracy" name="Overall Accuracy" stroke={T.emerald} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="ocrAccuracy" name="OCR Accuracy" stroke={T.cyan} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  ) : (
+                    <BarChart data={trend} barCategoryGap={trend.length <= 6 ? "35%" : "20%"} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} />
+                      <YAxis tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} unit="%" domain={[0, 100]} />
+                      <Tooltip content={<Tip pct />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: T.textMute }} />
+                      <Bar dataKey="accuracy" name="Overall Accuracy" fill={T.emerald} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <Bar dataKey="ocrAccuracy" name="OCR Accuracy" fill={T.cyan} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    </BarChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </Panel>
+
+            <Panel title="System Health" icon={FiZap} accent={T.emerald} className="xl:col-span-4 h-[340px]"
+              right={
+                <ViewSwitch
+                  value={healthView}
+                  onChange={setHealthView}
+                  options={[
+                    { value: "gauge", label: "Gauge", icon: FiTarget },
+                    { value: "radial", label: "Radial", icon: FiLayers },
+                    { value: "bar", label: "Bar", icon: FiActivity },
+                  ]}
+                />
+              }
+            >
+              {healthView === "gauge" ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                  <div className="flex items-center justify-around w-full">
+                    <RadialGauge value={totals.overallAccuracy} color={T.emerald} subtitle="Overall Accuracy" size={130} />
+                    <RadialGauge value={totals.ocrAccuracy} color={T.cyan} subtitle="OCR Accuracy" size={130} />
+                  </div>
+                  <div className="flex items-center gap-4 text-[11px] font-bold">
+                    <span style={{ color: T.purple }}>{fmtPct(totals.manualPct)} Manual</span>
+                    <span style={{ color: T.red }}>{fmtPct(totals.missingPct)} Missing</span>
+                  </div>
+                </div>
+              ) : healthView === "radial" ? (
+                <div style={{ width: "100%", height: 260 }}>
+                  <ResponsiveContainer>
+                    <RadialBarChart
+                      cx="50%" cy="50%" innerRadius="30%" outerRadius="100%"
+                      data={[
+                        { name: "Overall Accuracy", value: totals.overallAccuracy, fill: T.emerald },
+                        { name: "OCR Accuracy", value: totals.ocrAccuracy, fill: T.cyan },
+                        { name: "Manual %", value: totals.manualPct, fill: T.purple },
+                        { name: "Missing %", value: totals.missingPct, fill: T.red },
+                      ]}
+                      startAngle={90} endAngle={-270}
+                    >
+                      <RadialBar background={{ fill: "rgba(0,0,0,0.04)" }} dataKey="value" cornerRadius={10} />
+                      <Tooltip content={<Tip pct />} />
+                      <Legend wrapperStyle={{ fontSize: 10, color: T.textMute }} iconSize={8} layout="vertical" verticalAlign="middle" align="right" />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div style={{ width: "100%", height: 260 }}>
+                  <ResponsiveContainer>
+                    <BarChart
+                      data={[
+                        { name: "Overall", value: totals.overallAccuracy, fill: T.emerald },
+                        { name: "OCR", value: totals.ocrAccuracy, fill: T.cyan },
+                        { name: "Manual", value: totals.manualPct, fill: T.purple },
+                        { name: "Missing", value: totals.missingPct, fill: T.red },
+                      ]}
+                      margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                      <XAxis dataKey="name" tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} />
+                      <YAxis tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} unit="%" domain={[0, 100]} />
+                      <Tooltip content={<Tip pct />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                        {[T.emerald, T.cyan, T.purple, T.red].map((c, i) => <Cell key={i} fill={c} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </Panel>
+          </div>
+
+          {/* Detection mix + scan activity + fleet status */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <Panel title="Detection Mix" icon={FiLayers} accent={T.purple} className="xl:col-span-3 h-[320px]"
+              right={
+                <ViewSwitch
+                  value={mixView}
+                  onChange={setMixView}
+                  options={[
+                    { value: "pie", label: "Pie", icon: FiLayers },
+                    { value: "donut", label: "Donut", icon: FiTarget },
+                    { value: "bar", label: "Bar", icon: FiActivity },
+                  ]}
+                />
+              }
+            >
+              {mixView === "bar" ? (
+                <div style={{ width: "100%", height: 180 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={mixData} layout="vertical" margin={{ left: 10, right: 10 }}>
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="name" tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} width={75} />
+                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                        {mixData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div style={{ width: "100%", height: 180 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={mixData} dataKey="value" nameKey="name" innerRadius={mixView === "donut" ? 55 : 0} outerRadius={78} paddingAngle={3} cornerRadius={6}>
+                        {mixData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                      </Pie>
+                      <Tooltip content={<Tip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="mt-2 space-y-1.5">
+                {mixData.map((d) => (
+                  <div key={d.name} className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-1.5" style={{ color: T.textDim }}>
+                      <span className="w-2 h-2 rounded-full" style={{ background: d.color }} />{d.name}
+                    </span>
+                    <span className="font-black" style={{ color: T.text }}>{fmtNumber(d.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel title="Scan Activity" icon={FiActivity} accent={T.indigo} className="xl:col-span-5 h-[320px]"
+              subtitle={
+                activityView === "heatmap" ? "hour × weekday, darker = busier"
+                : isSingleDay ? "scans per hour, today" : "scans per day"
+              }
+              right={
+                <ViewSwitch
+                  value={activityView}
+                  onChange={setActivityView}
+                  options={[
+                    { value: "auto", label: "Bar", icon: FiActivity },
+                    { value: "line", label: "Line", icon: FiTrendingUp },
+                    { value: "heatmap", label: "Heatmap", icon: FiGrid },
+                  ]}
+                />
+              }
+            >
+              {activityView === "heatmap" ? (
+                <Heatmap data={heatmapData} color={T.indigo} />
+              ) : activityView === "line" ? (
+                <div style={{ width: "100%", height: 220 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={trend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: T.textMute, fontSize: 9 }} axisLine={{ stroke: T.border }} tickLine={false} interval={isSingleDay ? 2 : 0} />
+                      <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<Tip />} />
+                      <Line type="monotone" dataKey="Total" name="Scans" stroke={T.indigo} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <HourlyBars data={trend} color={T.indigo} />
+              )}
+            </Panel>
+
+            <Panel title="Fleet Status" icon={FiCpu} accent={T.emerald} className="xl:col-span-4 h-[320px]"
+              right={
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "#ecfdf5", color: T.emerald }}>{healthCounts.online} ON</span>
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "#fffbeb", color: T.amber }}>{healthCounts.idle} IDLE</span>
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "#fef2f2", color: T.red }}>{healthCounts.breakdown} DOWN</span>
+                </div>
+              }>
+              <div className="flex-1 overflow-auto space-y-1.5 -mx-1 px-1">
+                {equipmentHealth.length === 0 && <div className="text-[11px] text-center py-6" style={{ color: T.textMute }}>No equipment data</div>}
+                {equipmentHealth.map((e) => {
+                  const color = e.status === "online" ? T.emerald : e.status === "idle" ? T.amber : e.status === "breakdown" ? T.red : "#94a3b8";
+                  const statusLabel = e.status === "online" ? "Online" : e.status === "idle" ? "Idle" : e.status === "breakdown" ? "Breakdown" : "Offline";
+                  const stats = perEquipment.find((p) => p.name === e.name);
                   return (
-                    <button key={idx} onClick={() => thumb && setSelectedImage({ srcs, row, cont, cls })}
-                      className="text-left rounded-xl overflow-hidden group hover:-translate-y-0.5 transition-transform"
-                      style={{ background: T.panel2, border: `1px solid ${T.border}` }}>
-                      <div className="aspect-video relative overflow-hidden" style={{ background: "#060a12" }}>
-                        {thumb ? (
-                          <img src={thumb} alt={cont} className="w-full h-full object-cover group-hover:scale-105 transition-transform" onError={(e) => { e.target.style.display = "none"; }} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center"><FiImage style={{ color: T.textMute }} size={18} /></div>
-                        )}
-                        <span className="absolute top-1.5 right-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: cfg.color, color: "#04121a" }}>{cfg.label}</span>
+                    <div key={e.name} className="rounded-xl px-3 py-2" style={{ background: "white", border: `1px solid ${T.border}` }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${e.status === "online" ? "animate-pulse" : ""}`} style={{ background: color }} />
+                          <span className="text-[12px] font-bold truncate" style={{ color: T.text }}>{e.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md" style={{ background: `${color}18`, color }}>{statusLabel}</span>
+                          <span className="text-[9px] font-mono" style={{ color: T.textMute }}>{e.seen ? fmtTime(e.seen) : "no signal"}</span>
+                        </div>
                       </div>
-                      <div className="px-2 py-1.5">
-                        <div className="text-[10px] font-bold truncate" style={{ color: T.text }}>{cont}</div>
-                        <div className="text-[9px] truncate" style={{ color: T.textMute }}>{row.EqpName || row.KalmarNo || "—"} · {fmtTime(row.TransDate)}</div>
-                      </div>
-                    </button>
+                      {stats && stats.TotalCount > 0 && (
+                        <div className="flex items-center gap-3 mt-1.5 text-[9px] font-bold">
+                          <span style={{ color: T.cyan }}>{fmtNumber(stats.ocrDetected)} auto</span>
+                          <span style={{ color: T.purple }}>{fmtNumber(stats.M)} manual</span>
+                          <span style={{ color: T.red }}>{fmtNumber(stats.Missing)} missing</span>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
-            ) : (
-              <table className="w-full text-[11px]">
-                <thead className="sticky top-0" style={{ background: T.panel }}>
-                  <tr style={{ color: T.textMute }}>
-                    <th className="text-left py-1.5 font-bold">Container</th>
-                    <th className="text-left py-1.5 font-bold">Equipment</th>
-                    <th className="text-left py-1.5 font-bold">Time</th>
-                    <th className="text-right py-1.5 font-bold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredScans.map(({ row, cls }, i) => (
-                    <tr key={i} style={{ borderTop: `1px solid ${T.border}` }}>
-                      <td className="py-1.5 font-semibold" style={{ color: T.text }}>{String(row.ContNo || row.RFIDDATA || "—").split(" ")[0]}</td>
-                      <td className="py-1.5" style={{ color: T.textDim }}>{row.EqpName || row.KalmarNo || "—"}</td>
-                      <td className="py-1.5 font-mono" style={{ color: T.textMute }}>{fmtTime(row.TransDate)}</td>
-                      <td className="py-1.5 text-right">
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: `${CLASS_CFG[cls].color}22`, color: CLASS_CFG[cls].color }}>{CLASS_CFG[cls].label}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            </Panel>
           </div>
-        </Panel>
+
+          {/* Equipment ranking + detection breakdown, side by side */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <Panel title="Equipment Accuracy Ranking" icon={FiAward} accent={T.blue} className="h-[440px]"
+            subtitle={`${ranked.length} equipment ranked by detection accuracy`}
+            right={
+              <ViewSwitch
+                value={rankView}
+                onChange={setRankView}
+                options={[
+                  { value: "table", label: "Table", icon: FiList },
+                  { value: "bar", label: "Bar", icon: FiActivity },
+                  { value: "radial", label: "Radial", icon: FiTarget },
+                ]}
+              />
+            }
+          >
+            {rankView === "table" ? (
+              <DataTable
+                maxHeight="380px"
+                emptyMsg={accLoading ? "Loading…" : "No data for this range"}
+                cols={[
+                  { key: "name", label: "Equipment" },
+                  { key: "TotalCount", label: "Total", align: "right" },
+                  { key: "ocrDetected", label: "Auto", align: "right", render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
+                  { key: "M", label: "Manual", align: "right", render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
+                  { key: "Missing", label: "Missing", align: "right", render: (v) => <span style={{ color: T.red }}>{fmtNumber(v)}</span> },
+                  {
+                    key: "accuracy", label: "Accuracy", align: "right", bold: true,
+                    render: (v) => <span style={{ color: v >= 90 ? T.emerald : v >= 70 ? T.amber : T.red }}>{fmtPct(v)}</span>,
+                  },
+                  {
+                    key: "name", label: "Distribution", align: "left",
+                    render: (_v, r) => {
+                      const total = r.TotalCount || 1;
+                      return (
+                        <div className="flex h-2 w-28 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.06)" }}>
+                          <div style={{ width: `${(r.ocrDetected / total) * 100}%`, background: T.cyan }} />
+                          <div style={{ width: `${(r.M / total) * 100}%`, background: T.purple }} />
+                          <div style={{ width: `${(r.Missing / total) * 100}%`, background: T.red }} />
+                        </div>
+                      );
+                    },
+                  },
+                ]}
+                rows={ranked}
+              />
+            ) : rankView === "bar" ? (
+              <div style={{ width: "100%", height: 370 }}>
+                <ResponsiveContainer>
+                  <BarChart data={ranked} barCategoryGap="30%" margin={{ top: 5, right: 20, left: -10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: T.textDim, fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: T.border }} tickLine={false} interval={0} />
+                    <YAxis tick={{ fill: T.textMute, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} unit="%" domain={[0, 100]} />
+                    <Tooltip content={<Tip pct />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+                    <Bar dataKey="accuracy" name="Accuracy" radius={[6, 6, 0, 0]} maxBarSize={64}>
+                      {ranked.map((r, i) => <Cell key={i} fill={r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.red} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {ranked.map((r) => (
+                  <div key={r.name} className="flex flex-col items-center rounded-xl p-3" style={{ background: "white", border: `1px solid ${T.border}` }}>
+                    <RadialGauge value={r.accuracy} color={r.accuracy >= 90 ? T.emerald : r.accuracy >= 70 ? T.amber : T.red} size={90} subtitle={r.name} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Detection Breakdown by Equipment" icon={FiTarget} accent={T.cyan} className="h-[440px]"
+            right={
+              <ViewSwitch
+                value={breakdownView}
+                onChange={setBreakdownView}
+                options={[
+                  { value: "stacked", label: "Stacked", icon: FiLayers },
+                  { value: "percent", label: "100%", icon: FiActivity },
+                  { value: "grouped", label: "Grouped", icon: FiGrid },
+                  { value: "line", label: "Line", icon: FiTrendingUp },
+                  { value: "area", label: "Area", icon: FiActivity },
+                ]}
+              />
+            }
+          >
+            <div style={{ width: "100%", height: 350 }}>
+              <ResponsiveContainer>
+                {breakdownView === "line" ? (
+                  <LineChart data={ranked} margin={{ top: 5, right: 20, left: -10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: T.textDim, fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: T.border }} tickLine={false} interval={0} />
+                    <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<Tip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: T.textMute }} />
+                    <Line type="monotone" dataKey="ocrDetected" name="Auto" stroke={T.cyan} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="M" name="Manual" stroke={T.purple} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="Missing" name="Missing" stroke={T.red} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                ) : breakdownView === "area" ? (
+                  <AreaChart data={ranked} margin={{ top: 5, right: 20, left: -10, bottom: 10 }}>
+                    <defs>
+                      <linearGradient id="dev-bd-auto" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.cyan} stopOpacity={0.4} /><stop offset="100%" stopColor={T.cyan} stopOpacity={0} /></linearGradient>
+                      <linearGradient id="dev-bd-man" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.purple} stopOpacity={0.4} /><stop offset="100%" stopColor={T.purple} stopOpacity={0} /></linearGradient>
+                      <linearGradient id="dev-bd-miss" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.red} stopOpacity={0.4} /><stop offset="100%" stopColor={T.red} stopOpacity={0} /></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: T.textDim, fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: T.border }} tickLine={false} interval={0} />
+                    <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<Tip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: T.textMute }} />
+                    <Area type="monotone" dataKey="ocrDetected" name="Auto" stroke={T.cyan} strokeWidth={2} fill="url(#dev-bd-auto)" />
+                    <Area type="monotone" dataKey="M" name="Manual" stroke={T.purple} strokeWidth={2} fill="url(#dev-bd-man)" />
+                    <Area type="monotone" dataKey="Missing" name="Missing" stroke={T.red} strokeWidth={2} fill="url(#dev-bd-miss)" />
+                  </AreaChart>
+                ) : (
+                  <BarChart
+                    data={ranked}
+                    stackOffset={breakdownView === "percent" ? "expand" : "none"}
+                    barCategoryGap="30%"
+                    barGap={breakdownView === "grouped" ? 4 : 0}
+                    margin={{ top: 5, right: 20, left: -10, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: T.textDim, fontSize: 11, fontWeight: 600 }} axisLine={{ stroke: T.border }} tickLine={false} interval={0} />
+                    <YAxis tick={{ fill: T.textMute, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={breakdownView === "percent" ? (v) => `${Math.round(v * 100)}%` : undefined} />
+                    <Tooltip content={<Tip />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: T.textMute }} />
+                    <Bar dataKey="ocrDetected" stackId={breakdownView === "grouped" ? undefined : "d"} name="Auto" fill={T.cyan} maxBarSize={64} radius={breakdownView === "grouped" ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    <Bar dataKey="M" stackId={breakdownView === "grouped" ? undefined : "d"} name="Manual" fill={T.purple} maxBarSize={64} radius={breakdownView === "grouped" ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    <Bar dataKey="Missing" stackId={breakdownView === "grouped" ? undefined : "d"} name="Missing" fill={T.red} maxBarSize={64} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+          </div>
+
+          {/* Image gallery */}
+          <Panel
+            title="Container Scan Gallery"
+            icon={FiImage}
+            accent={T.pink}
+            subtitle={`${classCounts.auto} auto · ${classCounts.manual} manual · ${classCounts.missing} missing`}
+            right={
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="inline-flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(0,0,0,0.04)", border: `1px solid ${T.border}` }}>
+                  {IMAGE_FILTERS.map((f) => (
+                    <button key={f.key} onClick={() => setImgFilter(f.key)}
+                      className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all"
+                      style={{ background: imgFilter === f.key ? (CLASS_CFG[f.key]?.color || T.indigo) : "transparent", color: imgFilter === f.key ? "white" : T.textMute }}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <ViewSwitch
+                  value={gridView}
+                  onChange={setGridView}
+                  options={[{ value: "grid", label: "", icon: FiGrid }, { value: "list", label: "", icon: FiList }]}
+                />
+              </div>
+            }
+          >
+            <div className="flex-1 overflow-auto -mx-1 px-1 max-h-[560px]">
+              {filteredScans.length === 0 ? (
+                <div className="h-40 flex items-center justify-center text-xs" style={{ color: T.textMute }}>
+                  {lockLoading ? "Loading scans…" : "No scans for this filter"}
+                </div>
+              ) : gridView === "grid" ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {filteredScans.map(({ row, cls }, idx) => {
+                    const cont = String(row.ContNo || row.RFIDDATA || "—").split(" ")[0];
+                    const srcs = camSrcs(row.CameraImage1 || row.cameraimage1, 1);
+                    const thumb = srcs[0];
+                    const cfg = CLASS_CFG[cls];
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => thumb && setSelectedImage({ srcs, row, cont, cls })}
+                        className="text-left rounded-xl overflow-hidden group hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                        style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+                      >
+                        <div className="aspect-video relative overflow-hidden" style={{ background: "#eef2f7" }}>
+                          {thumb ? (
+                            <img src={thumb} alt={cont} className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              onError={(e) => { e.target.style.display = "none"; }} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center"><FiImage style={{ color: T.textMute }} size={20} /></div>
+                          )}
+                          <span className="absolute top-1.5 right-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: cfg.color, color: "white" }}>
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <div className="px-2 py-1.5">
+                          <div className="text-[11px] font-black truncate" style={{ color: T.text }}>{cont}</div>
+                          <div className="text-[10px] truncate" style={{ color: T.textMute }}>{row.EqpName || row.KalmarNo || "—"} · {fmtTime(row.TransDate)}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <DataTable
+                  cols={[
+                    { key: "cont", label: "Container" },
+                    { key: "eqp", label: "Equipment" },
+                    { key: "time", label: "Time" },
+                    {
+                      key: "cls", label: "Status", align: "right",
+                      render: (v) => <span className="px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: `${CLASS_CFG[v].color}18`, color: CLASS_CFG[v].color }}>{CLASS_CFG[v].label}</span>,
+                    },
+                  ]}
+                  rows={filteredScans.map(({ row, cls }) => ({
+                    cont: String(row.ContNo || row.RFIDDATA || "—").split(" ")[0],
+                    eqp: row.EqpName || row.KalmarNo || "—",
+                    time: fmtTime(row.TransDate),
+                    cls,
+                  }))}
+                />
+              )}
+            </div>
+          </Panel>
+        </main>
       </div>
 
       {/* Image modal */}
       {selectedImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(2,6,16,0.8)", backdropFilter: "blur(4px)" }} onClick={() => setSelectedImage(null)}>
-          <div className="rounded-2xl max-w-2xl w-full p-4" style={{ background: T.panel, border: `1px solid ${T.borderStrong}`, boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setSelectedImage(null)}>
+          <div className="rounded-2xl max-w-2xl w-full p-4" style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 24px 60px -16px rgba(99,102,241,0.2), 0 8px 24px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold" style={{ color: T.text }}>{selectedImage.cont}</h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: `${CLASS_CFG[selectedImage.cls].color}22`, color: CLASS_CFG[selectedImage.cls].color }}>{CLASS_CFG[selectedImage.cls].label}</span>
+                <h4 className="text-sm font-black" style={{ color: T.text }}>{selectedImage.cont}</h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: `${CLASS_CFG[selectedImage.cls].color}18`, color: CLASS_CFG[selectedImage.cls].color }}>
+                  {CLASS_CFG[selectedImage.cls].label}
+                </span>
               </div>
-              <button onClick={() => setSelectedImage(null)} style={{ color: T.textMute }}><FiX size={18} /></button>
+              <button onClick={() => setSelectedImage(null)} className="text-slate-400 hover:text-slate-700 transition-colors"><FiX size={18} /></button>
             </div>
-            <img src={selectedImage.srcs[0]} alt={selectedImage.cont} className="w-full rounded-lg" style={{ border: `1px solid ${T.border}` }}
-              onError={(e) => { const next = selectedImage.srcs[1]; if (next && e.target.src !== next) e.target.src = next; }} />
+            <img
+              src={selectedImage.srcs[0]}
+              alt={selectedImage.cont}
+              className="w-full rounded-lg"
+              style={{ border: `1px solid ${T.border}` }}
+              onError={(e) => { const next = selectedImage.srcs[1]; if (next && e.target.src !== next) e.target.src = next; }}
+            />
             <div className="mt-3 text-xs grid grid-cols-2 gap-2" style={{ color: T.textMute }}>
               <div>Equipment: <span className="font-bold" style={{ color: T.text }}>{selectedImage.row.EqpName || "—"}</span></div>
               <div>Time: <span className="font-bold" style={{ color: T.text }}>{fmtTime(selectedImage.row.TransDate)}</span></div>
