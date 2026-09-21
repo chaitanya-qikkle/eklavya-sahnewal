@@ -25,23 +25,34 @@ const TONE_MAP = {
   slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
   emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
   amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",       valueColor: "text-rose-700",    badgeBg: "bg-rose-50",      activeBg: "bg-rose-600"    },
 }
 
-const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
+const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, onClick }) => {
   const t = TONE_MAP[tone] || TONE_MAP.slate
   const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  const clickable = typeof onClick === 'function'
+  const Tag = clickable ? 'button' : 'div'
   return (
-    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
-      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
+    <Tag
+      type={clickable ? 'button' : undefined}
+      onClick={onClick}
+      className={`group relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 transition-all duration-150
+        ${isActive ? "bg-slate-50" : clickable ? "bg-white hover:bg-slate-50/70" : "bg-white"}`}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150" style={{ background: !clickable || isActive ? t.accent : "transparent" }} />
       <div className="pl-3.5 pr-3 py-2.5 flex items-center gap-2.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 ${
+          clickable && isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
+        }`}>
           {Icon && <Icon className="text-[13px]" />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-0.5">
             {label}
           </p>
-          <p className={`text-lg font-black leading-none tracking-tight ${t.valueColor}`}>
+          <p className={`text-lg font-black leading-none tracking-tight transition-colors ${clickable && !isActive ? "text-slate-700" : t.valueColor}`}>
             {value.toLocaleString()}
           </p>
         </div>
@@ -51,7 +62,14 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
           </span>
         )}
       </div>
-    </div>
+      {clickable && (
+        <div className="h-[2px] bg-slate-100">
+          {total > 0 && tone !== "slate" && (
+            <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
+          )}
+        </div>
+      )}
+    </Tag>
   )
 }
 
@@ -59,18 +77,23 @@ const ContainerStatusReport = () => {
   const [fromDate, setFromDate] = useState(yesterday)
   const [toDate,   setToDate]   = useState(today)
   const [search,   setSearch]   = useState('')
+  const [processFilter, setProcessFilter] = useState('all')
 
   const [fetchReport, { data: apiData, isFetching, isError }] = useLazyGetContainerGateReportQuery()
 
   const allRows = useMemo(() => apiData?.data ?? [], [apiData])
 
   const rows = useMemo(() => {
-    if (!search.trim()) return allRows
-    const q = search.trim().toLowerCase()
-    return allRows.filter(r =>
-      Object.values(r).some(v => v != null && String(v).toLowerCase().includes(q))
-    )
-  }, [allRows, search])
+    let result = allRows
+    if (processFilter !== 'all') result = result.filter(r => String(r.ProcessName || '').toUpperCase() === processFilter)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      result = result.filter(r =>
+        Object.values(r).some(v => v != null && String(v).toLowerCase().includes(q))
+      )
+    }
+    return result
+  }, [allRows, search, processFilter])
 
   const stats = useMemo(() => {
     const inYard   = allRows.filter(r => !r.GateOutDate).length
@@ -78,12 +101,21 @@ const ContainerStatusReport = () => {
     return { total: allRows.length, inYard, gatedOut }
   }, [allRows])
 
+  const processStats = useMemo(() => {
+    const total = allRows.length
+    const exportCount = allRows.filter(r => String(r.ProcessName || '').toUpperCase() === 'EXPORT').length
+    const importCount = allRows.filter(r => String(r.ProcessName || '').toUpperCase() === 'IMPORT').length
+    const emptyCount = allRows.filter(r => String(r.ProcessName || '').toUpperCase() === 'EMPTY').length
+    const domesticCount = allRows.filter(r => String(r.ProcessName || '').toUpperCase() === 'DOMESTIC').length
+    return { total, exportCount, importCount, emptyCount, domesticCount }
+  }, [allRows])
+
   useEffect(() => { fetchReport({ from_date: yesterday, to_date: today }) }, []) // eslint-disable-line
 
   const handleSearch = () => fetchReport({ from_date: fromDate, to_date: toDate })
 
   const handleClear = () => {
-    setFromDate(yesterday); setToDate(today); setSearch('')
+    setFromDate(yesterday); setToDate(today); setSearch(''); setProcessFilter('all')
     fetchReport({ from_date: yesterday, to_date: today })
   }
 
@@ -168,6 +200,54 @@ const ContainerStatusReport = () => {
                 <StatTile label="Total"     value={stats.total}    icon={FiPackage} tone="slate"   total={stats.total} />
                 <StatTile label="In Yard"   value={stats.inYard}   icon={FiLogIn}   tone="emerald" total={stats.total} />
                 <StatTile label="Gated Out" value={stats.gatedOut} icon={FiLogOut}  tone="amber"   total={stats.total} />
+              </div>
+
+              <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[840px] mt-3">
+                <StatTile
+                  label="Total Entries"
+                  value={processStats.total}
+                  icon={FiPackage}
+                  tone="slate"
+                  isActive={processFilter === 'all'}
+                  onClick={() => setProcessFilter('all')}
+                  total={processStats.total}
+                />
+                <StatTile
+                  label="Export"
+                  value={processStats.exportCount}
+                  icon={FiLogOut}
+                  tone="amber"
+                  isActive={processFilter === 'EXPORT'}
+                  onClick={() => setProcessFilter('EXPORT')}
+                  total={processStats.total}
+                />
+                <StatTile
+                  label="Import"
+                  value={processStats.importCount}
+                  icon={FiLogIn}
+                  tone="emerald"
+                  isActive={processFilter === 'IMPORT'}
+                  onClick={() => setProcessFilter('IMPORT')}
+                  total={processStats.total}
+                />
+                <StatTile
+                  label="Empty"
+                  value={processStats.emptyCount}
+                  icon={FiPackage}
+                  tone="violet"
+                  isActive={processFilter === 'EMPTY'}
+                  onClick={() => setProcessFilter('EMPTY')}
+                  total={processStats.total}
+                />
+                <StatTile
+                  label="Domestic"
+                  value={processStats.domesticCount}
+                  icon={MdOutlineInventory2}
+                  tone="rose"
+                  isActive={processFilter === 'DOMESTIC'}
+                  onClick={() => setProcessFilter('DOMESTIC')}
+                  total={processStats.total}
+                />
               </div>
             </div>
           </section>

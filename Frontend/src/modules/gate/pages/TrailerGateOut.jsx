@@ -26,6 +26,7 @@ const filterOptions = [
   { label: "Export", value: "EXPORT" },
   { label: "Import", value: "IMPORT" },
   { label: "Empty", value: "EMPTY" },
+  { label: "Domestic", value: "DOMESTIC" },
 ];
 
 function formatDate(raw) {
@@ -157,7 +158,10 @@ const TrailerGateOut = () => {
     const emptyCount = gateOutRecords.filter(
       (record) => record.transactionType === "EMPTY"
     ).length;
-    return { total, exportCount, importCount, emptyCount };
+    const domesticCount = gateOutRecords.filter(
+      (record) => record.transactionType === "DOMESTIC"
+    ).length;
+    return { total, exportCount, importCount, emptyCount, domesticCount };
   }, [gateOutRecords]);
 
   const handleExport = () => {
@@ -325,7 +329,7 @@ const TrailerGateOut = () => {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[680px] shrink-0">
+                <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[840px] shrink-0">
                   <StatTile
                     label="Total Entries"
                     value={stats.total}
@@ -360,6 +364,15 @@ const TrailerGateOut = () => {
                     tone="violet"
                     isActive={filter === "EMPTY"}
                     onClick={() => setFilter("EMPTY")}
+                    total={stats.total}
+                  />
+                  <StatTile
+                    label="Domestic"
+                    value={stats.domesticCount}
+                    icon={FiTruck}
+                    tone="rose"
+                    isActive={filter === "DOMESTIC"}
+                    onClick={() => setFilter("DOMESTIC")}
                     total={stats.total}
                   />
                 </div>
@@ -540,6 +553,7 @@ const TONE_MAP = {
   emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
   amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
   violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",       valueColor: "text-rose-700",    badgeBg: "bg-rose-50",      activeBg: "bg-rose-600"    },
 };
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {

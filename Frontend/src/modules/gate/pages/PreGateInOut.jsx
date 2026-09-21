@@ -27,23 +27,33 @@ const TONE_MAP = {
   amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
   violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
   sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-sky-50",        valueColor: "text-sky-700",     badgeBg: "bg-sky-50",       activeBg: "bg-sky-600"     },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",       valueColor: "text-rose-700",    badgeBg: "bg-rose-50",      activeBg: "bg-rose-600"    },
 }
 
-const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
+const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, onClick }) => {
   const t = TONE_MAP[tone] || TONE_MAP.slate
   const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  const clickable = typeof onClick === 'function'
+  const Tag = clickable ? 'button' : 'div'
   return (
-    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
-      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
+    <Tag
+      type={clickable ? 'button' : undefined}
+      onClick={onClick}
+      className={`group relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 transition-all duration-150
+        ${isActive ? "bg-slate-50" : clickable ? "bg-white hover:bg-slate-50/70" : "bg-white"}`}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150" style={{ background: !clickable || isActive ? t.accent : "transparent" }} />
       <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 ${
+          clickable && isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
+        }`}>
           {Icon && <Icon className="text-[15px]" />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
             {label}
           </p>
-          <p className={`text-2xl font-black leading-none tracking-tight ${t.valueColor}`}>
+          <p className={`text-2xl font-black leading-none tracking-tight transition-colors ${clickable && !isActive ? "text-slate-700" : t.valueColor}`}>
             {value.toLocaleString()}
           </p>
         </div>
@@ -53,7 +63,14 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
           </span>
         )}
       </div>
-    </div>
+      {clickable && (
+        <div className="h-[2px] bg-slate-100">
+          {total > 0 && tone !== "slate" && (
+            <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
+          )}
+        </div>
+      )}
+    </Tag>
   )
 }
 
@@ -403,6 +420,7 @@ export default function PreGateInOut() {
   const [sortDir,     setSortDir]     = useState('desc')
   const [lightbox,    setLightbox]    = useState(null)
   const [detailIdx,   setDetailIdx]   = useState(null) // index into `rows`
+  const [processFilter, setProcessFilter] = useState('all') // client-side, applies to the current page only
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
   const [fetchExportSurvey, { isFetching: isExporting }] = useLazyGetPreGateSurveyQuery()
@@ -444,7 +462,8 @@ export default function PreGateInOut() {
     const args = buildArgs(1)
     args.page_size = data.total
     const result = await fetchExportSurvey(args).unwrap().catch(() => null)
-    const allRows = Array.isArray(result?.data) ? result.data : []
+    let allRows = Array.isArray(result?.data) ? result.data : []
+    if (processFilter !== 'all') allRows = allRows.filter(r => String(r.Process || '').toUpperCase() === processFilter)
     if (!allRows.length) return
     const sheetData = allRows.map((row, i) => ({
       '#':              i + 1,
@@ -486,13 +505,25 @@ export default function PreGateInOut() {
     setSortDir(prev => (sortCol === col && prev === 'desc') ? 'asc' : 'desc')
   }
 
-  const rows = (() => {
+  const pageRowsAll = (() => {
     const raw = Array.isArray(data?.data) ? [...data.data] : []
     return raw.sort((a, b) => {
       const av = String(a[sortCol] ?? ''), bv = String(b[sortCol] ?? '')
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
   })()
+
+  const processStats = {
+    total: pageRowsAll.length,
+    exportCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'EXPORT').length,
+    importCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'IMPORT').length,
+    emptyCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'EMPTY').length,
+    domesticCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length,
+  }
+
+  const rows = processFilter === 'all'
+    ? pageRowsAll
+    : pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === processFilter)
 
   const total          = data?.total          ?? 0
   const gate_in_count  = data?.gate_in_count   ?? 0
@@ -543,6 +574,57 @@ export default function PreGateInOut() {
               <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
             </div>
           </header>
+
+          {/* ── Process filter pills (client-side, current page) ── */}
+          <div className="mb-4">
+            <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[840px]">
+              <StatTile
+                label="Total Entries"
+                value={processStats.total}
+                icon={FiPackage}
+                tone="slate"
+                isActive={processFilter === 'all'}
+                onClick={() => setProcessFilter('all')}
+                total={processStats.total}
+              />
+              <StatTile
+                label="Export"
+                value={processStats.exportCount}
+                icon={FiDownloadIcon}
+                tone="amber"
+                isActive={processFilter === 'EXPORT'}
+                onClick={() => setProcessFilter('EXPORT')}
+                total={processStats.total}
+              />
+              <StatTile
+                label="Import"
+                value={processStats.importCount}
+                icon={FiTruckIcon}
+                tone="emerald"
+                isActive={processFilter === 'IMPORT'}
+                onClick={() => setProcessFilter('IMPORT')}
+                total={processStats.total}
+              />
+              <StatTile
+                label="Empty"
+                value={processStats.emptyCount}
+                icon={FiBox}
+                tone="violet"
+                isActive={processFilter === 'EMPTY'}
+                onClick={() => setProcessFilter('EMPTY')}
+                total={processStats.total}
+              />
+              <StatTile
+                label="Domestic"
+                value={processStats.domesticCount}
+                icon={FiHome}
+                tone="rose"
+                isActive={processFilter === 'DOMESTIC'}
+                onClick={() => setProcessFilter('DOMESTIC')}
+                total={processStats.total}
+              />
+            </div>
+          </div>
 
           {/* ── Filter Bar ── */}
           <div className="bg-white/95 rounded-xl shadow-lg border border-slate-300 px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
