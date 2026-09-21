@@ -272,60 +272,19 @@ const SuggestionDropdown = ({ anchorRef, items, onSelect }) => {
   );
 };
 
-// ─── Transaction Card ────────────────────────────────────────────────────────
-const TransactionCard = ({
-  row, onUpdate, searchContainer, currentList, autoOpen, autoOpenMode, onAutoOpened, onNavigate,
-}) => {
-  const [contNo, setContNo] = useState(() => {
-    const raw = getField(row, "ContNo", "contno", "RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id") ?? "";
-    const clean = String(raw).split(" ")[0];
-    return clean === "00000000000" || clean.startsWith("0000000") ? "" : clean;
-  });
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSug, setShowSug] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [zoomState, setZoomState] = useState(null); // { srcs: [], idx: number }
-  const [showModal, setShowModal] = useState(false);
-  const [modalContNo, setModalContNo] = useState(contNo);
-  const [modalSuggestions, setModalSuggestions] = useState([]);
-  const [modalShowSug, setModalShowSug] = useState(false);
-  const [modalSaving, setModalSaving] = useState(false);
-  const [modalJustSaved, setModalJustSaved] = useState(false);
-  const [imgFlipped, setImgFlipped] = useState([false, false]);
-  const [zoomedFlipped, setZoomedFlipped] = useState(false);
-  const inputRef = useRef(null);
-  const modalInputRef = useRef(null);
-  const modalOverlayRef = useRef(null);
-
-  const toggleFlip = (idx) => setImgFlipped(prev => prev.map((f, i) => i === idx ? !f : f));
-  const openZoom = (srcs, startIdx = 0) => { setZoomState({ srcs, idx: startIdx }); setZoomedFlipped(false); };
-
+// ─── Transaction Card (grid tile only — the update/zoom modals are owned by
+// the parent's single, always-mounted TransactionModal so navigating between
+// transactions never unmounts the dark overlay, eliminating the flash) ─────
+const TransactionCard = ({ row, onOpen }) => {
   const machine = getField(row, "DeviceID", "deviceid", "EqpName", "eqpname") ?? "-";
   const location = getField(row, "Location", "location", "LOCATION", "BLOCK_NAME", "block_name") ?? "-";
   const dateTime = formatDateTime(getField(row, "TransDate", "transdate", "DATE_TIME", "date_time"));
-  const transId = getField(row, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
+  const contNoRaw = getField(row, "ContNo", "contno", "RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id") ?? "";
+  const contNoClean = String(contNoRaw).split(" ")[0];
+  const contNo = contNoClean === "00000000000" || contNoClean.startsWith("0000000") ? "" : contNoClean;
+  const isComplete = contNo.length === 11;
+  const isPartial  = contNo.length > 0 && contNo.length < 11;
 
-  // This card's position within the currently visible list — drives the
-  // prev/next transaction buttons in both modals.
-  const listIdx = Array.isArray(currentList)
-    ? currentList.findIndex((r) => {
-        const id = getField(r, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
-        return id != null && transId != null && String(id) === String(transId);
-      })
-    : -1;
-  const prevTid = listIdx > 0 ? getField(currentList[listIdx - 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
-  const nextTid = listIdx >= 0 && listIdx < (currentList?.length ?? 0) - 1 ? getField(currentList[listIdx + 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
-  const hasPrevTx = prevTid != null;
-  const hasNextTx = nextTid != null;
-  // mode: "modal" reopens the plain Container Update Modal on the next card
-  // (default); "zoom" reopens that card's zoomed camera view instead, so
-  // navigating from inside the zoom view doesn't drop back to the plain
-  // modal.
-  const goToPrevTx = (mode = "modal") => { if (hasPrevTx) { setShowModal(false); setZoomState(null); onNavigate?.(String(prevTid), mode); } };
-  const goToNextTx = (mode = "modal") => { if (hasNextTx) { setShowModal(false); setZoomState(null); onNavigate?.(String(nextTid), mode); } };
-
-  // Backend builds CameraImage1/2/3 as <DeviceID>_<ddMMyyyyHHmmss>_camN_1.jpg,
-  // but the actually-captured frame varies (_1/_2/_3) — try all three.
   const cam1Base = row.CameraImage1?.trim() || row.cameraimage1?.trim() || "";
   const cam2Base = row.CameraImage2?.trim() || row.cameraimage2?.trim() || "";
   const cam1Srcs = cam1Base ? [
@@ -339,91 +298,136 @@ const TransactionCard = ({
     `${AWS_IMAGE_PATH}/${cam2Base.replace(/_cam2_1\.jpg$/i, "_cam2_3.jpg")}`,
   ] : [];
 
-  const handleChange = async (e) => {
-    const cur = e.target.selectionStart;
-    const val = e.target.value.toUpperCase();
-    if (val.length > 11) return;
-    setContNo(val);
-    requestAnimationFrame(() => {
-      inputRef.current?.setSelectionRange(cur, cur);
-    });
-    if (val.length >= 1) {
-      try {
-        const res = await searchContainer(val).unwrap();
-        setSuggestions(res?.data || res || []);
-        setShowSug(true);
-      } catch {
-        setSuggestions([]);
-      }
-    } else {
-      setSuggestions([]);
-      setShowSug(false);
-    }
-  };
+  return (
+    <div className="bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col overflow-visible hover:shadow-lg transition-shadow">
+      {/* Card Header */}
+      <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] rounded-t-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+        <span className="text-white font-black text-sm md:text-base tracking-wide">{machine}</span>
+        <div className="flex items-center gap-3 text-white/75 text-[10px] md:text-xs font-medium min-w-0 shrink-0">
+          <span className="flex items-center gap-1 truncate">
+            <FiMapPin className="w-3 h-3 shrink-0" />
+            <span className="truncate max-w-[80px] md:max-w-[120px]">{location}</span>
+          </span>
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <FiClock className="w-3 h-3 shrink-0" />
+            {dateTime}
+          </span>
+        </div>
+      </div>
 
-  const selectSug = (c) => {
-    const no = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
-    setContNo(no);
-    setShowSug(false);
-  };
+      {/* Images */}
+      <div className="p-3 grid grid-cols-2 gap-2">
+        <ImgThumb srcs={cam1Srcs} alt="Camera 1" onZoom={(srcs, idx) => onOpen("zoom", srcs, idx)} />
+        <ImgThumb srcs={cam2Srcs} alt="Camera 2" onZoom={(srcs, idx) => onOpen("zoom", srcs, idx)} />
+      </div>
 
-  const handleSave = async () => {
-    if (!contNo || contNo.trim() === "") {
-      Swal.fire("Warning", "Please enter a container number.", "warning"); return;
-    }
-    if (contNo.length !== 11) {
-      Swal.fire("Warning", "Container number must be exactly 11 characters.", "warning"); return;
-    }
-    if (!transId) {
-      Swal.fire("Error", "Transaction ID not found.", "error"); return;
-    }
-    setSaving(true);
-    try {
-      const res = await onUpdate({ eqp_trans_id: parseInt(transId), cont_no: contNo }, row);
-      if (res?.error) throw res.error;
-      Swal.fire({ icon: "success", title: "Updated", text: res?.data?.message || "Container updated.", timer: 1800, showConfirmButton: false });
-    } catch (err) {
-      Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
+      {/* Update Section */}
+      <div className="px-3 pb-3 relative">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={contNo}
+            onFocus={(e) => { e.target.blur(); onOpen("modal"); }}
+            readOnly
+            maxLength={11}
+            placeholder="CONTAINER NO"
+            className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold tracking-wider uppercase focus:outline-none transition-all text-slate-800 cursor-pointer
+              ${isComplete ? "border-emerald-400 bg-emerald-50 focus:border-emerald-500" :
+                isPartial  ? "border-amber-400 bg-amber-50 focus:border-amber-500" :
+                             "border-slate-300 bg-white focus:border-[#0e4a78]"}`}
+          />
+          <button
+            onClick={() => onOpen("modal")}
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
+          >
+            <FiCheck className="w-3.5 h-3.5" />
+            Update
+          </button>
+        </div>
+        {isPartial && (
+          <p className="text-[10px] text-amber-600 mt-1 font-medium">{contNo.length}/11 chars</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
-  const openModal = () => {
-    setModalContNo(contNo);
+// ─── Transaction Modal — single instance owned by the parent, always mounted
+// while a transaction is open. Switching transactions (Next/Prev, or the
+// auto-advance after a save) only swaps which row it displays, so the dark
+// backdrop never unmounts and there's no flash. ────────────────────────────
+const TransactionModal = ({ tid, list, view, onClose, onNavigate, onSetView, onSaved, searchContainer }) => {
+  const listIdx = useMemo(() => (Array.isArray(list) && tid != null
+    ? list.findIndex((r) => {
+        const id = getField(r, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
+        return id != null && String(id) === String(tid);
+      })
+    : -1), [list, tid]);
+  const row = listIdx >= 0 ? list[listIdx] : null;
+
+  const prevTid = listIdx > 0 ? getField(list[listIdx - 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
+  const nextTid = listIdx >= 0 && listIdx < (list?.length ?? 0) - 1 ? getField(list[listIdx + 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
+  const hasPrevTx = prevTid != null;
+  const hasNextTx = nextTid != null;
+  const goToPrevTx = (mode) => { if (hasPrevTx) onNavigate(String(prevTid), mode || view); };
+  const goToNextTx = (mode) => { if (hasNextTx) onNavigate(String(nextTid), mode || view); };
+
+  const machine = row ? (getField(row, "DeviceID", "deviceid", "EqpName", "eqpname") ?? "-") : "-";
+  const location = row ? (getField(row, "Location", "location", "LOCATION", "BLOCK_NAME", "block_name") ?? "-") : "-";
+  const dateTime = row ? formatDateTime(getField(row, "TransDate", "transdate", "DATE_TIME", "date_time")) : "-";
+  const transId = row ? getField(row, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
+
+  const cam1Base = row ? (row.CameraImage1?.trim() || row.cameraimage1?.trim() || "") : "";
+  const cam2Base = row ? (row.CameraImage2?.trim() || row.cameraimage2?.trim() || "") : "";
+  const cam1Srcs = cam1Base ? [
+    `${AWS_IMAGE_PATH}/${cam1Base}`,
+    `${AWS_IMAGE_PATH}/${cam1Base.replace(/_cam1_1\.jpg$/i, "_cam1_2.jpg")}`,
+    `${AWS_IMAGE_PATH}/${cam1Base.replace(/_cam1_1\.jpg$/i, "_cam1_3.jpg")}`,
+  ] : [];
+  const cam2Srcs = cam2Base ? [
+    `${AWS_IMAGE_PATH}/${cam2Base}`,
+    `${AWS_IMAGE_PATH}/${cam2Base.replace(/_cam2_1\.jpg$/i, "_cam2_2.jpg")}`,
+    `${AWS_IMAGE_PATH}/${cam2Base.replace(/_cam2_1\.jpg$/i, "_cam2_3.jpg")}`,
+  ] : [];
+
+  const [modalContNo, setModalContNo] = useState("");
+  const [modalSuggestions, setModalSuggestions] = useState([]);
+  const [modalShowSug, setModalShowSug] = useState(false);
+  const [modalSaving, setModalSaving] = useState(false);
+  const [modalJustSaved, setModalJustSaved] = useState(false);
+  const [imgFlipped, setImgFlipped] = useState([false, false]);
+  const [zoomedFlipped, setZoomedFlipped] = useState(false);
+  const [zoomIdx, setZoomIdx] = useState(0);
+  const [zoomCam, setZoomCam] = useState(1); // which camera's srcs the zoom view is paging through
+  const modalInputRef = useRef(null);
+  const modalOverlayRef = useRef(null);
+
+  // Reset per-transaction UI state whenever the displayed row changes.
+  useEffect(() => {
+    if (!row) return;
+    const raw = getField(row, "ContNo", "contno", "RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id") ?? "";
+    const clean = String(raw).split(" ")[0];
+    setModalContNo(clean === "00000000000" || clean.startsWith("0000000") ? "" : clean);
     setModalSuggestions([]);
     setModalShowSug(false);
-    setShowModal(true);
-    setTimeout(() => modalInputRef.current?.focus(), 50);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setModalShowSug(false);
-  };
-
-  // Parent asks this card to open itself — used right after the previously
-  // open card was removed from the grid on save, so "next transaction" opens
-  // whichever card now sits in that slot.
-  useEffect(() => {
-    if (autoOpen) {
-      if (autoOpenMode === "zoom") {
-        // Re-open the same camera view (Cam 1, falling back to Cam 2) the
-        // user was navigating through, instead of dropping them into the
-        // plain update modal.
-        if (cam1Srcs.length) openZoom(cam1Srcs, 0);
-        else if (cam2Srcs.length) openZoom(cam2Srcs, 0);
-        else openModal();
-      } else {
-        openModal();
-      }
-      onAutoOpened?.();
-    }
+    setModalJustSaved(false);
+    setImgFlipped([false, false]);
+    setZoomedFlipped(false);
+    setZoomIdx(0);
+    if (view === "modal") setTimeout(() => modalInputRef.current?.focus(), 50);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpen]);
+  }, [tid]);
+
+  const toggleFlip = (idx) => setImgFlipped((prev) => prev.map((f, i) => i === idx ? !f : f));
+  const openZoomFromCard = (srcs, startIdx = 0) => {
+    setZoomCam(srcs === cam2Srcs ? 2 : 1);
+    setZoomIdx(startIdx);
+    setZoomedFlipped(false);
+    onSetView("zoom");
+  };
 
   const handleModalOverlayClick = (e) => {
-    if (e.target === modalOverlayRef.current) closeModal();
+    if (e.target === modalOverlayRef.current) onClose();
   };
 
   const handleModalChange = async (e) => {
@@ -431,9 +435,7 @@ const TransactionCard = ({
     const val = e.target.value.toUpperCase();
     if (val.length > 11) return;
     setModalContNo(val);
-    requestAnimationFrame(() => {
-      modalInputRef.current?.setSelectionRange(cur, cur);
-    });
+    requestAnimationFrame(() => modalInputRef.current?.setSelectionRange(cur, cur));
     if (val.length >= 1) {
       try {
         const res = await searchContainer(val).unwrap();
@@ -466,418 +468,307 @@ const TransactionCard = ({
     }
     setModalSaving(true);
     try {
-      const res = await onUpdate({ eqp_trans_id: parseInt(transId), cont_no: modalContNo }, row, currentList);
+      const res = await onSaved({ eqp_trans_id: parseInt(transId), cont_no: modalContNo }, row, list, view);
       if (res?.error) throw res.error;
-      setContNo(modalContNo);
       setModalSaving(false);
       setModalJustSaved(true);
-      setTimeout(() => {
-        setModalJustSaved(false);
-        closeModal();
-        // The saved row drops out of the list immediately (see removedIds
-        // in the parent) and the parent sets autoOpenTid to whichever
-        // transaction now occupies this card's old slot — that card opens
-        // itself via the autoOpen effect above.
-      }, 900);
+      setTimeout(() => setModalJustSaved(false), 900);
+      // The saved row drops out of the list and the parent advances tid/view
+      // to whichever transaction now occupies this slot — this same modal
+      // instance just re-renders with the new row, no unmount.
     } catch (err) {
       setModalSaving(false);
       Swal.fire("Error", err?.data?.message || err?.data?.detail || "Failed to update container.", "error");
     }
   };
 
-  const isComplete = contNo.length === 11;
-  const isPartial  = contNo.length > 0 && contNo.length < 11;
+  if (!row) return null;
+
   const modalIsComplete = modalContNo.length === 11;
   const modalIsPartial  = modalContNo.length > 0 && modalContNo.length < 11;
 
-  return (
-    <>
-      <div className="bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col overflow-visible hover:shadow-lg transition-shadow">
-        {/* Card Header */}
-        <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] rounded-t-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
-          <span className="text-white font-black text-sm md:text-base tracking-wide">{machine}</span>
-          <div className="flex items-center gap-3 text-white/75 text-[10px] md:text-xs font-medium min-w-0 shrink-0">
-            <span className="flex items-center gap-1 truncate">
-              <FiMapPin className="w-3 h-3 shrink-0" />
-              <span className="truncate max-w-[80px] md:max-w-[120px]">{location}</span>
-            </span>
-            <span className="flex items-center gap-1 whitespace-nowrap">
-              <FiClock className="w-3 h-3 shrink-0" />
-              {dateTime}
-            </span>
-          </div>
-        </div>
+  if (view === "zoom") {
+    const zSrcs = zoomCam === 2 ? cam2Srcs : cam1Srcs;
+    const zIdx  = Math.min(zoomIdx, Math.max(zSrcs.length - 1, 0));
+    const zSrc  = zSrcs[zIdx] || null;
+    const hasPrevFrame = zIdx > 0;
+    const hasNextFrame = zIdx < zSrcs.length - 1;
+    const goToFrame = (i) => { setZoomIdx(i); setZoomedFlipped(false); };
 
-        {/* Images */}
-        <div className="p-3 grid grid-cols-2 gap-2">
-          <ImgThumb srcs={cam1Srcs} alt="Camera 1" onZoom={openZoom} />
-          <ImgThumb srcs={cam2Srcs} alt="Camera 2" onZoom={openZoom} />
-        </div>
-
-        {/* Update Section */}
-        <div className="px-3 pb-3 relative">
+    return (
+      <div
+        className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex flex-col items-center p-4 overflow-y-auto"
+        onClick={onClose}
+      >
+        {/* Top bar: Flip + Download + transaction Prev/Next + Close */}
+        <div className="sticky top-0 w-full max-w-3xl flex items-center justify-between z-10 mb-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                ref={inputRef}
-                type="text"
-                value={contNo}
-                onChange={handleChange}
-                onFocus={() => { openModal(); }}
-                onBlur={() => setTimeout(() => setShowSug(false), 150)}
-                maxLength={11}
-                placeholder="CONTAINER NO"
-                readOnly
-                className={`w-full px-3 py-2 rounded-lg border-2 text-sm font-bold tracking-wider uppercase focus:outline-none transition-all text-slate-800 cursor-pointer
-                  ${isComplete ? "border-emerald-400 bg-emerald-50 focus:border-emerald-500" :
-                    isPartial  ? "border-amber-400 bg-amber-50 focus:border-amber-500" :
-                                 "border-slate-300 bg-white focus:border-[#0e4a78]"}`}
-              />
-              {/* Suggestions */}
-              {showSug && suggestions.length > 0 && (
-                <ul className="absolute top-full mt-1 left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto">
-                  {suggestions.map((c, i) => {
-                    const val = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
-                    const loc = typeof c === "object" ? c?.Last_Loc || c?.last_loc || c?.LAST_LOCATION_NAME || "" : "";
-                    return (
-                      <li
-                        key={i}
-                        onMouseDown={() => selectSug(c)}
-                        className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-[#0e4a78]/5 cursor-pointer border-b border-slate-100 last:border-0"
-                      >
-                        <span className="text-sm font-bold font-mono text-slate-800">{val}</span>
-                        {loc && <span className="text-xs text-slate-400 shrink-0">{loc}</span>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-
             <button
-              onClick={handleSave}
-              disabled={saving || !isComplete}
-              className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm
-                ${isComplete && !saving
-                  ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+              type="button"
+              onClick={() => setZoomedFlipped((f) => !f)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors
+                ${zoomedFlipped ? "bg-[#0e4a78] text-white" : "bg-white/15 hover:bg-white/25 text-white"}`}
             >
-              {saving ? (
-                <FiRefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <FiCheck className="w-3.5 h-3.5" />
-              )}
-              Update
+              <span className="text-base">↕</span> Flip
             </button>
-          </div>
-
-          {isPartial && (
-            <p className="text-[10px] text-amber-600 mt-1 font-medium">{contNo.length}/11 chars</p>
-          )}
-        </div>
-      </div>
-
-      {/* Zoom Modal */}
-      {zoomState && (() => {
-        const zSrcs = zoomState.srcs;
-        const zIdx  = zoomState.idx;
-        const zSrc  = zSrcs[zIdx] || null;
-        const hasPrev = zIdx > 0;
-        const hasNext = zIdx < zSrcs.length - 1;
-        const goTo = (i) => { setZoomState({ srcs: zSrcs, idx: i }); setZoomedFlipped(false); };
-        return (
-        <div
-          className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex flex-col items-center p-4 overflow-y-auto"
-          onClick={() => setZoomState(null)}
-        >
-          {/* Top bar: Flip + Download + frame indicator + Close */}
-          <div className="sticky top-0 w-full max-w-3xl flex items-center justify-between z-10 mb-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2">
+            {zSrc && (
               <button
                 type="button"
-                onClick={() => setZoomedFlipped(f => !f)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors
-                  ${zoomedFlipped ? "bg-[#0e4a78] text-white" : "bg-white/15 hover:bg-white/25 text-white"}`}
+                onClick={() => downloadImg(zSrc, `${machine}_frame${zIdx + 1}.jpg`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-white/15 hover:bg-white/25 text-white transition-colors"
               >
-                <span className="text-base">↕</span> Flip
-              </button>
-              {zSrc && (
-                <button
-                  type="button"
-                  onClick={() => downloadImg(zSrc, `${machine}_frame${zIdx + 1}.jpg`)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-white/15 hover:bg-white/25 text-white transition-colors"
-                >
-                  <FiDownload className="w-4 h-4" /> Download
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {(hasPrevTx || hasNextTx) && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => goToPrevTx("zoom")}
-                    disabled={!hasPrevTx}
-                    className="flex items-center gap-1 pl-2 pr-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
-                    title="Previous transaction"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => goToNextTx("zoom")}
-                    disabled={!hasNextTx}
-                    className="flex items-center gap-1 pl-3 pr-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
-                    title="Next transaction"
-                  >
-                    Next
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
-                  </button>
-                </div>
-              )}
-              <button
-                className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-colors"
-                onClick={() => setZoomState(null)}
-              >
-                <FiX size={22} />
-              </button>
-            </div>
-          </div>
-
-          {/* Image + Prev/Next overlay */}
-          <div className="relative shrink-0 w-full max-w-3xl flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-            {/* Prev button */}
-            {hasPrev && (
-              <button
-                onClick={() => goTo(zIdx - 1)}
-                className="absolute left-0 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-black/50 hover:bg-[#0e4a78] text-white transition-colors shadow-lg"
-                title="Previous frame"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M15 18l-6-6 6-6"/></svg>
+                <FiDownload className="w-4 h-4" /> Download
               </button>
             )}
-
-            {zSrc ? (
-              <img
-                src={zSrc}
-                className="max-w-full object-contain rounded-xl shadow-2xl transition-all duration-300"
-                style={{ maxHeight: "50vh", transform: zoomedFlipped ? "rotate(180deg)" : "none" }}
-                alt="Zoomed"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2 text-white/40 py-16">
-                <FiCamera className="w-10 h-10" />
-                <span className="text-sm">No Image</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {(hasPrevTx || hasNextTx) && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => goToPrevTx("zoom")}
+                  disabled={!hasPrevTx}
+                  className="flex items-center gap-1 pl-2 pr-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
+                  title="Previous transaction"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                  Prev
+                </button>
+                <button
+                  onClick={() => goToNextTx("zoom")}
+                  disabled={!hasNextTx}
+                  className="flex items-center gap-1 pl-3 pr-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
+                  title="Next transaction"
+                >
+                  Next
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
               </div>
             )}
-
-            {/* Next button */}
-            {hasNext && (
-              <button
-                onClick={() => goTo(zIdx + 1)}
-                className="absolute right-0 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-black/50 hover:bg-[#0e4a78] text-white transition-colors shadow-lg"
-                title="Next frame"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
-            )}
-          </div>
-
-          {/* Frame dots */}
-          {zSrcs.length > 1 && (
-            <div className="flex items-center gap-2 mt-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-              {zSrcs.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => goTo(i)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all ${i === zIdx ? "bg-white scale-125" : "bg-white/30 hover:bg-white/60"}`}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Container input below image */}
-          <div
-            className="mt-3 w-full max-w-lg shrink-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative">
-              <input
-                type="text"
-                value={modalContNo}
-                onChange={handleModalChange}
-                onBlur={() => setTimeout(() => setModalShowSug(false), 150)}
-                maxLength={11}
-                placeholder="ENTER CONTAINER NO"
-                className={`w-full px-4 py-4 rounded-xl border-2 text-2xl font-black tracking-widest uppercase focus:outline-none transition-all text-slate-800 text-center
-                  ${modalIsComplete ? "border-emerald-400 bg-emerald-50 focus:border-emerald-500" :
-                    modalIsPartial  ? "border-amber-400 bg-amber-50 focus:border-amber-500" :
-                                      "border-white/30 bg-white focus:border-white"}`}
-              />
-              {modalIsPartial && (
-                <span className="absolute bottom-2 right-3 text-[11px] text-amber-500 font-bold">{modalContNo.length}/11</span>
-              )}
-              {modalIsComplete && (
-                <span className="absolute bottom-2 right-3 text-[11px] text-emerald-500 font-bold flex items-center gap-0.5">
-                  <FiCheck className="w-3.5 h-3.5" />11/11
-                </span>
-              )}
-              {/* Suggestions — opens upward in zoom modal */}
-              {modalShowSug && modalSuggestions.length > 0 && (
-                <ul className="absolute bottom-full mb-1 left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                  {modalSuggestions.map((c, i) => {
-                    const val = typeof c === "string" ? c : c?.Cont_No || c?.cont_no || c?.CONTAINER_NO || c?.container_no || "";
-                    const loc = typeof c === "object" ? c?.Last_Loc || c?.last_loc || c?.LAST_LOCATION_NAME || "" : "";
-                    return (
-                      <li
-                        key={i}
-                        onMouseDown={() => selectModalSug(c)}
-                        className="px-4 py-3 flex items-center justify-between gap-2 hover:bg-[#0e4a78]/5 cursor-pointer border-b border-slate-100 last:border-0"
-                      >
-                        <span className="text-base font-black font-mono text-slate-800">{val}</span>
-                        {loc && <span className="text-xs text-slate-400 shrink-0">{loc}</span>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
             <button
-              onClick={handleModalSave}
-              disabled={modalSaving || !modalIsComplete}
-              className={`w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-black tracking-wide transition-all shadow-md
-                ${modalIsComplete && !modalSaving
-                  ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
-                  : "bg-white/20 text-white/40 cursor-not-allowed"}`}
+              className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-colors"
+              onClick={onClose}
             >
-              {modalSaving ? (
-                <><FiRefreshCw className="w-5 h-5 animate-spin" />Updating…</>
-              ) : (
-                <><FiCheck className="w-5 h-5" />Update Container</>
-              )}
+              <FiX size={22} />
             </button>
           </div>
         </div>
-        );
-      })()}
 
-      {/* Container Update Modal */}
-      {showModal && (
-        <div
-          ref={modalOverlayRef}
-          className="fixed inset-0 z-[9998] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={handleModalOverlayClick}
-        >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto overflow-y-auto max-h-[90vh]">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-5 py-3.5 flex items-center justify-between">
-              <div>
-                <div className="text-white font-black text-base tracking-wide">{machine}</div>
-                <div className="text-white/55 text-[11px] mt-0.5 flex items-center gap-1.5">
-                  <FiMapPin className="w-3 h-3" />{location}
-                  <span className="mx-1">·</span>
-                  <FiClock className="w-3 h-3" />{dateTime}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {(hasPrevTx || hasNextTx) && (
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={goToPrevTx}
-                      disabled={!hasPrevTx}
-                      className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
-                      title="Previous transaction"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
-                    </button>
-                    <button
-                      onClick={goToNextTx}
-                      disabled={!hasNextTx}
-                      className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
-                      title="Next transaction"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
-                    </button>
-                  </div>
-                )}
-                <button
-                  onClick={closeModal}
-                  className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
-                >
-                  <FiX size={18} />
-                </button>
-              </div>
+        {/* Image + frame Prev/Next overlay */}
+        <div className="relative shrink-0 w-full max-w-3xl flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          {hasPrevFrame && (
+            <button
+              onClick={() => goToFrame(zIdx - 1)}
+              className="absolute left-0 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-black/50 hover:bg-[#0e4a78] text-white transition-colors shadow-lg"
+              title="Previous frame"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+          )}
+
+          {zSrc ? (
+            <img
+              key={zSrc}
+              src={zSrc}
+              className="max-w-full object-contain rounded-xl shadow-2xl transition-all duration-300"
+              style={{ maxHeight: "50vh", transform: zoomedFlipped ? "rotate(180deg)" : "none" }}
+              alt="Zoomed"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 text-white/40 py-16">
+              <FiCamera className="w-10 h-10" />
+              <span className="text-sm">No Image</span>
             </div>
+          )}
 
-            <div className="p-3 space-y-2">
-              {/* Images — stacked on mobile, side-by-side on desktop */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {[cam1Srcs, cam2Srcs].map((srcs, idx) => {
-                  const label = idx === 0 ? "Cam 1" : "Cam 2";
-                  return (
-                    <ModalImg
-                      key={label}
-                      label={label}
-                      srcs={srcs}
-                      flipped={imgFlipped[idx]}
-                      onFlip={() => toggleFlip(idx)}
-                      onZoom={openZoom}
-                    />
-                  );
-                })}
-              </div>
+          {hasNextFrame && (
+            <button
+              onClick={() => goToFrame(zIdx + 1)}
+              className="absolute right-0 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-black/50 hover:bg-[#0e4a78] text-white transition-colors shadow-lg"
+              title="Next frame"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          )}
+        </div>
 
-              {/* Input */}
-              <div className="relative">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Container Number</label>
-                <input
-                  ref={modalInputRef}
-                  type="text"
-                  value={modalContNo}
-                  onChange={handleModalChange}
-                  onBlur={() => setTimeout(() => setModalShowSug(false), 150)}
-                  maxLength={11}
-                  placeholder="ENTER CONTAINER NO"
-                  className={`w-full px-4 py-3 rounded-xl border-2 text-xl font-black tracking-widest uppercase focus:outline-none transition-all text-slate-800 text-center
-                    ${modalIsComplete ? "border-emerald-400 bg-emerald-50 focus:border-emerald-500" :
-                      modalIsPartial  ? "border-amber-400 bg-amber-50 focus:border-amber-500" :
-                                        "border-slate-300 bg-slate-50 focus:border-[#0e4a78] focus:bg-white"}`}
-                />
-                {modalIsPartial && (
-                  <span className="absolute bottom-2 right-3 text-[11px] text-amber-500 font-bold">{modalContNo.length}/11</span>
-                )}
-                {modalIsComplete && (
-                  <span className="absolute bottom-2 right-3 text-[11px] text-emerald-500 font-bold flex items-center gap-0.5">
-                    <FiCheck className="w-3.5 h-3.5" />11/11
-                  </span>
-                )}
-                {modalShowSug && modalSuggestions.length > 0 && (
-                  <SuggestionDropdown anchorRef={modalInputRef} items={modalSuggestions} onSelect={selectModalSug} />
-                )}
-              </div>
-
+        {/* Frame dots */}
+        {zSrcs.length > 1 && (
+          <div className="flex items-center gap-2 mt-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {zSrcs.map((_, i) => (
               <button
-                onClick={handleModalSave}
-                disabled={modalSaving || modalJustSaved || !modalIsComplete}
-                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-black tracking-wide transition-all shadow-md
-                  ${modalJustSaved
-                    ? "bg-emerald-600 text-white"
-                    : modalIsComplete && !modalSaving
-                      ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
-                      : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
-              >
-                {modalJustSaved ? (
-                  <><FiCheckCircle className="w-5 h-5" />Saved</>
-                ) : modalSaving ? (
-                  <><FiRefreshCw className="w-5 h-5 animate-spin" />Updating…</>
-                ) : (
-                  <><FiCheck className="w-5 h-5" />Update Container</>
-                )}
-              </button>
+                key={i}
+                onClick={() => goToFrame(i)}
+                className={`w-2.5 h-2.5 rounded-full transition-all ${i === zIdx ? "bg-white scale-125" : "bg-white/30 hover:bg-white/60"}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Container input below image */}
+        <div className="mt-3 w-full max-w-lg shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="relative">
+            <input
+              type="text"
+              value={modalContNo}
+              onChange={handleModalChange}
+              onBlur={() => setTimeout(() => setModalShowSug(false), 150)}
+              maxLength={11}
+              placeholder="ENTER CONTAINER NO"
+              className={`w-full px-4 py-4 rounded-xl border-2 text-2xl font-black tracking-widest uppercase focus:outline-none transition-all text-slate-800 text-center
+                ${modalIsComplete ? "border-emerald-400 bg-emerald-50 focus:border-emerald-500" :
+                  modalIsPartial  ? "border-amber-400 bg-amber-50 focus:border-amber-500" :
+                                    "border-white/30 bg-white focus:border-white"}`}
+            />
+            {modalIsPartial && (
+              <span className="absolute bottom-2 right-3 text-[11px] text-amber-500 font-bold">{modalContNo.length}/11</span>
+            )}
+            {modalIsComplete && (
+              <span className="absolute bottom-2 right-3 text-[11px] text-emerald-500 font-bold flex items-center gap-0.5">
+                <FiCheck className="w-3.5 h-3.5" />11/11
+              </span>
+            )}
+            {modalShowSug && modalSuggestions.length > 0 && (
+              <SuggestionDropdown anchorRef={modalInputRef} items={modalSuggestions} onSelect={selectModalSug} />
+            )}
+          </div>
+          <button
+            onClick={handleModalSave}
+            disabled={modalSaving || modalJustSaved || !modalIsComplete}
+            className={`w-full mt-2 flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-black tracking-wide transition-all shadow-md
+              ${modalJustSaved
+                ? "bg-emerald-600 text-white"
+                : modalIsComplete && !modalSaving
+                  ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
+                  : "bg-white/20 text-white/40 cursor-not-allowed"}`}
+          >
+            {modalJustSaved ? (
+              <><FiCheckCircle className="w-5 h-5" />Saved</>
+            ) : modalSaving ? (
+              <><FiRefreshCw className="w-5 h-5 animate-spin" />Updating…</>
+            ) : (
+              <><FiCheck className="w-5 h-5" />Update Container</>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={modalOverlayRef}
+      className="fixed inset-0 z-[9998] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={handleModalOverlayClick}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto overflow-y-auto max-h-[90vh]">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-5 py-3.5 flex items-center justify-between">
+          <div>
+            <div className="text-white font-black text-base tracking-wide">{machine}</div>
+            <div className="text-white/55 text-[11px] mt-0.5 flex items-center gap-1.5">
+              <FiMapPin className="w-3 h-3" />{location}
+              <span className="mx-1">·</span>
+              <FiClock className="w-3 h-3" />{dateTime}
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            {(hasPrevTx || hasNextTx) && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => goToPrevTx("modal")}
+                  disabled={!hasPrevTx}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                  title="Previous transaction"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <button
+                  onClick={() => goToNextTx("modal")}
+                  disabled={!hasNextTx}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                  title="Next transaction"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+            )}
+            <button
+              onClick={onClose}
+              className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
+            >
+              <FiX size={18} />
+            </button>
+          </div>
         </div>
-      )}
-    </>
+
+        <div className="p-3 space-y-2">
+          {/* Images — stacked on mobile, side-by-side on desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {[cam1Srcs, cam2Srcs].map((srcs, idx) => {
+              const label = idx === 0 ? "Cam 1" : "Cam 2";
+              return (
+                <ModalImg
+                  key={label}
+                  label={label}
+                  srcs={srcs}
+                  flipped={imgFlipped[idx]}
+                  onFlip={() => toggleFlip(idx)}
+                  onZoom={openZoomFromCard}
+                />
+              );
+            })}
+          </div>
+
+          {/* Input */}
+          <div className="relative">
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Container Number</label>
+            <input
+              ref={modalInputRef}
+              type="text"
+              value={modalContNo}
+              onChange={handleModalChange}
+              onBlur={() => setTimeout(() => setModalShowSug(false), 150)}
+              maxLength={11}
+              placeholder="ENTER CONTAINER NO"
+              className={`w-full px-4 py-3 rounded-xl border-2 text-xl font-black tracking-widest uppercase focus:outline-none transition-all text-slate-800 text-center
+                ${modalIsComplete ? "border-emerald-400 bg-emerald-50 focus:border-emerald-500" :
+                  modalIsPartial  ? "border-amber-400 bg-amber-50 focus:border-amber-500" :
+                                    "border-slate-300 bg-slate-50 focus:border-[#0e4a78] focus:bg-white"}`}
+            />
+            {modalIsPartial && (
+              <span className="absolute bottom-2 right-3 text-[11px] text-amber-500 font-bold">{modalContNo.length}/11</span>
+            )}
+            {modalIsComplete && (
+              <span className="absolute bottom-2 right-3 text-[11px] text-emerald-500 font-bold flex items-center gap-0.5">
+                <FiCheck className="w-3.5 h-3.5" />11/11
+              </span>
+            )}
+            {modalShowSug && modalSuggestions.length > 0 && (
+              <SuggestionDropdown anchorRef={modalInputRef} items={modalSuggestions} onSelect={selectModalSug} />
+            )}
+          </div>
+
+          <button
+            onClick={handleModalSave}
+            disabled={modalSaving || modalJustSaved || !modalIsComplete}
+            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-black tracking-wide transition-all shadow-md
+              ${modalJustSaved
+                ? "bg-emerald-600 text-white"
+                : modalIsComplete && !modalSaving
+                  ? "bg-[#0e4a78] hover:bg-[#0b3b60] text-white"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
+          >
+            {modalJustSaved ? (
+              <><FiCheckCircle className="w-5 h-5" />Saved</>
+            ) : modalSaving ? (
+              <><FiRefreshCw className="w-5 h-5 animate-spin" />Updating…</>
+            ) : (
+              <><FiCheck className="w-5 h-5" />Update Container</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -894,8 +785,9 @@ const ServiceDashboard = () => {
   const [hasSearched, setHasSearched]         = useState(false);
   const [searchCards, setSearchCards]         = useState("");
   const [removedIds, setRemovedIds]           = useState(new Set());
-  const [autoOpenTid, setAutoOpenTid]         = useState(null);
-  const [autoOpenMode, setAutoOpenMode]       = useState("modal"); // "modal" | "zoom"
+  const [openTid, setOpenTid]                 = useState(null);   // tid of the transaction shown in TransactionModal, null = closed
+  const [openView, setOpenView]               = useState("modal"); // "modal" | "zoom"
+  const [openList, setOpenList]               = useState(null);   // which list (displayRows / displayNonMissingRows) tid belongs to, for prev/next
   const [activeTab, setActiveTab]             = useState("missing");
   const ddRef = useRef(null);
 
@@ -1074,13 +966,16 @@ const ServiceDashboard = () => {
     doFetch([], from, to);
   };
 
-  const handleUpdateContainer = async (payload, row, listBeforeUpdate) => {
+  const handleUpdateContainer = async (payload, row, listBeforeUpdate, openMode = "modal") => {
     const res = await updateDeviceContainer(payload);
     if (!res?.error) {
       const tid = String(payload.eqp_trans_id);
       setRemovedIds((prev) => new Set([...prev, tid]));
       // Whichever transaction currently sits right after this one will slide
-      // into its grid slot once it's removed — open that one automatically.
+      // into its grid slot once it's removed — open that one automatically,
+      // in the same view (plain modal or zoom) the user was just in. The
+      // TransactionModal instance stays mounted throughout — only tid/view
+      // change — so there's no close→reopen flash.
       if (Array.isArray(listBeforeUpdate)) {
         const idx = listBeforeUpdate.findIndex((r) => {
           const id = getField(r, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id");
@@ -1090,7 +985,8 @@ const ServiceDashboard = () => {
         const nextTid = nextRow
           ? getField(nextRow, "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id")
           : null;
-        setAutoOpenTid(nextTid != null ? String(nextTid) : null);
+        setOpenView(openMode);
+        setOpenTid(nextTid != null ? String(nextTid) : null);
       }
     }
     return res;
@@ -1595,13 +1491,7 @@ const ServiceDashboard = () => {
                         <TransactionCard
                           key={String(tid ?? Math.random())}
                           row={row}
-                          onUpdate={handleUpdateContainer}
-                          searchContainer={searchContainerQuery}
-                          currentList={displayRows}
-                          autoOpen={tid != null && autoOpenTid === String(tid)}
-                          autoOpenMode={autoOpenMode}
-                          onAutoOpened={() => setAutoOpenTid(null)}
-                          onNavigate={(nextTid, mode) => { setAutoOpenMode(mode || "modal"); setAutoOpenTid(nextTid); }}
+                          onOpen={(view) => { setOpenList(displayRows); setOpenView(view); setOpenTid(tid != null ? String(tid) : null); }}
                         />
                       );
                     })}
@@ -1631,13 +1521,7 @@ const ServiceDashboard = () => {
                           <TransactionCard
                             key={String(tid ?? Math.random())}
                             row={row}
-                            onUpdate={handleUpdateContainer}
-                            searchContainer={searchContainerQuery}
-                            currentList={displayNonMissingRows}
-                            autoOpen={tid != null && autoOpenTid === String(tid)}
-                            autoOpenMode={autoOpenMode}
-                            onAutoOpened={() => setAutoOpenTid(null)}
-                            onNavigate={(nextTid, mode) => { setAutoOpenMode(mode || "modal"); setAutoOpenTid(nextTid); }}
+                            onOpen={(view) => { setOpenList(displayNonMissingRows); setOpenView(view); setOpenTid(tid != null ? String(tid) : null); }}
                           />
                         );
                       })}
@@ -1649,6 +1533,19 @@ const ServiceDashboard = () => {
           </div>
         </main>
       </div>
+
+      {openTid != null && (
+        <TransactionModal
+          tid={openTid}
+          list={openList}
+          view={openView}
+          searchContainer={searchContainerQuery}
+          onClose={() => { setOpenTid(null); setOpenList(null); }}
+          onSetView={setOpenView}
+          onNavigate={(nextTid, mode) => { setOpenView(mode); setOpenTid(nextTid); }}
+          onSaved={handleUpdateContainer}
+        />
+      )}
 
       <style>{`
         input[type="datetime-local"],
