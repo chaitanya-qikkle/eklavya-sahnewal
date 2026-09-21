@@ -274,7 +274,7 @@ const SuggestionDropdown = ({ anchorRef, items, onSelect }) => {
 
 // ─── Transaction Card ────────────────────────────────────────────────────────
 const TransactionCard = ({
-  row, onUpdate, searchContainer, currentList, autoOpen, onAutoOpened, onNavigate,
+  row, onUpdate, searchContainer, currentList, autoOpen, autoOpenMode, onAutoOpened, onNavigate,
 }) => {
   const [contNo, setContNo] = useState(() => {
     const raw = getField(row, "ContNo", "contno", "RFIDDATA", "rfiddata", "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id") ?? "";
@@ -317,8 +317,12 @@ const TransactionCard = ({
   const nextTid = listIdx >= 0 && listIdx < (currentList?.length ?? 0) - 1 ? getField(currentList[listIdx + 1], "EqpTransID", "eqptransid", "Sr_No", "SR_NO", "sr_no", "TRANSACTION_ID", "transaction_id") : null;
   const hasPrevTx = prevTid != null;
   const hasNextTx = nextTid != null;
-  const goToPrevTx = () => { if (hasPrevTx) { closeModal(); onNavigate?.(String(prevTid)); } };
-  const goToNextTx = () => { if (hasNextTx) { closeModal(); onNavigate?.(String(nextTid)); } };
+  // mode: "modal" reopens the plain Container Update Modal on the next card
+  // (default); "zoom" reopens that card's zoomed camera view instead, so
+  // navigating from inside the zoom view doesn't drop back to the plain
+  // modal.
+  const goToPrevTx = (mode = "modal") => { if (hasPrevTx) { setShowModal(false); setZoomState(null); onNavigate?.(String(prevTid), mode); } };
+  const goToNextTx = (mode = "modal") => { if (hasNextTx) { setShowModal(false); setZoomState(null); onNavigate?.(String(nextTid), mode); } };
 
   // Backend builds CameraImage1/2/3 as <DeviceID>_<ddMMyyyyHHmmss>_camN_1.jpg,
   // but the actually-captured frame varies (_1/_2/_3) — try all three.
@@ -403,7 +407,16 @@ const TransactionCard = ({
   // whichever card now sits in that slot.
   useEffect(() => {
     if (autoOpen) {
-      openModal();
+      if (autoOpenMode === "zoom") {
+        // Re-open the same camera view (Cam 1, falling back to Cam 2) the
+        // user was navigating through, instead of dropping them into the
+        // plain update modal.
+        if (cam1Srcs.length) openZoom(cam1Srcs, 0);
+        else if (cam2Srcs.length) openZoom(cam2Srcs, 0);
+        else openModal();
+      } else {
+        openModal();
+      }
       onAutoOpened?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -602,7 +615,7 @@ const TransactionCard = ({
               {(hasPrevTx || hasNextTx) && (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => { setZoomState(null); goToPrevTx(); }}
+                    onClick={() => goToPrevTx("zoom")}
                     disabled={!hasPrevTx}
                     className="flex items-center gap-1 pl-2 pr-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
                     title="Previous transaction"
@@ -611,7 +624,7 @@ const TransactionCard = ({
                     Prev
                   </button>
                   <button
-                    onClick={() => { setZoomState(null); goToNextTx(); }}
+                    onClick={() => goToNextTx("zoom")}
                     disabled={!hasNextTx}
                     className="flex items-center gap-1 pl-3 pr-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
                     title="Next transaction"
@@ -882,6 +895,7 @@ const ServiceDashboard = () => {
   const [searchCards, setSearchCards]         = useState("");
   const [removedIds, setRemovedIds]           = useState(new Set());
   const [autoOpenTid, setAutoOpenTid]         = useState(null);
+  const [autoOpenMode, setAutoOpenMode]       = useState("modal"); // "modal" | "zoom"
   const [activeTab, setActiveTab]             = useState("missing");
   const ddRef = useRef(null);
 
@@ -1585,8 +1599,9 @@ const ServiceDashboard = () => {
                           searchContainer={searchContainerQuery}
                           currentList={displayRows}
                           autoOpen={tid != null && autoOpenTid === String(tid)}
+                          autoOpenMode={autoOpenMode}
                           onAutoOpened={() => setAutoOpenTid(null)}
-                          onNavigate={(nextTid) => setAutoOpenTid(nextTid)}
+                          onNavigate={(nextTid, mode) => { setAutoOpenMode(mode || "modal"); setAutoOpenTid(nextTid); }}
                         />
                       );
                     })}
@@ -1620,8 +1635,9 @@ const ServiceDashboard = () => {
                             searchContainer={searchContainerQuery}
                             currentList={displayNonMissingRows}
                             autoOpen={tid != null && autoOpenTid === String(tid)}
+                            autoOpenMode={autoOpenMode}
                             onAutoOpened={() => setAutoOpenTid(null)}
-                            onNavigate={(nextTid) => setAutoOpenTid(nextTid)}
+                            onNavigate={(nextTid, mode) => { setAutoOpenMode(mode || "modal"); setAutoOpenTid(nextTid); }}
                           />
                         );
                       })}
