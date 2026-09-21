@@ -598,39 +598,36 @@ const TransactionCard = ({
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              {zSrcs.length > 1 && (
-                <span className="text-white/50 text-xs font-semibold">
-                  Frame {zIdx + 1} / {zSrcs.length}
-                </span>
-              )}
+            <div className="flex items-center gap-2">
               {(hasPrevTx || hasNextTx) && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => { setZoomState(null); goToPrevTx(); }}
                     disabled={!hasPrevTx}
-                    className="w-7 h-7 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                    className="flex items-center gap-1 pl-2 pr-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
                     title="Previous transaction"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                    Prev
                   </button>
                   <button
                     onClick={() => { setZoomState(null); goToNextTx(); }}
                     disabled={!hasNextTx}
-                    className="w-7 h-7 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                    className="flex items-center gap-1 pl-3 pr-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-30 transition-colors"
                     title="Next transaction"
                   >
+                    Next
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><path d="M9 18l6-6-6-6"/></svg>
                   </button>
                 </div>
               )}
+              <button
+                className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-colors"
+                onClick={() => setZoomState(null)}
+              >
+                <FiX size={22} />
+              </button>
             </div>
-            <button
-              className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full transition-colors"
-              onClick={() => setZoomState(null)}
-            >
-              <FiX size={22} />
-            </button>
           </div>
 
           {/* Image + Prev/Next overlay */}
@@ -1207,7 +1204,8 @@ const ServiceDashboard = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4">
 
               {/* Total Transactions */}
-              <div className="px-5 py-5 flex flex-col gap-3" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="relative overflow-hidden px-5 py-5 flex flex-col gap-3 transition-colors hover:bg-white/[0.02]" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #60a5fa, transparent)" }} />
                 <div className="flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(96,165,250,0.15)", border: "1px solid rgba(96,165,250,0.25)" }}>
                     <FiActivity className="w-4 h-4 text-blue-400" />
@@ -1237,7 +1235,8 @@ const ServiceDashboard = () => {
               </div>
 
               {/* OCR Accuracy — changes with filter */}
-              <div className="px-5 py-5 flex flex-col gap-3" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="relative overflow-hidden px-5 py-5 flex flex-col gap-3 transition-colors hover:bg-white/[0.02]" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #a78bfa, transparent)" }} />
                 <div className="flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.25)" }}>
                     <FiPercent className="w-4 h-4 text-violet-400" />
@@ -1280,7 +1279,8 @@ const ServiceDashboard = () => {
               </div>
 
               {/* Last 24hr Accuracy — fixed 9AM→9AM */}
-              <div className="px-5 py-5 flex flex-col gap-3" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="relative overflow-hidden px-5 py-5 flex flex-col gap-3 transition-colors hover:bg-white/[0.02]" style={{ borderRight: "1px solid rgba(255,255,255,0.07)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #fbbf24, transparent)" }} />
                 <div className="flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.25)" }}>
                     <FiClock className="w-4 h-4 text-amber-400" />
@@ -1313,7 +1313,8 @@ const ServiceDashboard = () => {
               </div>
 
               {/* By Machine */}
-              <div className="px-5 py-5 flex flex-col gap-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="relative overflow-hidden px-5 py-5 flex flex-col gap-3 transition-colors hover:bg-white/[0.02]" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #34d399, transparent)" }} />
                 <div className="flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.25)" }}>
                     <FiMapPin className="w-4 h-4 text-emerald-400" />
