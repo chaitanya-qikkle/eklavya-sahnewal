@@ -15,11 +15,14 @@ const columns = [
   { key: "CONTAINER_TYPE", label: "Type", sortable: true },
   { key: "CONTAINER_PROCESS", label: "Transaction", sortable: true },
   { key: "INVENTORY_STATUS", label: "Status", sortable: true },
+  { key: "MODE", label: "Mode", sortable: true },
+  { key: "SHIPPING_LINE", label: "Shipping Line", sortable: true },
   { key: "location", label: "Location", sortable: true },
   { key: "yardName", label: "Yard", sortable: true },
   { key: "GATE_IN_DATE", label: "Gate In", sortable: true },
   { key: "TOSS_IN_DATE", label: "Transaction Date", sortable: true },
-  { key: "TIME_IN_YARD", label: "TAT", sortable: true },
+  { key: "TIME_IN_YARD", label: "Day TAT", sortable: true },
+  { key: "TIME_IN_YARD_HR", label: "Hr TAT", sortable: true },
   { key: "OFFLOAD_EQP", label: "Equipment", sortable: true },
 ];
 
@@ -410,11 +413,14 @@ const LiveStatus = () => {
       "Container Type":   record.CONTAINER_TYPE,
       "Transaction Type": record.CONTAINER_PROCESS,
       "Container Status": record.INVENTORY_STATUS,
+      "Mode":             record.MODE,
+      "Shipping Line":    record.SHIPPING_LINE,
       "Location":         record.MASTERTABLE || record.LOCATION_NAME || "",
       "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
       "Gate In Date":     fmtDate(record.GATE_IN_DATE),
       "Transaction Date": fmtDate(record.TOSS_IN_DATE || record.LAST_MOVED_DATE || ""),
-      "Gate In TAT":      record.TIME_IN_YARD,
+      "Day TAT":          record.TIME_IN_YARD,
+      "Hr TAT":           record.TIME_IN_YARD_HR,
       "Equipment Name":   record.OFFLOAD_EQP,
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -852,6 +858,8 @@ const LiveStatus = () => {
                                 {record.INVENTORY_STATUS || "-"}
                               </span>
                             </td>
+                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">{record.MODE || "-"}</td>
+                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">{record.SHIPPING_LINE || "-"}</td>
                             <td className="px-4 py-2.5 border-r border-slate-200 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-[#0e4a78]" />
@@ -882,6 +890,7 @@ const LiveStatus = () => {
                             </td>
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">{fmtDate(record.transactionDate)}</td>
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">{record.TIME_IN_YARD || "-"}</td>
+                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">{record.TIME_IN_YARD_HR || "-"}</td>
                             <td className="px-4 py-2.5 text-slate-700">{record.OFFLOAD_EQP || "-"}</td>
                           </tr>
                         );

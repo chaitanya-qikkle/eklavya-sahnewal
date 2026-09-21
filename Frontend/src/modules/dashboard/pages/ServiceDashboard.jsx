@@ -400,6 +400,7 @@ const TransactionModal = ({ tid, list, view, onClose, onNavigate, onSetView, onS
   const [zoomIdx, setZoomIdx] = useState(0);
   const [zoomCam, setZoomCam] = useState(1); // which camera's srcs the zoom view is paging through
   const modalInputRef = useRef(null);
+  const zoomInputRef = useRef(null);
   const modalOverlayRef = useRef(null);
 
   // Reset per-transaction UI state whenever the displayed row changes.
@@ -608,6 +609,7 @@ const TransactionModal = ({ tid, list, view, onClose, onNavigate, onSetView, onS
         <div className="mt-3 w-full max-w-lg shrink-0" onClick={(e) => e.stopPropagation()}>
           <div className="relative">
             <input
+              ref={zoomInputRef}
               type="text"
               value={modalContNo}
               onChange={handleModalChange}
@@ -628,7 +630,7 @@ const TransactionModal = ({ tid, list, view, onClose, onNavigate, onSetView, onS
               </span>
             )}
             {modalShowSug && modalSuggestions.length > 0 && (
-              <SuggestionDropdown anchorRef={modalInputRef} items={modalSuggestions} onSelect={selectModalSug} />
+              <SuggestionDropdown anchorRef={zoomInputRef} items={modalSuggestions} onSelect={selectModalSug} />
             )}
           </div>
           <button
