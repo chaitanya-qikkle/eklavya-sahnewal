@@ -21,6 +21,16 @@ const mockOnRackData = Array.from({ length: 105 }).map((_, i) => ({
   noOfMoves: 0
 }))
 
+// Mock data ships as "dd-mm-yyyy hh:mm:ss" — re-format to dd/mm/yyyy hh:mm for
+// consistency with every other report page's date display.
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const m = String(val).match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!m) return String(val)
+  const [, dd, mm, yyyy, hh, min] = m
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`
+}
+
 const Onrack = () => {
   const [containerSearch, setContainerSearch] = useState('')
   const [globalSearch, setGlobalSearch] = useState('')
@@ -65,7 +75,21 @@ const Onrack = () => {
   }
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredData)
+    const exportRows = filteredData.map((row) => ({
+      'Container No': row.containerNo,
+      'Size': row.size,
+      'Type': row.type,
+      'Transaction Type': row.transactionType,
+      'Document No': row.documentNo,
+      'Mode': row.mode,
+      'Location': row.location,
+      'Gate In Date': fmtDate(row.gateInDate),
+      'Transaction Date': fmtDate(row.transactionDate),
+      'Gate In TAT': row.gateInTat,
+      'Equipment Name': row.equipmentName,
+      'No Of Moves': row.noOfMoves,
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "OnRack Containers")
     XLSX.writeFile(workbook, "onrack-containers.xlsx")
@@ -196,8 +220,8 @@ const Onrack = () => {
                             <span className="font-medium text-slate-800">{row.location}</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.gateInDate}</td>
-                        <td className="px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.transactionDate}</td>
+                        <td className="px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{fmtDate(row.gateInDate)}</td>
+                        <td className="px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{fmtDate(row.transactionDate)}</td>
                         <td className="px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.gateInTat}</td>
                         <td className="px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{row.equipmentName}</td>
                         <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{row.noOfMoves}</td>

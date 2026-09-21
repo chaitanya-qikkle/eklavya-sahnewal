@@ -25,6 +25,16 @@ const mockLogData = [
   { containerNo: "CMNU1122334", updatedLocation: "CY-EXPORT:J90:2", inventoryDate: "12-12-2025 10:35:05" },
 ]
 
+// Mock data ships as "dd-mm-yyyy hh:mm:ss" — re-format to dd/mm/yyyy hh:mm for
+// consistency with every other report page's date display.
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const m = String(val).match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!m) return String(val)
+  const [, dd, mm, yyyy, hh, min] = m
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`
+}
+
 const AssignInventoryBlock = () => {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -69,7 +79,12 @@ const AssignInventoryBlock = () => {
   }
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(processedData)
+    const exportRows = processedData.map((row) => ({
+      'Container No': row.containerNo,
+      'Updated Location': row.updatedLocation,
+      'Inventory Date': fmtDate(row.inventoryDate),
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory Log")
     XLSX.writeFile(workbook, "inventory-log.xlsx")
@@ -187,7 +202,7 @@ const AssignInventoryBlock = () => {
                       <tr key={index} className="hover:bg-blue-50/50 transition-colors">
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.containerNo}</td>
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.updatedLocation}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.inventoryDate}</td>
+                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{fmtDate(row.inventoryDate)}</td>
                       </tr>
                     ))}
                     {paginatedData.length === 0 && (

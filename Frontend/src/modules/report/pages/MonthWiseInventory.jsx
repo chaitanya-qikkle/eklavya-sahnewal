@@ -22,6 +22,16 @@ const mockData = [
 const today = new Date().toISOString().split('T')[0]
 const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
 
+// Mock data ships as "dd-mm-yyyy hh:mm:ss" — re-format to dd/mm/yyyy hh:mm for
+// consistency with every other report page's date display.
+const fmtDate = (val) => {
+  if (!val) return '—'
+  const m = String(val).match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!m) return String(val)
+  const [, dd, mm, yyyy, hh, min] = m
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`
+}
+
 const MonthWiseInventory = () => {
   const [fromDate, setFromDate] = useState(yesterday)
   const [toDate, setToDate] = useState(today)
@@ -67,7 +77,11 @@ const MonthWiseInventory = () => {
   }
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredData)
+    const exportRows = filteredData.map((row) => ({
+      'Container No': row.containerNo,
+      'Transaction Date': fmtDate(row.transactionDate),
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Mismatch Containers")
     XLSX.writeFile(workbook, "mismatch-containers.xlsx")
@@ -197,7 +211,7 @@ const MonthWiseInventory = () => {
                             </div>
                           </td>
                           <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.containerNo}</td>
-                          <td className="px-4 sm:px-5 py-3 text-slate-700">{row.transactionDate}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700">{fmtDate(row.transactionDate)}</td>
                         </tr>
                       ))
                     ) : (

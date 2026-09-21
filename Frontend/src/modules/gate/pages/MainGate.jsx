@@ -251,7 +251,7 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                       : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
                   <DetailField icon={FiClock} label="NAV Date/Time" accent="#059669">
-                    {row.NAVDateTime || <span className="text-slate-300 font-normal">—</span>}
+                    {row.NAVDateTime ? formatDate(row.NAVDateTime) : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
                   <DetailField icon={FiHash} label="Integration Status" accent="#7c3aed">
                     {row.IntegrationStatus || <span className="text-slate-300 font-normal">Not integrated</span>}

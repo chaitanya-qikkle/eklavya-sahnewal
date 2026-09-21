@@ -98,7 +98,10 @@ const RailMovementTAT = () => {
   const handleExport = () => {
     const exportRows = filteredData.map((r) => {
       const out = {}
-      COLUMNS.forEach(({ key, label }) => { out[label] = r[key] ?? '' })
+      COLUMNS.forEach(({ key, label }) => {
+        const isDate = key === 'RailInDate' || key === 'FirstOffload' || key === 'LastOffload'
+        out[label] = isDate ? (r[key] ? fmtDate(r[key]) : '') : (r[key] ?? '')
+      })
       return out
     })
     const worksheet = XLSX.utils.json_to_sheet(exportRows)
@@ -247,7 +250,7 @@ const RailMovementTAT = () => {
                         <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
                           {COLUMNS.map((col) => {
                             const raw = row[col.key]
-                            const isDate = col.key === 'FirstOffload' || col.key === 'LastOffload'
+                            const isDate = col.key === 'RailInDate' || col.key === 'FirstOffload' || col.key === 'LastOffload'
                             const display = isDate ? fmtDate(raw) : (raw != null && raw !== '' ? raw : '—')
                             return (
                               <td key={col.key} className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 last:border-r-0 whitespace-nowrap">
