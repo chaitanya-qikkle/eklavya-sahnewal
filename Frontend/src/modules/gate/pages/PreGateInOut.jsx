@@ -22,12 +22,12 @@ function prettyGateName(name) {
 }
 
 const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
-  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-sky-50",        valueColor: "text-sky-700",     badgeBg: "bg-sky-50",       activeBg: "bg-sky-600"     },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",       valueColor: "text-rose-700",    badgeBg: "bg-rose-50",      activeBg: "bg-rose-600"    },
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white",    cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white",    activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white",    cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white",    activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white",    cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white",    activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white",    cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white",    activeBg: "bg-violet-600"  },
+  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-white",    cardBg: "bg-sky-50",           border: "border-sky-200",      valueColor: "text-sky-700",     badgeBg: "bg-white",    activeBg: "bg-sky-600"     },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white",    cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white",    activeBg: "bg-rose-600"    },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, onClick }) => {
@@ -39,21 +39,22 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, o
     <Tag
       type={clickable ? 'button' : undefined}
       onClick={onClick}
-      className={`group relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 transition-all duration-150
-        ${isActive ? "bg-slate-50" : clickable ? "bg-white hover:bg-slate-50/70" : "bg-white"}`}
+      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
+        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : clickable ? "border-transparent hover:border-current/20 hover:shadow-sm" : t.border
+      }`}
+      style={isActive ? { color: t.accent } : undefined}
     >
-      <div className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150" style={{ background: !clickable || isActive ? t.accent : "transparent" }} />
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150 ${
+      <div className="px-3.5 py-3 flex items-center gap-3">
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
           clickable && isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
         }`}>
           {Icon && <Icon className="text-[15px]" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1 truncate">
             {label}
           </p>
-          <p className={`text-2xl font-black leading-none tracking-tight transition-colors ${clickable && !isActive ? "text-slate-700" : t.valueColor}`}>
+          <p className={`text-xl font-black leading-none tracking-tight transition-colors ${clickable && !isActive ? "text-slate-700" : t.valueColor}`}>
             {value.toLocaleString()}
           </p>
         </div>
@@ -568,7 +569,7 @@ export default function PreGateInOut() {
             </div>
 
             {/* Stat cards — single row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full xl:w-[1180px] shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 w-full xl:w-[1180px] shrink-0">
               <StatTile label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
               <StatTile label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
               <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />

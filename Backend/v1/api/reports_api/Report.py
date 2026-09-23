@@ -132,7 +132,7 @@ def get_gate_report(
 
         result = db.execute_query(
             "EXEC dbo.GET_GATEIN_REPORT @fromDate = ?, @toDate = ?, @ContainerNo = ?, @PlantId = ?",
-            (from_dt.strftime('%Y-%m-%d %H:%M:%S') if from_dt else '', to_dt.strftime('%Y-%m-%d %H:%M:%S') if to_dt else '', container_no_param, plant_id),
+            (from_dt, to_dt, container_no_param, plant_id),
             fetch_all=True,
         )
 
@@ -726,8 +726,8 @@ def get_rail_plan_name_list(
     try:
         plant_id = current_user.get("plant_id", 1)
         now = datetime.now()
-        f_date = from_date or (now - timedelta(days=30)).strftime("%Y-%m-%d")
-        t_date = to_date or now.strftime("%Y-%m-%d")
+        f_date = _to_proc_datetime(from_date) or (now - timedelta(days=30))
+        t_date = _to_proc_datetime(to_date) or now
 
         result = db.execute_query(
             "EXEC dbo.GET_RPT_RAIL_PLAN_NAME_LIST ?, ?, ?, ?",
@@ -811,12 +811,12 @@ def get_rail_in_report(
         plant_id = current_user.get("plant_id", 1)
         cont_no  = (container_no or '').strip().upper()
 
-        f_date = (from_date or '').strip()
-        t_date = (to_date or '').strip()
+        f_date = _to_proc_datetime(from_date)
+        t_date = _to_proc_datetime(to_date)
         if not cont_no and not f_date:
             now = datetime.now()
-            f_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-            t_date = now.strftime("%Y-%m-%d")
+            f_date = now - timedelta(days=1)
+            t_date = now
 
         result = db.execute_query(
             "EXEC dbo.GET_RPT_EKL_RAIL_IN ?, ?, ?, ?",
@@ -1231,8 +1231,8 @@ def get_trailer_report(
         result = db.execute_query(
             "EXEC dbo.GET_TRAILER_REPORT ?, ?, ?, ?",
             params=(
-                from_dt  or '',
-                to_dt    or '',
+                from_dt,
+                to_dt,
                 trailer,
                 plant_id,
             ),

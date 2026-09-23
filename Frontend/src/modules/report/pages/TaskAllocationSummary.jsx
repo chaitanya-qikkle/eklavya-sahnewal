@@ -15,31 +15,30 @@ const COLUMNS = [
 ]
 
 const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700"   },
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700"   },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
   const t = TONE_MAP[tone] || TONE_MAP.slate
   const pct = total > 0 ? Math.round((value / total) * 100) : 0
   return (
-    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
-      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+    <div className={`relative text-left overflow-hidden rounded-xl border ${t.cardBg} ${t.border}`}>
+      <div className="px-3.5 py-3 flex items-center gap-3">
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm ${t.iconBg} ${t.iconColor}`}>
           {Icon && <Icon className="text-[15px]" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1 truncate">
             {label}
           </p>
-          <p className={`text-2xl font-black leading-none tracking-tight ${t.valueColor}`}>
+          <p className={`text-xl font-black leading-none tracking-tight ${t.valueColor}`}>
             {value.toLocaleString()}
           </p>
         </div>
         {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.iconBg}`} style={{ color: t.accent }}>
+          <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white" style={{ color: t.accent }}>
             {pct}%
           </span>
         )}
@@ -109,7 +108,7 @@ const TaskAllocationSummary = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[480px] shrink-0">
+              <div className="grid grid-cols-3 gap-2 w-full lg:w-[480px] shrink-0">
                 <StatTile label="Total Task"     value={stats.total}     icon={FiList}        tone="slate"   total={stats.total} />
                 <StatTile label="Completed"      value={stats.completed} icon={FiCheckCircle} tone="emerald" total={stats.total} />
                 <StatTile label="Pending"        value={stats.pending}   icon={FiClock}       tone="amber"   total={stats.total} />

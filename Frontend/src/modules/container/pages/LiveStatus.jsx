@@ -675,7 +675,7 @@ const LiveStatus = () => {
               </div>
 
               {/* Stat strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 border-t border-slate-200 rounded-b-2xl overflow-hidden">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-3 mt-3 border-t border-slate-200">
                 <StatTile
                   label="Total Inventory"
                   value={totalStats.total}
@@ -1000,10 +1000,10 @@ const LiveStatus = () => {
 };
 
 const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
 };
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
@@ -1013,28 +1013,24 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
     <button
       type="button"
       onClick={onClick}
-      className={`group relative text-left transition-all duration-150 overflow-hidden border-r border-slate-200 last:border-r-0
-        ${isActive ? "bg-slate-50" : "bg-white hover:bg-slate-50/70"}`}
+      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
+        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
+      }`}
+      style={isActive ? { color: t.accent } : undefined}
     >
-      {/* Active left accent bar */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150"
-        style={{ background: isActive ? t.accent : "transparent" }}
-      />
-
       <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
         {/* Icon badge */}
         <span
-          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${
+          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
             isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
-          } transition-all duration-150`}
+          }`}
         >
           {Icon && <Icon className="text-[15px]" />}
         </span>
 
         {/* Text block */}
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-none mb-1.5 truncate">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none mb-1.5 truncate">
             {label}
           </p>
           <p
@@ -1049,7 +1045,7 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
         {/* Percentage pill — only for non-total tiles */}
         {total > 0 && tone !== "slate" && (
           <span
-            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg} transition-colors`}
+            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`}
             style={{ color: t.accent }}
           >
             {pct}%

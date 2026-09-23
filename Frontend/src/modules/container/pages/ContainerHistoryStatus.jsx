@@ -64,26 +64,28 @@ const ContainerHistoryStatus = () => {
   const historyData = useMemo(() => (data?.data || []).map(mapRow), [data])
 
   const [statFilter, setStatFilter] = useState('all')
+  const [sizeFilter, setSizeFilter] = useState('all') // 'all' | '20' | '40'
+
+  const KNOWN_PROCESSES = ['import', 'export', 'empty', 'domestic']
 
   const stats = useMemo(() => {
     const total = historyData.length
-    let importCount = 0, exportCount = 0, otherCount = 0
+    let importCount = 0, exportCount = 0, emptyCount = 0, domesticCount = 0, otherCount = 0
     for (const r of historyData) {
       const p = String(r.transactionType || '').toLowerCase()
       if (p === 'import') importCount++
       else if (p === 'export') exportCount++
+      else if (p === 'empty') emptyCount++
+      else if (p === 'domestic') domesticCount++
       else otherCount++
     }
-    return { total, importCount, exportCount, otherCount }
+    return { total, importCount, exportCount, emptyCount, domesticCount, otherCount }
   }, [historyData])
 
   const statFilteredData = useMemo(() => {
     if (statFilter === 'all') return historyData
     if (statFilter === 'Other') {
-      return historyData.filter((r) => {
-        const p = String(r.transactionType || '').toLowerCase()
-        return p !== 'import' && p !== 'export'
-      })
+      return historyData.filter((r) => !KNOWN_PROCESSES.includes(String(r.transactionType || '').toLowerCase()))
     }
     return historyData.filter((r) => String(r.transactionType || '').toLowerCase() === statFilter.toLowerCase())
   }, [historyData, statFilter])
@@ -91,6 +93,11 @@ const ContainerHistoryStatus = () => {
   // Filter logic
   const filteredData = useMemo(() => {
     let rows = [...statFilteredData]
+
+    // Container size (20ft / 40ft)
+    if (sizeFilter !== 'all') {
+      rows = rows.filter((r) => String(r.size || '').includes(sizeFilter))
+    }
 
     // Global Search (Table search)
     if (globalSearch) {
@@ -132,6 +139,7 @@ const ContainerHistoryStatus = () => {
     setGateInTo('')
     setGlobalSearch('')
     setStatFilter('all')
+    setSizeFilter('all')
     setCurrentPage(1)
     trigger({})
   }
@@ -209,6 +217,32 @@ const ContainerHistoryStatus = () => {
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Size
+                    </label>
+                    <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+                      {[
+                        { key: 'all', label: 'All' },
+                        { key: '20', label: '20 FT' },
+                        { key: '40', label: '40 FT' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => { setSizeFilter(opt.key); setCurrentPage(1) }}
+                          className={`px-4 py-2.5 text-sm font-semibold transition ${
+                            sizeFilter === opt.key
+                              ? 'bg-[#0e4a78] text-white'
+                              : 'bg-white text-slate-600 hover:bg-slate-50'
+                          } ${opt.key !== 'all' ? 'border-l border-slate-300' : ''}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex gap-3">
                     <button
                       onClick={handleClear}
@@ -228,7 +262,7 @@ const ContainerHistoryStatus = () => {
               </div>
 
               {/* Stat strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-slate-200 rounded-b-2xl overflow-hidden">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3">
                 <StatTile
                   label="Total Records"
                   value={stats.total}
@@ -254,6 +288,24 @@ const ContainerHistoryStatus = () => {
                   tone="amber"
                   isActive={statFilter === 'Export'}
                   onClick={() => handleStatCardClick('Export')}
+                  total={stats.total}
+                />
+                <StatTile
+                  label="Empty"
+                  value={stats.emptyCount}
+                  icon={FiBox}
+                  tone="sky"
+                  isActive={statFilter === 'Empty'}
+                  onClick={() => handleStatCardClick('Empty')}
+                  total={stats.total}
+                />
+                <StatTile
+                  label="Domestic"
+                  value={stats.domesticCount}
+                  icon={FiPackage}
+                  tone="rose"
+                  isActive={statFilter === 'Domestic'}
+                  onClick={() => handleStatCardClick('Domestic')}
                   total={stats.total}
                 />
                 <StatTile
@@ -436,10 +488,12 @@ const ContainerHistoryStatus = () => {
 }
 
 const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
+  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-white", cardBg: "bg-sky-50",           border: "border-sky-200",      valueColor: "text-sky-700",     badgeBg: "bg-white", activeBg: "bg-sky-600"     },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
@@ -449,27 +503,25 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
     <button
       type="button"
       onClick={onClick}
-      className={`group relative text-left transition-all duration-150 overflow-hidden border-r border-slate-200 last:border-r-0
-        ${isActive ? "bg-slate-50" : "bg-white hover:bg-slate-50/70"}`}
+      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
+        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
+      }`}
+      style={isActive ? { color: t.accent } : undefined}
     >
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150"
-        style={{ background: isActive ? t.accent : "transparent" }}
-      />
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
+      <div className="px-3.5 py-3 flex items-center gap-3">
         <span
-          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg ${
+          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm ${
             isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
           } transition-all duration-150`}
         >
           {Icon && <Icon className="text-[15px]" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-none mb-1.5 truncate">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none mb-1 truncate">
             {label}
           </p>
           <p
-            className={`text-2xl font-black leading-none tracking-tight transition-colors ${
+            className={`text-xl font-black leading-none tracking-tight transition-colors ${
               isActive ? t.valueColor : "text-slate-700"
             }`}
           >

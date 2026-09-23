@@ -11,25 +11,24 @@ import Footer from '../../../components/layout/Footer'
 import { useGetTrailerReportQuery } from '../../../store/api/ymsApi'
 
 const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]" },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",   valueColor: "text-emerald-700" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",     valueColor: "text-amber-700" },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",    valueColor: "text-violet-700" },
-  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-sky-50",       valueColor: "text-sky-700" },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",      valueColor: "text-rose-700" },
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white" },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white" },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white" },
+  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-white", cardBg: "bg-sky-50",           border: "border-sky-200",      valueColor: "text-sky-700",     badgeBg: "bg-white" },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white" },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate" }) => {
   const t = TONE_MAP[tone] || TONE_MAP.slate
   return (
-    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
-      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
-      <div className="pl-3.5 pr-3 py-3 flex items-center gap-3">
-        <span className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg ${t.iconBg} ${t.iconColor}`}>
+    <div className={`relative text-left overflow-hidden rounded-xl border ${t.cardBg} ${t.border}`}>
+      <div className="px-3.5 py-3 flex items-center gap-3">
+        <span className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg shadow-sm ${t.iconBg} ${t.iconColor}`}>
           {Icon && <Icon className="text-sm" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-slate-400 leading-tight mb-1 truncate">
+          <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-slate-500 leading-tight mb-1 truncate">
             {label}
           </p>
           <p className={`text-xl font-black leading-none tracking-tight ${t.valueColor}`}>
@@ -232,7 +231,7 @@ const TrailerStatus = () => {
             </div>
 
             {/* Stat cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full xl:w-[760px] shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 w-full xl:w-[760px] shrink-0">
               {cardData.map((card) => (
                 <StatTile key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
               ))}

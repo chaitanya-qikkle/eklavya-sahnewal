@@ -31,11 +31,11 @@ const fmt = (val) => {
 }
 
 const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]",   badgeBg: "bg-[#0e4a78]/8",  activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",    valueColor: "text-emerald-700", badgeBg: "bg-emerald-50",   activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",      valueColor: "text-amber-700",   badgeBg: "bg-amber-50",     activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",     valueColor: "text-violet-700",  badgeBg: "bg-violet-50",    activeBg: "bg-violet-600"  },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",       valueColor: "text-rose-700",    badgeBg: "bg-rose-50",      activeBg: "bg-rose-600"    },
+  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, onClick }) => {
@@ -47,18 +47,19 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, o
     <Tag
       type={clickable ? 'button' : undefined}
       onClick={onClick}
-      className={`group relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 transition-all duration-150
-        ${isActive ? "bg-slate-50" : clickable ? "bg-white hover:bg-slate-50/70" : "bg-white"}`}
+      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
+        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : clickable ? "border-transparent hover:border-current/20 hover:shadow-sm" : t.border
+      }`}
+      style={isActive ? { color: t.accent } : undefined}
     >
-      <div className="absolute left-0 top-0 bottom-0 w-[3px] transition-all duration-150" style={{ background: !clickable || isActive ? t.accent : "transparent" }} />
       <div className="pl-3.5 pr-3 py-2.5 flex items-center gap-2.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 ${
+        <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg shadow-sm transition-all duration-150 ${
           clickable && isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
         }`}>
           {Icon && <Icon className="text-[13px]" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-400 leading-tight mb-0.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-0.5">
             {label}
           </p>
           <p className={`text-lg font-black leading-none tracking-tight transition-colors ${clickable && !isActive ? "text-slate-700" : t.valueColor}`}>
@@ -205,13 +206,13 @@ const ContainerStatusReport = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full sm:w-[540px] shrink-0">
+              <div className="grid grid-cols-3 gap-2 w-full sm:w-[540px] shrink-0">
                 <StatTile label="Total"     value={stats.total}    icon={FiPackage} tone="slate"   total={stats.total} />
                 <StatTile label="In Yard"   value={stats.inYard}   icon={FiLogIn}   tone="emerald" total={stats.total} />
                 <StatTile label="Gated Out" value={stats.gatedOut} icon={FiLogOut}  tone="amber"   total={stats.total} />
               </div>
 
-              <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[840px] mt-3">
+              <div className="grid grid-cols-5 gap-2 w-full lg:w-[840px] mt-3">
                 <StatTile
                   label="Total Entries"
                   value={processStats.total}
