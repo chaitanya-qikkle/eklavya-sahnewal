@@ -27,24 +27,126 @@ const fmtDate = (val) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+// Colored pill for Process (Import/Export/Empty/Domestic) — same tone system
+// used by the stat cards above the table.
+const ProcessBadge = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const upper = String(val).toUpperCase()
+  const cls = upper === 'IMPORT'
+    ? 'bg-emerald-100 text-emerald-700'
+    : upper === 'EXPORT'
+    ? 'bg-amber-100 text-amber-700'
+    : upper === 'DOMESTIC'
+    ? 'bg-rose-100 text-rose-700'
+    : upper === 'EMPTY'
+    ? 'bg-violet-100 text-violet-700'
+    : 'bg-slate-100 text-slate-600'
+  return <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{val}</span>
+}
+
+// Container status pill — generic ok/pending/hold-style colouring.
+const StatusBadge = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const upper = String(val).toUpperCase()
+  const cls = upper.includes('HOLD') || upper.includes('BLOCK')
+    ? 'bg-rose-100 text-rose-700'
+    : upper.includes('PENDING') || upper.includes('WAIT')
+    ? 'bg-amber-100 text-amber-700'
+    : 'bg-sky-100 text-sky-700'
+  return <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{val}</span>
+}
+
+// Offload TAT comes back as "DD:HH:MM:SS" (or sometimes just "HH:MM") —
+// parse to total hours and colour-code: fast (green) / moderate (amber) /
+// slow (red), so the column reads at a glance instead of as plain text.
+const tatToHours = (tat) => {
+  const parts = String(tat || '').split(':').map(Number)
+  if (!parts.length || parts.some((p) => !Number.isFinite(p))) return null
+  if (parts.length === 4) {
+    const [d, h, m] = parts
+    return d * 24 + h + m / 60
+  }
+  if (parts.length >= 2) {
+    const [h, m] = parts
+    return h + (Number.isFinite(m) ? m / 60 : 0)
+  }
+  return null
+}
+
+const TatBadge = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const hours = tatToHours(val)
+  const cls = hours == null
+    ? 'bg-slate-100 text-slate-600'
+    : hours < 2
+    ? 'bg-emerald-100 text-emerald-700'
+    : hours < 6
+    ? 'bg-amber-100 text-amber-700'
+    : 'bg-rose-100 text-rose-700'
+  return <span className={`px-2 py-0.5 rounded text-xs font-bold tabular-nums ${cls}`}>{val}</span>
+}
+
+// Container No as a bold rounded "tag" pill — matches the highlighted look
+// used for container numbers across the rest of the app.
+const ContainerTag = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-[#0e4a78] font-black font-mono text-xs">
+      {val}
+    </span>
+  )
+}
+
+// 20'/40' size badge — cyan/indigo, matching the size-split colours used in
+// the admin dashboard's process-mix chart.
+const SizeBadge = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const is40 = String(val).includes('40')
+  const cls = is40 ? 'bg-indigo-100 text-indigo-700' : 'bg-cyan-100 text-cyan-700'
+  return <span className={`px-2 py-0.5 rounded text-xs font-bold ${cls}`}>{val}</span>
+}
+
+// Two-line date/time cell — date on top, time beneath in a lighter tone —
+// easier to scan than one long "dd/mm/yyyy hh:mm" string.
+const DateTimeCell = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return <span className="text-slate-600">{String(val)}</span>
+  const p = (n) => String(n).padStart(2, '0')
+  return (
+    <div className="leading-tight">
+      <div className="font-semibold text-slate-700 text-xs">{p(d.getDate())}/{p(d.getMonth() + 1)}/{d.getFullYear()}</div>
+      <div className="text-[10px] text-slate-400 font-medium">{p(d.getHours())}:{p(d.getMinutes())}</div>
+    </div>
+  )
+}
+
+// Moves count — small numeric badge, tone escalates with how many moves.
+const MovesBadge = ({ val }) => {
+  const n = Number(val)
+  if (!Number.isFinite(n) || n === 0) return <span className="text-slate-300 text-xs">—</span>
+  const cls = n <= 1 ? 'bg-slate-100 text-slate-600' : n <= 3 ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'
+  return <span className={`inline-flex items-center justify-center min-w-[22px] px-1.5 py-0.5 rounded-full text-xs font-bold tabular-nums ${cls}`}>{n}</span>
+}
+
 const COLUMNS = [
-  { key: 'ContainerNo',      label: 'Container No' },
-  { key: 'ContainerSize',    label: 'Size' },
+  { key: 'ContainerNo',      label: 'Container No', render: (v) => <ContainerTag val={v} /> },
+  { key: 'ContainerSize',    label: 'Size', render: (v) => <SizeBadge val={v} /> },
   { key: 'ContainerType',    label: 'Type' },
-  { key: 'RailInDateTime',   label: 'Rail In Date', format: fmtDate },
-  { key: 'NAVDateTime',      label: 'Navision Date', format: fmtDate },
+  { key: 'RailInDateTime',   label: 'Rail In Date', format: fmtDate, render: (v) => <DateTimeCell val={v} /> },
+  { key: 'NAVDateTime',      label: 'Navision Date', format: fmtDate, render: (v) => <DateTimeCell val={v} /> },
   { key: 'ContainerLocation',label: 'Location' },
   { key: 'EquipmentName',    label: 'Equipment' },
   { key: 'DocumentNo',       label: 'Document No' },
   { key: 'BookingNo',        label: 'Booking No' },
-  { key: 'Process',          label: 'Process' },
-  { key: 'ContainerStatus',  label: 'Status' },
+  { key: 'Process',          label: 'Process', render: (v) => <ProcessBadge val={v} /> },
+  { key: 'ContainerStatus',  label: 'Status', render: (v) => <StatusBadge val={v} /> },
   { key: 'Mode',             label: 'Mode' },
   { key: 'Terminal',         label: 'Terminal' },
   { key: 'WagonNo',          label: 'Wagon No' },
   { key: 'RakeNo',           label: 'Rake No' },
-  { key: 'NoOfMoves',        label: 'Moves' },
-  { key: 'OffloadTAT',       label: 'Offload TAT' },
+  { key: 'NoOfMoves',        label: 'Moves', render: (v) => <MovesBadge val={v} /> },
+  { key: 'OffloadTAT',       label: 'Offload TAT', render: (v) => <TatBadge val={v} /> },
 ]
 
 const RailInReport = () => {
@@ -295,9 +397,11 @@ const RailInReport = () => {
                         <tr key={index} className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}>
                           {COLUMNS.map((col) => {
                             const raw = row[col.key]
-                            const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
+                            const display = col.render
+                              ? col.render(raw)
+                              : col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
                             return (
-                              <td key={col.key} className={`px-4 py-3 whitespace-nowrap ${col.key === 'ContainerNo' ? 'text-slate-800 font-semibold' : 'text-slate-600'}`}>
+                              <td key={col.key} className="px-4 py-3 whitespace-nowrap text-slate-600">
                                 {display}
                               </td>
                             )
