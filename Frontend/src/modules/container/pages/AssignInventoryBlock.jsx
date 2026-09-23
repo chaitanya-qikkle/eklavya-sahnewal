@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // Mock data for the table
 const mockLogData = [
@@ -153,13 +153,6 @@ const AssignInventoryBlock = () => {
                   <h2 className="text-xl font-semibold tracking-wide">LOG DETAILS</h2>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button
-                    onClick={handleExport}
-                    disabled={processedData.length === 0}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-md text-sm disabled:opacity-50"
-                  >
-                    <FaFileExcel /> Export
-                  </button>
                   <div className="relative">
                     <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
                     <input
@@ -170,6 +163,7 @@ const AssignInventoryBlock = () => {
                       className="pl-10 pr-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder:text-white/60 focus:outline-none focus:bg-white/20 w-full sm:w-64"
                     />
                   </div>
+                  <FilterExportBtn onClick={handleExport} disabled={processedData.length === 0} />
                 </div>
               </header>
 

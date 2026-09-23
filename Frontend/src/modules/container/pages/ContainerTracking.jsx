@@ -2,7 +2,6 @@ import React, { useState, useRef, useMemo } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiX, FiSearch, FiRefreshCw, FiUploadCloud, FiDownload } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import { MdGpsFixed } from 'react-icons/md'
 import * as XLSX from 'xlsx'
 import {
@@ -10,6 +9,7 @@ import {
   useGetContainerListQuery,
   useContainerTrackingUploadMutation,
 } from '../../../store/api/ymsApi'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const COLUMNS = [
   { key: 'ContNo',        label: 'Container No' },
@@ -335,15 +335,7 @@ const ContainerTracking = () => {
                 <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center justify-between gap-3">
                   <h2 className="text-white font-bold text-base tracking-wide">View Container Detail</h2>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleExport}
-                      disabled={!rows.length}
-                      title="Export to Excel"
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
-                    >
-                      <FaFileExcel />
-                      <span className="hidden sm:inline">Export</span>
-                    </button>
+                    <FilterExportBtn onClick={handleExport} disabled={!rows.length} />
                   </div>
                 </div>
 

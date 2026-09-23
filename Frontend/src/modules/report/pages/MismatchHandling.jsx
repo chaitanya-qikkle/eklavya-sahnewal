@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FaFileExcel } from 'react-icons/fa'
 import { FiRefreshCw, FiSearch, FiX, FiAlertTriangle } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { useLazyGetMismatchHandlingQuery } from '../../../store/api/ymsApi'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -135,14 +135,7 @@ const MismatchHandling = () => {
               <div className="px-6 py-6 space-y-4">
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleExport}
-                    disabled={!filteredData.length}
-                    className="p-1 disabled:opacity-40"
-                    title="Export to Excel"
-                  >
-                    <FaFileExcel className="text-3xl text-green-700 hover:text-green-800 transition-colors" />
-                  </button>
+                  <FilterExportBtn onClick={handleExport} disabled={!filteredData.length} />
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded-sm shadow-sm">

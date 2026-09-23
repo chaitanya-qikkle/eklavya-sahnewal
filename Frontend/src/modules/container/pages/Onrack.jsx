@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const mockOnRackData = Array.from({ length: 105 }).map((_, i) => ({
   containerNo: `MSKU${8961782 + i}`,
@@ -144,13 +144,7 @@ const Onrack = () => {
 
               {/* Toolbar with Excel and Search */}
               <div className="px-6 py-3 border-b border-slate-200 flex justify-between items-center gap-4">
-                <button
-                  onClick={handleExport}
-                  disabled={filteredData.length === 0}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-md text-sm disabled:opacity-50"
-                >
-                  <FaFileExcel /> Export
-                </button>
+                <FilterExportBtn onClick={handleExport} disabled={filteredData.length === 0} />
                 <div className="flex items-center gap-2">
                   <span className="text-slate-600 font-medium">Search:</span>
                   <input

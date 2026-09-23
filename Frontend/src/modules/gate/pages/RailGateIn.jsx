@@ -12,7 +12,7 @@ import Footer from '../../../components/layout/Footer'
 import { useLazyGetRailInQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
-import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 function formatDateParts(raw) {
   if (!raw) return null
@@ -559,14 +559,7 @@ const RailGateIn = () => {
             <div className="flex gap-2">
               <FilterClearBtn onClick={handleClear} />
               <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
-              <button
-                onClick={handleExport}
-                disabled={!sorted.length}
-                className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-40"
-              >
-                <FiDownload size={13} />
-                Excel
-              </button>
+              <FilterExportBtn onClick={handleExport} disabled={!sorted.length} />
             </div>
           </FilterBar>
           </FilterCard>

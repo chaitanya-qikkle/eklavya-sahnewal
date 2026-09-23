@@ -1,5 +1,6 @@
 import React from 'react'
 import { FiRefreshCw, FiX } from 'react-icons/fi'
+import { FaFileExcel } from 'react-icons/fa'
 
 // ─── Shared Filter Bar system ──────────────────────────────────────────────
 // Canonical filter-toolbar design used across every report/gate/container/
@@ -90,6 +91,24 @@ export const FilterClearBtn = ({ onClick, children = 'Clear' }) => (
   >
     <FiX size={13} />
     {children}
+  </button>
+)
+
+/**
+ * Standard "Export to Excel" action button. Always the last button in the
+ * filter bar's action group (after Clear and Search), so every page's
+ * export control has the same look and the same position.
+ */
+export const FilterExportBtn = ({ onClick, loading, disabled, children = 'Export' }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled || loading}
+    title="Export to Excel"
+    className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-40"
+  >
+    <FaFileExcel size={13} className={loading ? 'animate-pulse' : ''} />
+    {loading ? 'Exporting…' : children}
   </button>
 )
 

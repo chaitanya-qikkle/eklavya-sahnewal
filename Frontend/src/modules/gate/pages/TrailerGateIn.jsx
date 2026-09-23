@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, FiMapPin, FiUpload, FiDownload } from "react-icons/fi";
-import { FaFileExcel } from "react-icons/fa";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { useGetTrailerGateInListQuery } from "../../../store/api/ymsApi";
 import { StatCard, StatGrid, FilterCard } from "../../../components/ui/StatCard";
-import { FilterBar } from "../../../components/ui/FilterBar";
+import { FilterBar, FilterExportBtn } from "../../../components/ui/FilterBar";
 
 const mapRecord = (row) => ({
   trailerNo: row.TrailerNo || "",
@@ -251,12 +250,7 @@ const TrailerGateIn = () => {
                 >
                   <FiRefreshCw size={13} /> Clear
                 </button>
-                <button
-                  onClick={handleExport}
-                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all"
-                >
-                  <FaFileExcel size={13} /> Export
-                </button>
+                <FilterExportBtn onClick={handleExport} />
               </div>
             </FilterBar>
             </FilterCard>

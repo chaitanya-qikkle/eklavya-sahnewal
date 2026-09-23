@@ -2,12 +2,11 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { FaFileExcel } from 'react-icons/fa'
 import { FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiPackage, FiUpload, FiDownload, FiHome, FiHash } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { useLazyGetRailJourneyByDocumentQuery, useGetDocumentNumbersQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
-import { FilterBar, FilterClearBtn, FilterLabel } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterClearBtn, FilterLabel, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -293,15 +292,7 @@ const PreRailInReport = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={handleExport}
-                    disabled={!filteredData.length}
-                    title="Export to Excel"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
-                  >
-                    <FaFileExcel />
-                    <span className="hidden sm:inline">Export</span>
-                  </button>
+                  <FilterExportBtn onClick={handleExport} disabled={!filteredData.length} />
                 </div>
               </div>
 

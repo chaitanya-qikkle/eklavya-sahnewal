@@ -9,7 +9,7 @@ import { notify } from "../../../utils/notify";
 import ContainerMap from "../../container/pages/ContainerMap";
 import { useLazyGetContainerLiveStatusQuery, useLazySearchContainerQuery } from "../../../store/api/ymsApi";
 import { StatCard, StatGrid, FilterCard } from "../../../components/ui/StatCard";
-import { FilterBar } from "../../../components/ui/FilterBar";
+import { FilterBar, FilterExportBtn } from "../../../components/ui/FilterBar";
 
 const columns = [
   { key: "CONTAINER_NO", label: "Container No", sortable: true },
@@ -777,13 +777,7 @@ const LiveStatus = () => {
                   >
                     <FiRefreshCw className={loading ? "animate-spin" : ""} /> Clear
                   </button>
-                  <button
-                    onClick={handleExport}
-                    disabled={loading || sortedAndFilteredRecords.length === 0}
-                    className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-md text-sm disabled:opacity-50"
-                  >
-                    <FaFileExcel /> Export
-                  </button>
+                  <FilterExportBtn onClick={handleExport} disabled={loading || sortedAndFilteredRecords.length === 0} />
                 </div>
               </header>
 

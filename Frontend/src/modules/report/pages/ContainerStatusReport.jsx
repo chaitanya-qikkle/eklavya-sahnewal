@@ -4,13 +4,12 @@ import {
   FiSearch, FiRefreshCw, FiAlertTriangle, FiCalendar,
   FiPackage, FiLogIn, FiLogOut, FiClock,
 } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import { MdOutlineInventory2 } from 'react-icons/md'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerGateReportQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
-import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
@@ -230,10 +229,7 @@ const ContainerStatusReport = () => {
                     placeholder="Filter table…"
                     className="pl-8 pr-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 text-xs focus:outline-none focus:bg-white/20 w-44 transition-all" />
                 </div>
-                <button onClick={handleExport} disabled={!rows.length}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-all disabled:opacity-40">
-                  <FaFileExcel size={11} /> Export
-                </button>
+                <FilterExportBtn onClick={handleExport} disabled={!rows.length} />
               </div>
             </div>
 

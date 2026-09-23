@@ -1,17 +1,17 @@
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { FaFileExcel } from "react-icons/fa";
 import { FiSearch, FiTrash2, FiEdit3, FiRefreshCw, FiCheckCircle, FiXCircle, FiPlus, FiList, FiSettings, FiSmartphone, FiMonitor, FiBarChart2 } from "react-icons/fi";
 import Navbar from "../../../components/layout/Navbar";
-import { 
-  useGetEquipmentQuery, 
-  useAddEquipmentMutation, 
-  useUpdateEquipmentMutation, 
-  useDeleteEquipmentMutation 
+import {
+  useGetEquipmentQuery,
+  useAddEquipmentMutation,
+  useUpdateEquipmentMutation,
+  useDeleteEquipmentMutation
 } from '../../../store/api/ymsApi';
 import { notify, confirmAction } from '../../../utils/notify';
 import { getStoredUser } from '../../../services/authService';
 import { useGetPlantsQuery } from '../../../store/api/plantApi';
+import { FilterExportBtn } from '../../../components/ui/FilterBar';
 
 const buildHeightSettings = (apiHeights) => {
   const defaultSettings = [
@@ -359,12 +359,7 @@ export default function Equipment() {
                       <button onClick={refetch} className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors" title="Refresh Data">
                         <FiRefreshCw className={`${isLoading ? 'animate-spin' : ''}`} />
                       </button>
-                      <button
-                        onClick={handleExport}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors shadow-sm"
-                      >
-                        <FaFileExcel /> Export Excel
-                      </button>
+                      <FilterExportBtn onClick={handleExport} />
                     </div>
                   </div>
                 )}

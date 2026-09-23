@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiCalendar, FiPackage, FiDownload, FiUpload, FiBox } from 'react-icons/fi'
-import { FaFileExcel, FaFilePdf } from 'react-icons/fa'
+import { FaFilePdf } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerHistoryReportQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
-import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 function toDateTimeLocalParam(v) {
   // datetime-local gives "YYYY-MM-DDTHH:mm" — SP wants a value SQL Server can cast to DATETIME
@@ -312,13 +312,7 @@ const ContainerHistoryStatus = () => {
                 <h2 className="text-lg font-semibold tracking-wide">Container History Detail</h2>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleExportExcel}
-                      disabled={filteredData.length === 0}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-md text-sm disabled:opacity-50"
-                    >
-                      <FaFileExcel /> Export
-                    </button>
+                    <FilterExportBtn onClick={handleExportExcel} disabled={filteredData.length === 0} />
                     <button
                       className="w-9 h-9 flex items-center justify-center rounded bg-red-600 hover:bg-red-700 transition text-white shadow"
                       title="Export PDF"

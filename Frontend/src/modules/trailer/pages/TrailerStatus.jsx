@@ -10,7 +10,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetTrailerReportQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
-import { FilterBar, FilterField, FilterClearBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterField, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const normalizeTrailerRow = (row) => ({
   trailerNo: row?.TrailerNo ?? '',
@@ -273,14 +273,7 @@ const TrailerStatus = () => {
 
             <div className="flex gap-2">
               <FilterClearBtn onClick={handleClear} />
-              <button
-                onClick={handleExport}
-                disabled={!filteredData.length}
-                className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-40"
-              >
-                <FiDownload size={13} />
-                Excel
-              </button>
+              <FilterExportBtn onClick={handleExport} disabled={!filteredData.length} />
             </div>
           </FilterBar>
           </FilterCard>

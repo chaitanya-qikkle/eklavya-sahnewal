@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiRefreshCw, FiX, FiArrowRight, FiCalendar, FiActivity, FiPackage, FiUpload, FiDownload, FiHome } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetRailPlanNameListQuery, useLazyGetRailPlanDetailQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid } from '../../../components/ui/StatCard'
-import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
@@ -195,14 +194,7 @@ const RailPlanReport = () => {
                         </button>
                       )}
                     </div>
-                    <button
-                      onClick={handleExportLeft}
-                      disabled={!filteredPlans.length}
-                      title="Export to Excel"
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
-                    >
-                      <FaFileExcel />
-                    </button>
+                    <FilterExportBtn onClick={handleExportLeft} disabled={!filteredPlans.length}>{null}</FilterExportBtn>
                   </div>
                 </div>
 
@@ -257,14 +249,7 @@ const RailPlanReport = () => {
                     {selectedDoc && <p className="text-white/60 text-xs mt-0.5">{detailRows.length.toLocaleString()} containers</p>}
                   </div>
                   {selectedDoc && (
-                    <button
-                      onClick={handleExportRight}
-                      disabled={!detailRows.length}
-                      title="Export to Excel"
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
-                    >
-                      <FaFileExcel />
-                    </button>
+                    <FilterExportBtn onClick={handleExportRight} disabled={!detailRows.length}>{null}</FilterExportBtn>
                   )}
                 </div>
 

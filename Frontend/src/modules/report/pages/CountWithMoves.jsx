@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiRefreshCw, FiX, FiLayers, FiChevronUp, FiChevronDown, FiTrendingUp, FiPackage, FiAward } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetCountWithMovesQuery } from '../../../store/api/ymsApi'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -177,14 +177,7 @@ const CountWithMoves = () => {
                     >
                       <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={12} />
                     </button>
-                    <button
-                      onClick={handleExport}
-                      disabled={!filteredRows.length}
-                      title="Export to Excel"
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors disabled:opacity-40 shadow"
-                    >
-                      <FaFileExcel size={12} />
-                    </button>
+                    <FilterExportBtn onClick={handleExport} disabled={!filteredRows.length}>{''}</FilterExportBtn>
                   </div>
                 </div>
 

@@ -2,10 +2,10 @@ import React, { useState, useMemo } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiSearch, FiRefreshCw, FiX, FiClipboard, FiCheckCircle, FiClock, FiList } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useGetTaskAllocationSummaryQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const COLUMNS = [
   { key: 'YardName',      label: 'Yard Name' },
@@ -115,15 +115,7 @@ const TaskAllocationSummary = () => {
                     <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={14} />
                   </button>
 
-                  <button
-                    onClick={handleExport}
-                    disabled={!filteredRows.length}
-                    title="Export to Excel"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
-                  >
-                    <FaFileExcel />
-                    <span className="hidden sm:inline">Export</span>
-                  </button>
+                  <FilterExportBtn onClick={handleExport} disabled={!filteredRows.length} />
                 </div>
               </div>
 

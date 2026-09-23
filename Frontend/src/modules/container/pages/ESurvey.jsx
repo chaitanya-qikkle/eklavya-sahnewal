@@ -9,11 +9,11 @@ import {
   FiFilter, FiCalendar, FiCheckCircle, FiAlertTriangle,
   FiEye, FiFileText, FiShield, FiLogIn, FiLogOut,
 } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import { MdQrCodeScanner } from 'react-icons/md'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetPreGateSurveyQuery } from '../../../store/api/ymsApi'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 import { buildAssetUrl } from '../../../config/api'
 import { useSelector } from 'react-redux'
 import { selectAuthUser } from '../../../store/slices/authSlice'
@@ -746,10 +746,7 @@ export default function ESurvey() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-semibold border border-white/30 transition-all">
                   <FiRefreshCw size={11} /> Refresh
                 </button>
-                <button onClick={handleExport} disabled={!surveys.length}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition-all disabled:opacity-40">
-                  <FaFileExcel size={11} /> Export
-                </button>
+                <FilterExportBtn onClick={handleExport} disabled={!surveys.length} />
               </div>
             </div>
 

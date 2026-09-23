@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiCalendar, FiSearch, FiFilter, FiX } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import { TbRefresh } from 'react-icons/tb'
 import { MdDevices } from 'react-icons/md'
 import * as XLSX from 'xlsx'
@@ -11,6 +10,7 @@ import {
   useGetDeviceRawDataKalmarListQuery,
   useLazyGetDeviceRawDataQuery,
 } from '../../../store/api/ymsApi'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 const formatDateTime = (value) => {
   if (!value) return '—'
@@ -333,15 +333,7 @@ const DeviceRawData = () => {
                   </div>
 
                   {/* Export */}
-                  <button
-                    onClick={handleExport}
-                    disabled={!filtered.length}
-                    title="Export to Excel"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-40 shadow"
-                  >
-                    <FaFileExcel />
-                    <span className="hidden sm:inline">Export</span>
-                  </button>
+                  <FilterExportBtn onClick={handleExport} disabled={!filtered.length} />
                 </div>
               </div>
 

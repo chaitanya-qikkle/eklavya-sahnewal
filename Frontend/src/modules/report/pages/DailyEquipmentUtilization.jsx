@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { FiSearch, FiFilter, FiCalendar, FiChevronUp, FiChevronDown } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetEquipmentDailyUtilizationQuery, useLazyGetEquipmentDailyUtilizationCountQuery, useGetEquipmentQuery } from '../../../store/api/ymsApi'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
@@ -316,14 +316,7 @@ const DailyEquipmentUtilization = () => {
                     className="pl-8 pr-3 py-1.5 rounded-md bg-white/15 border border-white/30 text-white placeholder-white/50 text-xs focus:outline-none focus:bg-white/25 w-36"
                   />
                 </div>
-                <button
-                  onClick={handleExport}
-                  disabled={filteredData.length === 0}
-                  className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors disabled:opacity-40"
-                  title="Export to Excel"
-                >
-                  <FaFileExcel className="text-lg" />
-                </button>
+                <FilterExportBtn onClick={handleExport} disabled={filteredData.length === 0} />
               </div>
             </div>
 

@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiChevronUp, FiChevronDown, FiList } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // Mock Data for Table
 const mockData = [
@@ -158,13 +158,7 @@ const MonthWiseInventory = () => {
 
               {/* Toolbar */}
               <div className="px-6 py-3 border-b border-slate-200 flex justify-between items-center gap-4">
-                <button
-                  onClick={handleExport}
-                  className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded shadow hover:bg-green-700 transition"
-                  title="Export Excel"
-                >
-                  <FaFileExcel />
-                </button>
+                <FilterExportBtn onClick={handleExport} />
                 <div className="flex items-center gap-2">
                   <span className="text-slate-600 font-medium">Search:</span>
                   <input

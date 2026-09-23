@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiChevronUp, FiChevronDown, FiCalendar, FiFilter, FiRefreshCw } from 'react-icons/fi'
-import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { API_ENDPOINTS } from '../../../config/api'
+import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
@@ -254,10 +254,7 @@ const TrailerReport = () => {
                     placeholder="Filter rows…"
                   />
                 </div>
-                <button onClick={handleExport} disabled={!filteredRecords.length}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-40">
-                  <FaFileExcel /> Export Excel
-                </button>
+                <FilterExportBtn onClick={handleExport} disabled={!filteredRecords.length} />
               </div>
             </div>
 

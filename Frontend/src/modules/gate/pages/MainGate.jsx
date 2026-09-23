@@ -12,7 +12,7 @@ import Footer from '../../../components/layout/Footer'
 import { useGetVehicleContainerDetectionQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
-import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 function formatDateParts(raw) {
   if (!raw) return null
@@ -571,14 +571,7 @@ const MainGate = () => {
               <FilterSearchBtn onClick={() => refetch()} loading={isFetching}>
                 {isFetching ? 'Loading…' : 'Refresh'}
               </FilterSearchBtn>
-              <button
-                onClick={handleExport}
-                disabled={!filtered.length}
-                className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-40"
-              >
-                <FiChevronDown size={13} className="rotate-0" />
-                Excel
-              </button>
+              <FilterExportBtn onClick={handleExport} disabled={!filtered.length} />
             </div>
           </FilterBar>
           </FilterCard>
