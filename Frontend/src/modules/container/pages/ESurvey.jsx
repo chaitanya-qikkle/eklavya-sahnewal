@@ -81,8 +81,15 @@ function SortIcon({ col, sortField, sortDir }) {
 }
 
 // ─── main component ───────────────────────────────────────────────────────────
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+
 export default function ESurvey() {
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocalDT()
   const authUser = useSelector(selectAuthUser)
   const loggedInName = authUser?.first_name || authUser?.username || authUser?.name || 'Unknown'
 
@@ -422,7 +429,7 @@ export default function ESurvey() {
     doc.setTextColor(200, 220, 240)
     doc.text(`Surveyed by: ${loggedInName}   ·   ${fmt(new Date())}`, W - 10, H - 5, { align: 'right' })
 
-    doc.save(`esurvey-${sv.ContainerNo || 'report'}-${today}.pdf`)
+    doc.save(`esurvey-${sv.ContainerNo || 'report'}-${today.slice(0, 10)}.pdf`)
   }, [today, loggedInName])
 
   const handleSubmit = async (e) => {
@@ -440,7 +447,7 @@ export default function ESurvey() {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'E-Survey')
-    XLSX.writeFile(wb, `esurvey-${today}.xlsx`)
+    XLSX.writeFile(wb, `esurvey-${today.slice(0, 10)}.xlsx`)
   }
 
   // ── WIZARD VIEW ──────────────────────────────────────────────────────────────
@@ -663,14 +670,14 @@ export default function ESurvey() {
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                 <FiCalendar className="text-[#0e4a78]" size={11} /> From Date
               </label>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+              <input type="datetime-local" value={fromDate} onChange={e => setFromDate(e.target.value)}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                 <FiCalendar className="text-[#0e4a78]" size={11} /> To Date
               </label>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+              <input type="datetime-local" value={toDate} onChange={e => setToDate(e.target.value)}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all" />
             </div>
             <div className="flex flex-col gap-1">

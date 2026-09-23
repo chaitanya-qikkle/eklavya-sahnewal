@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiCalendar, FiDownload, FiTruck as FiTruckIcon, FiPackage,
@@ -12,16 +12,17 @@ import { useGetTrailerReportQuery } from '../../../store/api/ymsApi'
 
 const TONE_MAP = {
   slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-[#0e4a78]/10", valueColor: "text-[#0e4a78]" },
-  cyan:    { accent: "#0891b2", iconColor: "text-cyan-600",    iconBg: "bg-cyan-50",       valueColor: "text-cyan-700" },
-  orange:  { accent: "#d97706", iconColor: "text-orange-600",  iconBg: "bg-orange-50",     valueColor: "text-orange-700" },
-  red:     { accent: "#dc2626", iconColor: "text-red-600",     iconBg: "bg-red-50",        valueColor: "text-red-700" },
-  lime:    { accent: "#65a30d", iconColor: "text-lime-600",    iconBg: "bg-lime-50",       valueColor: "text-lime-700" },
+  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-emerald-50",   valueColor: "text-emerald-700" },
+  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-amber-50",     valueColor: "text-amber-700" },
+  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-violet-50",    valueColor: "text-violet-700" },
+  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-sky-50",       valueColor: "text-sky-700" },
+  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-rose-50",      valueColor: "text-rose-700" },
 }
 
 const StatTile = ({ label, value, icon: Icon, tone = "slate" }) => {
   const t = TONE_MAP[tone] || TONE_MAP.slate
   return (
-    <div className="relative text-left overflow-hidden border-r border-b border-slate-200 last:border-r-0 bg-white">
+    <div className="relative text-left overflow-hidden border-r border-slate-200 last:border-r-0 bg-white">
       <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: t.accent }} />
       <div className="pl-3.5 pr-3 py-3 flex items-center gap-3">
         <span className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg ${t.iconBg} ${t.iconColor}`}>
@@ -48,7 +49,6 @@ const normalizeTrailerRow = (row) => ({
   process: row?.ProcessName ?? '',
   gateIn: row?.GateInDate ?? '',
   gateOut: row?.GateOutDate ?? '',
-  location: '',
   tat: row?.TAT ?? '',
 })
 
@@ -67,7 +67,17 @@ const fmtDate = (val) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
 
 const PAGE_SIZE = 10
 
@@ -79,14 +89,26 @@ function SortIcon({ col, sortCol, sortDir }) {
 }
 
 const TrailerStatus = () => {
-  const [fromDate, setFromDate] = useState(todayStr())
-  const [toDate, setToDate] = useState(todayStr())
+  const [fromDate, setFromDate] = useState(yesterdayLocalDT())
+  const [toDate, setToDate] = useState(todayLocalDT())
+  const [queryFromDate, setQueryFromDate] = useState(fromDate)
+  const [queryToDate, setQueryToDate] = useState(toDate)
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
 
-  const { data: trailerResponse, isFetching, isError } = useGetTrailerReportQuery({ from_date: fromDate, to_date: toDate })
+  // Debounce the datetime-local inputs before triggering the (non-lazy) query,
+  // since datetime-local fires onChange per keystroke/segment.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQueryFromDate(fromDate)
+      setQueryToDate(toDate)
+    }, 500)
+    return () => clearTimeout(t)
+  }, [fromDate, toDate])
+
+  const { data: trailerResponse, isFetching, isError } = useGetTrailerReportQuery({ from_date: queryFromDate, to_date: queryToDate })
   const trailerData = useMemo(
     () => (Array.isArray(trailerResponse?.data) ? trailerResponse.data : []).map(normalizeTrailerRow),
     [trailerResponse],
@@ -102,15 +124,15 @@ const TrailerStatus = () => {
 
     return [
       { label: 'Total', value: total, icon: FiPackage, tone: 'slate' },
-      { label: 'Empty', value: empty, icon: FiBox, tone: 'orange' },
-      { label: 'Import', value: imp, icon: FiTruckIcon, tone: 'cyan' },
-      { label: 'Export', value: exp, icon: FiActivity, tone: 'red' },
-      { label: '<= 1 Hr', value: bucket(0, 1), icon: FiClock, tone: 'orange' },
-      { label: '1 - 2 Hrs', value: bucket(1, 2), icon: FiClock, tone: 'cyan' },
-      { label: '2 - 3 Hrs', value: bucket(2, 3), icon: FiClock, tone: 'red' },
-      { label: '3 - 5 Hrs', value: bucket(3, 5), icon: FiClock, tone: 'lime' },
-      { label: '5 - 10 Hrs', value: bucket(5, 10), icon: FiClock, tone: 'orange' },
-      { label: '>= 10 Hrs', value: bucket(10, null), icon: FiClock, tone: 'cyan' },
+      { label: 'Empty', value: empty, icon: FiBox, tone: 'amber' },
+      { label: 'Import', value: imp, icon: FiTruckIcon, tone: 'sky' },
+      { label: 'Export', value: exp, icon: FiActivity, tone: 'rose' },
+      { label: '<= 1 Hr', value: bucket(0, 1), icon: FiClock, tone: 'amber' },
+      { label: '1 - 2 Hrs', value: bucket(1, 2), icon: FiClock, tone: 'sky' },
+      { label: '2 - 3 Hrs', value: bucket(2, 3), icon: FiClock, tone: 'rose' },
+      { label: '3 - 5 Hrs', value: bucket(3, 5), icon: FiClock, tone: 'emerald' },
+      { label: '5 - 10 Hrs', value: bucket(5, 10), icon: FiClock, tone: 'amber' },
+      { label: '>= 10 Hrs', value: bucket(10, null), icon: FiClock, tone: 'violet' },
     ]
   }, [trailerData])
 
@@ -154,17 +176,16 @@ const TrailerStatus = () => {
       'Process': r.process,
       'Gate In Date': fmtDate(r.gateIn),
       'Gate Out Date': fmtDate(r.gateOut),
-      'Location': r.location,
       'TAT': r.tat,
     }))
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Trailer Status')
-    XLSX.writeFile(wb, `TrailerStatus_${fromDate}_${toDate}.xlsx`)
+    XLSX.writeFile(wb, `TrailerStatus_${fromDate.replace(/:/g, '')}_${toDate.replace(/:/g, '')}.xlsx`)
   }
 
   const handleClear = () => {
-    setFromDate(todayStr()); setToDate(todayStr())
+    setFromDate(yesterdayLocalDT()); setToDate(todayLocalDT())
     setGlobalSearch(''); setPage(1)
   }
 
@@ -225,7 +246,7 @@ const TrailerStatus = () => {
                 <FiCalendar className="text-[#0e4a78]" size={11} /> From Date
               </label>
               <input
-                type="date" value={fromDate}
+                type="datetime-local" value={fromDate}
                 onChange={e => setFromDate(e.target.value)}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
@@ -236,7 +257,7 @@ const TrailerStatus = () => {
                 <FiCalendar className="text-[#0e4a78]" size={11} /> To Date
               </label>
               <input
-                type="date" value={toDate}
+                type="datetime-local" value={toDate}
                 onChange={e => setToDate(e.target.value)}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
@@ -326,7 +347,6 @@ const TrailerStatus = () => {
                       <TH col="process">Process</TH>
                       <TH col="gateIn">Gate In Date</TH>
                       <TH col="gateOut">Gate Out Date</TH>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
                       <TH col="tat">TAT</TH>
                     </tr>
                   </thead>
@@ -334,7 +354,7 @@ const TrailerStatus = () => {
                   <tbody className="divide-y divide-slate-100">
                     {paginatedData.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center">
+                        <td colSpan={9} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range or search</p>
@@ -362,7 +382,6 @@ const TrailerStatus = () => {
                           <td className="px-3 py-2 whitespace-nowrap text-[11px] text-slate-600 font-medium">{row.process || '—'}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{fmtDate(row.gateIn) || <span className="text-slate-300">—</span>}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{fmtDate(row.gateOut) || <span className="text-slate-300">—</span>}</td>
-                          <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[140px] truncate">{row.location || <span className="text-slate-300">—</span>}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.tat || <span className="text-slate-300">—</span>}</td>
                         </tr>
                       )

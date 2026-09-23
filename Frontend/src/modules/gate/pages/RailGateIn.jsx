@@ -360,11 +360,16 @@ function SortIcon({ col, sortCol, sortDir }) {
 }
 
 const PAGE_SIZE = 20
-const todayStr = () => new Date().toISOString().slice(0, 10)
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayStr = () => toLocalInputValue(new Date())
 const yesterdayStr = () => {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
+  return toLocalInputValue(d)
 }
 
 const RailGateIn = () => {
@@ -458,7 +463,7 @@ const RailGateIn = () => {
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Rail Gate In')
-    XLSX.writeFile(wb, `RailGateIn_${fromDate}_${toDate}.xlsx`)
+    XLSX.writeFile(wb, `RailGateIn_${fromDate.replace(/:/g, '')}_${toDate.replace(/:/g, '')}.xlsx`)
   }
 
   const TH = ({ col, children }) => (
@@ -562,7 +567,7 @@ const RailGateIn = () => {
                 <FiCalendar className="text-[#0e4a78]" size={11} /> From Date
               </label>
               <input
-                type="date" value={fromDate}
+                type="datetime-local" value={fromDate}
                 onChange={e => setFromDate(e.target.value)}
                 disabled={!!containerNo.trim()}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all disabled:opacity-50 disabled:bg-slate-50"
@@ -574,7 +579,7 @@ const RailGateIn = () => {
                 <FiCalendar className="text-[#0e4a78]" size={11} /> To Date
               </label>
               <input
-                type="date" value={toDate}
+                type="datetime-local" value={toDate}
                 onChange={e => setToDate(e.target.value)}
                 disabled={!!containerNo.trim()}
                 className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all disabled:opacity-50 disabled:bg-slate-50"

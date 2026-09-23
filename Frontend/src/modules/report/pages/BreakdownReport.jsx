@@ -6,8 +6,17 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetBreakdownsFilteredQuery } from '../../../store/api/ymsApi'
 
-const today     = new Date().toISOString().split('T')[0]
-const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -28,8 +37,8 @@ const COLUMNS = [
 ]
 
 const BreakdownReport = () => {
-  const [fromDate, setFromDate] = useState(yesterday)
-  const [toDate,   setToDate]   = useState(today)
+  const [fromDate, setFromDate] = useState(yesterdayLocalDT())
+  const [toDate,   setToDate]   = useState(todayLocalDT())
   const [search,   setSearch]   = useState('')
   const [hasQueried, setHasQueried] = useState(false)
 
@@ -51,11 +60,11 @@ const BreakdownReport = () => {
   }
 
   const handleClear = () => {
-    setFromDate(yesterday)
-    setToDate(today)
+    setFromDate(yesterdayLocalDT())
+    setToDate(todayLocalDT())
     setSearch('')
     setHasQueried(true)
-    fetchBreakdowns({ from_date: yesterday, to_date: today })
+    fetchBreakdowns({ from_date: yesterdayLocalDT(), to_date: todayLocalDT() })
   }
 
   const handleExport = () => {
@@ -70,7 +79,7 @@ const BreakdownReport = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'BreakdownReport')
-    XLSX.writeFile(wb, `BreakdownReport_${today}.xlsx`)
+    XLSX.writeFile(wb, `BreakdownReport_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (
@@ -111,7 +120,7 @@ const BreakdownReport = () => {
                     <div className="relative">
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
                         className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
@@ -124,7 +133,7 @@ const BreakdownReport = () => {
                     <div className="relative">
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
                         className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"

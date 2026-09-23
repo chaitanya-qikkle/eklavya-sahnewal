@@ -19,8 +19,17 @@ const mockData = [
   { containerNo: "WHMU5216830", transactionDate: "09-12-2025 17:46:14" },
 ]
 
-const today = new Date().toISOString().split('T')[0]
-const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
 
 // Mock data ships as "dd-mm-yyyy hh:mm:ss" — re-format to dd/mm/yyyy hh:mm for
 // consistency with every other report page's date display.
@@ -33,8 +42,8 @@ const fmtDate = (val) => {
 }
 
 const MonthWiseInventory = () => {
-  const [fromDate, setFromDate] = useState(yesterday)
-  const [toDate, setToDate] = useState(today)
+  const [fromDate, setFromDate] = useState(yesterdayLocalDT())
+  const [toDate, setToDate] = useState(todayLocalDT())
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null })
   const [currentPage, setCurrentPage] = useState(1)
@@ -110,7 +119,7 @@ const MonthWiseInventory = () => {
                     <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px] text-right">FROM</label>
                     <div className="relative w-full md:w-64">
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
                         className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700"
@@ -122,7 +131,7 @@ const MonthWiseInventory = () => {
                     <label className="text-xs font-bold text-slate-700 uppercase whitespace-nowrap min-w-[60px] text-right">TO DATE</label>
                     <div className="relative w-full md:w-64">
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
                         className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700"

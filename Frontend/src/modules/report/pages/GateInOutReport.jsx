@@ -46,6 +46,18 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
   )
 }
 
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
+
 const formatDate = (raw) => {
   if (!raw) return '—'
   try {
@@ -68,12 +80,9 @@ const StatusBadge = ({ val }) => {
 }
 
 const GateInOutReport = () => {
-  const today     = new Date().toISOString().split('T')[0]
-  const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0]
-
   const [searchContainer, setSearchContainer] = useState('')
-  const [dateFrom,        setDateFrom]        = useState(yesterday)
-  const [dateTo,          setDateTo]          = useState(today)
+  const [dateFrom,        setDateFrom]        = useState(yesterdayLocalDT())
+  const [dateTo,          setDateTo]          = useState(todayLocalDT())
   const [records,         setRecords]         = useState([])
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState(null)
@@ -122,8 +131,8 @@ const GateInOutReport = () => {
 
   const handleClear = () => {
     setSearchContainer('')
-    setDateFrom(yesterday)
-    setDateTo(today)
+    setDateFrom(yesterdayLocalDT())
+    setDateTo(todayLocalDT())
     setRecords([])
     setFetched(false)
     setError(null)
@@ -271,7 +280,7 @@ const GateInOutReport = () => {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <FiCalendar size={10} /> From Date
                   </label>
-                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                  <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                     className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
                 </div>
 
@@ -279,7 +288,7 @@ const GateInOutReport = () => {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <FiCalendar size={10} /> To Date
                   </label>
-                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                  <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)}
                     className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
                 </div>
 

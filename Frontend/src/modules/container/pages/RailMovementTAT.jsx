@@ -7,7 +7,12 @@ import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
 import { useLazyGetRailMovementTatQuery } from '../../../store/api/ymsApi'
 
-const todayStr = () => new Date().toISOString().split('T')[0]
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayStr = () => toLocalInputValue(new Date())
 
 const COLUMNS = [
   { key: 'DocumentNo',    label: 'DOCUMENT NO' },
@@ -133,7 +138,7 @@ const RailMovementTAT = () => {
                     <label className="text-xs font-bold text-slate-700 uppercase">FROM</label>
                     <div className="relative">
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
                         className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700"
@@ -145,7 +150,7 @@ const RailMovementTAT = () => {
                     <label className="text-xs font-bold text-slate-700 uppercase">TO</label>
                     <div className="relative">
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
                         className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700"

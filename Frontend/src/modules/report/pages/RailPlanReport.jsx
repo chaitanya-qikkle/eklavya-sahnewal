@@ -46,8 +46,17 @@ const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick,
   )
 }
 
-const today = new Date().toISOString().split('T')[0]
-const fromDefault = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const fromDefault = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -70,8 +79,8 @@ const RailPlanReport = () => {
   const [fetchPlans, { data: planData, isFetching: isPlansFetching, isError: isPlansError }] = useLazyGetRailPlanNameListQuery()
   const [fetchDetail, { data: detailData, isFetching: isDetailFetching }] = useLazyGetRailPlanDetailQuery()
 
-  const [fromDate, setFromDate] = useState(fromDefault)
-  const [toDate, setToDate] = useState(today)
+  const [fromDate, setFromDate] = useState(fromDefault())
+  const [toDate, setToDate] = useState(todayLocalDT())
   const [searchLeft, setSearchLeft] = useState('')
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [hasQueried, setHasQueried] = useState(false)
@@ -79,7 +88,7 @@ const RailPlanReport = () => {
 
   useEffect(() => {
     setHasQueried(true)
-    fetchPlans({ report_type: 'MONTH', from_date: fromDefault, to_date: today })
+    fetchPlans({ report_type: 'MONTH', from_date: fromDefault(), to_date: todayLocalDT() })
   }, []) // eslint-disable-line
 
   const plans = Array.isArray(planData?.data) ? planData.data : []
@@ -92,12 +101,12 @@ const RailPlanReport = () => {
   }
 
   const handleClear = () => {
-    setFromDate(fromDefault)
-    setToDate(today)
+    setFromDate(fromDefault())
+    setToDate(todayLocalDT())
     setSearchLeft('')
     setSelectedDoc(null)
     setHasQueried(true)
-    fetchPlans({ report_type: 'MONTH', from_date: fromDefault, to_date: today })
+    fetchPlans({ report_type: 'MONTH', from_date: fromDefault(), to_date: todayLocalDT() })
   }
 
   const filteredPlans = useMemo(() => {
@@ -134,7 +143,7 @@ const RailPlanReport = () => {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'RailPlans')
-    XLSX.writeFile(wb, `RailPlanNameList_${today}.xlsx`)
+    XLSX.writeFile(wb, `RailPlanNameList_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   const handleExportRight = () => {
@@ -146,7 +155,7 @@ const RailPlanReport = () => {
     }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'PlanDetail')
-    XLSX.writeFile(wb, `RailPlanDetail_${selectedDoc || today}.xlsx`)
+    XLSX.writeFile(wb, `RailPlanDetail_${selectedDoc || todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (
@@ -186,7 +195,7 @@ const RailPlanReport = () => {
                     <div className="relative">
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
                         className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
@@ -199,7 +208,7 @@ const RailPlanReport = () => {
                     <div className="relative">
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
                         className="w-full sm:w-56 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"

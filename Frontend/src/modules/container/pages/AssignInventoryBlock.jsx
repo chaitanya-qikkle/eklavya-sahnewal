@@ -113,7 +113,7 @@ const AssignInventoryBlock = () => {
                   <div className="flex-1 w-full md:w-auto">
                     <label className="block text-sm font-semibold text-slate-600 mb-2">FROM</label>
                     <input
-                      type="date"
+                      type="datetime-local"
                       value={fromDate}
                       onChange={(e) => setFromDate(e.target.value)}
                       className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700"
@@ -122,7 +122,7 @@ const AssignInventoryBlock = () => {
                   <div className="flex-1 w-full md:w-auto">
                     <label className="block text-sm font-semibold text-slate-600 mb-2">TO</label>
                     <input
-                      type="date"
+                      type="datetime-local"
                       value={toDate}
                       onChange={(e) => setToDate(e.target.value)}
                       className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/50 text-slate-700"

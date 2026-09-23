@@ -6,6 +6,13 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { API_ENDPOINTS } from '../../../config/api'
 
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+
 const formatDate = (raw) => {
   if (!raw) return '—'
   try {
@@ -40,11 +47,9 @@ const COLS = [
 ]
 
 const TrailerReport = () => {
-  const today = new Date().toISOString().split('T')[0]
-
   const [trailerNo,   setTrailerNo]   = useState('')
-  const [fromDate,    setFromDate]    = useState(today)
-  const [toDate,      setToDate]      = useState(today)
+  const [fromDate,    setFromDate]    = useState(todayLocalDT())
+  const [toDate,      setToDate]      = useState(todayLocalDT())
   const [records,     setRecords]     = useState([])
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState(null)
@@ -90,8 +95,8 @@ const TrailerReport = () => {
 
   const handleClear = () => {
     setTrailerNo('')
-    setFromDate(today)
-    setToDate(today)
+    setFromDate(todayLocalDT())
+    setToDate(todayLocalDT())
     setRecords([])
     setFetched(false)
     setError(null)
@@ -198,7 +203,7 @@ const TrailerReport = () => {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <FiCalendar size={10} /> From Date
                   </label>
-                  <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                  <input type="datetime-local" value={fromDate} onChange={e => setFromDate(e.target.value)}
                     className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
                 </div>
 
@@ -206,7 +211,7 @@ const TrailerReport = () => {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <FiCalendar size={10} /> To Date
                   </label>
-                  <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                  <input type="datetime-local" value={toDate} onChange={e => setToDate(e.target.value)}
                     className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
                 </div>
 

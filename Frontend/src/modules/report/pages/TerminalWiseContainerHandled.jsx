@@ -6,8 +6,17 @@ import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiBarChart2, FiChevronUp, FiChe
 import * as XLSX from 'xlsx'
 import { useLazyGetMonthWiseInventoryQuery } from '../../../store/api/ymsApi'
 
-const today = new Date().toISOString().split('T')[0]
-const fromDefault = new Date(Date.now() - 864e5).toISOString().split('T')[0]
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const fromDefault = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
 
 const LOCATIONS = [
   { key: 'GHH',    label: 'GHH' },
@@ -34,15 +43,15 @@ const TYPES = [
 const TerminalWiseContainerHandled = () => {
   const [fetchData, { data, isFetching, isError }] = useLazyGetMonthWiseInventoryQuery()
   const [reportType, setReportType] = useState('MONTH')
-  const [fromDate, setFromDate] = useState(fromDefault)
-  const [toDate, setToDate] = useState(today)
+  const [fromDate, setFromDate] = useState(fromDefault())
+  const [toDate, setToDate] = useState(todayLocalDT())
   const [search, setSearch] = useState('')
   const [hasQueried, setHasQueried] = useState(false)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
   useEffect(() => {
     setHasQueried(true)
-    fetchData({ report_type: 'MONTH', from_date: fromDefault, to_date: today })
+    fetchData({ report_type: 'MONTH', from_date: fromDefault(), to_date: todayLocalDT() })
   }, []) // eslint-disable-line
 
   const rows = Array.isArray(data?.data) ? data.data : []
@@ -55,12 +64,12 @@ const TerminalWiseContainerHandled = () => {
 
   const handleClear = () => {
     setReportType('MONTH')
-    setFromDate(fromDefault)
-    setToDate(today)
+    setFromDate(fromDefault())
+    setToDate(todayLocalDT())
     setSearch('')
     setSortConfig({ key: null, direction: 'asc' })
     setHasQueried(true)
-    fetchData({ report_type: 'MONTH', from_date: fromDefault, to_date: today })
+    fetchData({ report_type: 'MONTH', from_date: fromDefault(), to_date: todayLocalDT() })
   }
 
   const filteredData = useMemo(() => {
@@ -101,7 +110,7 @@ const TerminalWiseContainerHandled = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'TerminalWiseContainerHandled')
-    XLSX.writeFile(wb, `TerminalWiseContainerHandled_${today}.xlsx`)
+    XLSX.writeFile(wb, `TerminalWiseContainerHandled_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   const handleRowExport = (row) => {
@@ -181,7 +190,7 @@ const TerminalWiseContainerHandled = () => {
                     <div className="relative">
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
                         className="w-full sm:w-52 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
@@ -196,7 +205,7 @@ const TerminalWiseContainerHandled = () => {
                     <div className="relative">
                       <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={toDate}
                         onChange={(e) => setToDate(e.target.value)}
                         className="w-full sm:w-52 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"

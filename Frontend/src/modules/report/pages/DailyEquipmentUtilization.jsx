@@ -6,9 +6,21 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetEquipmentDailyUtilizationQuery, useLazyGetEquipmentDailyUtilizationCountQuery, useGetEquipmentQuery } from '../../../store/api/ymsApi'
 
+// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
+
 const DailyEquipmentUtilization = () => {
-  const today     = new Date().toISOString().split('T')[0]
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const today     = todayLocalDT()
+  const yesterday = yesterdayLocalDT()
 
   const [fromDate, setFromDate]         = useState(yesterday)
   const [toDate, setToDate]             = useState(today)
@@ -152,7 +164,7 @@ const DailyEquipmentUtilization = () => {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Machine Utilization')
-    XLSX.writeFile(wb, `Machine-Utilization-${fromDate}-to-${toDate}.xlsx`)
+    XLSX.writeFile(wb, `Machine-Utilization-${fromDate.replace(/:/g, '')}-to-${toDate.replace(/:/g, '')}.xlsx`)
   }
 
   const summary = useMemo(() => {
@@ -222,7 +234,7 @@ const DailyEquipmentUtilization = () => {
                   <label className="text-xs font-bold text-slate-600 uppercase whitespace-nowrap min-w-[70px]">From Date</label>
                   <div className="relative">
                     <input
-                      type="date" value={fromDate}
+                      type="datetime-local" value={fromDate}
                       onChange={e => setFromDate(e.target.value)}
                       className="pl-9 pr-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/40 text-sm text-slate-700 font-medium shadow-sm"
                     />
@@ -234,7 +246,7 @@ const DailyEquipmentUtilization = () => {
                   <label className="text-xs font-bold text-slate-600 uppercase whitespace-nowrap min-w-[55px]">To Date</label>
                   <div className="relative">
                     <input
-                      type="date" value={toDate}
+                      type="datetime-local" value={toDate}
                       onChange={e => setToDate(e.target.value)}
                       className="pl-9 pr-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/40 text-sm text-slate-700 font-medium shadow-sm"
                     />
