@@ -37,8 +37,8 @@ export const StatCard = ({ label, value, icon: Icon, tone = 'slate', total, isAc
       style={isActive ? { color: t.accent } : undefined}
     >
       <div className="px-3.5 py-3 flex items-center gap-3">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm bg-white transition-all duration-150 ${
-          clickable && isActive ? `${t.activeBg} text-white` : t.iconColor
+        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
+          clickable && isActive ? `${t.activeBg} text-white` : `bg-white ${t.iconColor}`
         }`}>
           {Icon && <Icon className="text-[15px]" />}
         </span>

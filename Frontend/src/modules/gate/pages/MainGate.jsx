@@ -3,7 +3,7 @@ import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiTruck as FiTruckIcon, FiPackage, FiLayers,
   FiHash, FiMapPin, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
-  FiChevronLeft, FiChevronRight, FiHome,
+  FiChevronLeft, FiChevronRight, FiHome, FiFilter,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { FaDoorOpen } from 'react-icons/fa'
@@ -517,6 +517,7 @@ const MainGate = () => {
           <FilterBar className="mb-4">
             <FilterSelect
               label="Gate"
+              icon={FiFilter}
               value={gateFilter}
               onChange={e => { setGateFilter(e.target.value); setPage(1) }}
               className="min-w-[160px]"

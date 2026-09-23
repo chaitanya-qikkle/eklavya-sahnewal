@@ -361,15 +361,15 @@ const TrailerGateOut = () => {
               <div className="flex gap-2">
                 <button
                   onClick={handleRefresh}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-slate-300 text-slate-600 font-semibold hover:bg-slate-100 transition"
+                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all"
                 >
-                  <FiRefreshCw /> Clear
+                  <FiRefreshCw size={13} /> Clear
                 </button>
                 <button
                   onClick={handleExport}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all"
                 >
-                  <FaFileExcel /> Export
+                  <FaFileExcel size={13} /> Export
                 </button>
               </div>
             </FilterBar>

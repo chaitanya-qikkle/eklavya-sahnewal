@@ -3,11 +3,11 @@ import { useSearchParams } from 'react-router-dom'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FaFileExcel } from 'react-icons/fa'
-import { FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiPackage, FiUpload, FiDownload, FiHome } from 'react-icons/fi'
+import { FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiPackage, FiUpload, FiDownload, FiHome, FiHash } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { useLazyGetRailJourneyByDocumentQuery, useGetDocumentNumbersQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid } from '../../../components/ui/StatCard'
-import { FilterBar, FilterClearBtn } from '../../../components/ui/FilterBar'
+import { FilterBar, FilterClearBtn, FilterLabel } from '../../../components/ui/FilterBar'
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -201,8 +201,8 @@ const PreRailInReport = () => {
 
             {/* Filter Bar — Search Criteria */}
             <FilterBar>
-              <div className="flex flex-col gap-1.5 relative w-full lg:w-[420px]" ref={docBoxRef}>
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">Document No</label>
+              <div className="flex flex-col gap-0.5 relative w-full lg:w-[420px]" ref={docBoxRef}>
+                <FilterLabel icon={FiHash}>Document No</FilterLabel>
                 <button
                   type="button"
                   onClick={() => setDocOpen((o) => !o)}

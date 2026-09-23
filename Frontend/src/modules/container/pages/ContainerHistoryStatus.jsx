@@ -290,29 +290,6 @@ const ContainerHistoryStatus = () => {
                 />
               </FilterField>
 
-              <FilterField label="Size" icon={FiBox}>
-                <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-                  {[
-                    { key: 'all', label: 'All' },
-                    { key: '20', label: '20 FT' },
-                    { key: '40', label: '40 FT' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => { setSizeFilter(opt.key); setCurrentPage(1) }}
-                      className={`px-4 py-2.5 text-sm font-semibold transition ${
-                        sizeFilter === opt.key
-                          ? 'bg-[#0e4a78] text-white'
-                          : 'bg-white text-slate-600 hover:bg-slate-50'
-                      } ${opt.key !== 'all' ? 'border-l border-slate-300' : ''}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </FilterField>
-
               <div className="flex gap-3">
                 <FilterClearBtn onClick={handleClear} />
                 <FilterSearchBtn onClick={runSearch} loading={isFetching}>Filter</FilterSearchBtn>
