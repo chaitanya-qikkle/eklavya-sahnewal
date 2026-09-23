@@ -42,7 +42,9 @@ const COLUMNS = [
   { key: 'Mode',             label: 'Mode' },
   { key: 'Terminal',         label: 'Terminal' },
   { key: 'WagonNo',          label: 'Wagon No' },
+  { key: 'RakeNo',           label: 'Rake No' },
   { key: 'NoOfMoves',        label: 'Moves' },
+  { key: 'OffloadTAT',       label: 'Offload TAT' },
 ]
 
 const RailInReport = () => {
