@@ -121,22 +121,18 @@ def get_gate_report(
     try:
         container_no_param = (container_no or '').strip().upper()
 
-        if from_date:
-            try:
-                datetime.strptime(from_date, '%Y-%m-%d')
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD")
-        if to_date:
-            try:
-                datetime.strptime(to_date, '%Y-%m-%d')
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD")
+        from_dt = _to_proc_datetime(from_date)
+        if from_date and from_dt is None:
+            raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
+        to_dt = _to_proc_datetime(to_date)
+        if to_date and to_dt is None:
+            raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 
         plant_id = current_user.get("plant_id", 1)
 
         result = db.execute_query(
             "EXEC dbo.GET_GATEIN_REPORT @fromDate = ?, @toDate = ?, @ContainerNo = ?, @PlantId = ?",
-            (from_date or '', to_date or '', container_no_param, plant_id),
+            (from_dt.strftime('%Y-%m-%d %H:%M:%S') if from_dt else '', to_dt.strftime('%Y-%m-%d %H:%M:%S') if to_dt else '', container_no_param, plant_id),
             fetch_all=True,
         )
 
@@ -173,21 +169,17 @@ def get_offload_report(
     try:
         container_no_param = (container_no or '').strip().upper()
 
-        if from_date:
-            try:
-                datetime.strptime(from_date, '%Y-%m-%d')
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD")
-        if to_date:
-            try:
-                datetime.strptime(to_date, '%Y-%m-%d')
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD")
+        from_dt = _to_proc_datetime(from_date)
+        if from_date and from_dt is None:
+            raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
+        to_dt = _to_proc_datetime(to_date)
+        if to_date and to_dt is None:
+            raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 
         plant_id = current_user.get("plant_id", 1)
         now = datetime.now()
-        f_date = from_date or (now - timedelta(days=1)).strftime("%Y-%m-%d")
-        t_date = to_date or now.strftime("%Y-%m-%d")
+        f_date = from_dt.strftime('%Y-%m-%d %H:%M:%S') if from_dt else (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        t_date = to_dt.strftime('%Y-%m-%d %H:%M:%S') if to_dt else now.strftime("%Y-%m-%d")
 
         result = db.execute_query(
             "EXEC dbo.GET_OFFLOAD_REPORT @fromDate = ?, @toDate = ?, @ContNo = ?, @PlantID = ?",
