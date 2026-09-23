@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetTrailerReportQuery } from '../../../store/api/ymsApi'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 const normalizeTrailerRow = (row) => ({
@@ -68,6 +68,8 @@ const TrailerStatus = () => {
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(1)
+  const [processFilter, setProcessFilter] = useState('all')
+  const [tatFilter, setTatFilter] = useState('all')
 
   // Debounce the datetime-local inputs before triggering the (non-lazy) query,
   // since datetime-local fires onChange per keystroke/segment.
@@ -94,21 +96,37 @@ const TrailerStatus = () => {
     const bucket = (lo, hi) => hours.filter((h) => h >= lo && (hi == null || h < hi)).length
 
     return [
-      { label: 'Total', value: total, icon: FiPackage, tone: 'slate' },
-      { label: 'Empty', value: empty, icon: FiBox, tone: 'amber' },
-      { label: 'Import', value: imp, icon: FiTruckIcon, tone: 'sky' },
-      { label: 'Export', value: exp, icon: FiActivity, tone: 'rose' },
-      { label: '<= 1 Hr', value: bucket(0, 1), icon: FiClock, tone: 'amber' },
-      { label: '1 - 2 Hrs', value: bucket(1, 2), icon: FiClock, tone: 'sky' },
-      { label: '2 - 3 Hrs', value: bucket(2, 3), icon: FiClock, tone: 'rose' },
-      { label: '3 - 5 Hrs', value: bucket(3, 5), icon: FiClock, tone: 'emerald' },
-      { label: '5 - 10 Hrs', value: bucket(5, 10), icon: FiClock, tone: 'amber' },
-      { label: '>= 10 Hrs', value: bucket(10, null), icon: FiClock, tone: 'violet' },
+      { label: 'Total', value: total, icon: FiPackage, tone: 'slate', filterType: 'process', filterValue: 'all' },
+      { label: 'Empty', value: empty, icon: FiBox, tone: 'amber', filterType: 'process', filterValue: 'EMPTY' },
+      { label: 'Import', value: imp, icon: FiTruckIcon, tone: 'sky', filterType: 'process', filterValue: 'IMPORT' },
+      { label: 'Export', value: exp, icon: FiActivity, tone: 'rose', filterType: 'process', filterValue: 'EXPORT' },
+      { label: '<= 1 Hr', value: bucket(0, 1), icon: FiClock, tone: 'amber', filterType: 'tat', filterValue: '0-1' },
+      { label: '1 - 2 Hrs', value: bucket(1, 2), icon: FiClock, tone: 'sky', filterType: 'tat', filterValue: '1-2' },
+      { label: '2 - 3 Hrs', value: bucket(2, 3), icon: FiClock, tone: 'rose', filterType: 'tat', filterValue: '2-3' },
+      { label: '3 - 5 Hrs', value: bucket(3, 5), icon: FiClock, tone: 'emerald', filterType: 'tat', filterValue: '3-5' },
+      { label: '5 - 10 Hrs', value: bucket(5, 10), icon: FiClock, tone: 'amber', filterType: 'tat', filterValue: '5-10' },
+      { label: '>= 10 Hrs', value: bucket(10, null), icon: FiClock, tone: 'violet', filterType: 'tat', filterValue: '10-' },
     ]
   }, [trailerData])
 
+  const TAT_BUCKETS = {
+    '0-1': [0, 1], '1-2': [1, 2], '2-3': [2, 3], '3-5': [3, 5], '5-10': [5, 10], '10-': [10, null],
+  }
+
   const filteredData = useMemo(() => {
     let data = [...trailerData]
+
+    if (processFilter !== 'all') {
+      data = data.filter((r) => String(r.process).toUpperCase() === processFilter)
+    }
+
+    if (tatFilter !== 'all') {
+      const [lo, hi] = TAT_BUCKETS[tatFilter]
+      data = data.filter((r) => {
+        const h = tatToHours(r.tat)
+        return h !== null && h >= lo && (hi == null || h < hi)
+      })
+    }
 
     if (globalSearch) {
       const lowerSearch = globalSearch.toLowerCase()
@@ -128,7 +146,7 @@ const TrailerStatus = () => {
     }
 
     return data
-  }, [trailerData, globalSearch, sortCol, sortDir])
+  }, [trailerData, processFilter, tatFilter, globalSearch, sortCol, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE))
   const paginatedData = filteredData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -158,6 +176,7 @@ const TrailerStatus = () => {
   const handleClear = () => {
     setFromDate(yesterdayLocalDT()); setToDate(todayLocalDT())
     setGlobalSearch(''); setPage(1)
+    setProcessFilter('all'); setTatFilter('all')
   }
 
   const goToPage = (pg) => {
@@ -201,15 +220,29 @@ const TrailerStatus = () => {
             </p>
           </header>
 
-          {/* ── Stats zone ── */}
-          <StatGrid cols="grid-cols-2 sm:grid-cols-5" className="mb-4">
+          {/* ── Stats + Filter — merged into one card ── */}
+          <FilterCard>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-5" bare>
             {cardData.map((card) => (
-              <StatCard key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
+              <StatCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                icon={card.icon}
+                tone={card.tone}
+                isActive={card.filterType === 'process' ? processFilter === card.filterValue : tatFilter === card.filterValue}
+                onClick={() => {
+                  setPage(1)
+                  if (card.filterType === 'process') setProcessFilter(card.filterValue)
+                  else setTatFilter(card.filterValue)
+                }}
+                total={cardData[0].value}
+              />
             ))}
           </StatGrid>
 
           {/* ── Filter Bar ── */}
-          <FilterBar className="mb-4">
+          <FilterBar bare>
             <FilterField label="From Date" icon={FiCalendar}>
               <input
                 type="datetime-local" value={fromDate}
@@ -250,6 +283,7 @@ const TrailerStatus = () => {
               </button>
             </div>
           </FilterBar>
+          </FilterCard>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

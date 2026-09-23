@@ -12,7 +12,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetPreGateSurveyQuery, useGetGateNamesQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function prettyGateName(name) {
@@ -376,12 +376,13 @@ export default function PreGateInOut() {
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
   const gateOptions = Array.isArray(gateNamesData?.data) ? gateNamesData.data : []
 
-  const buildArgs = useCallback((pg = 1, gateNameOverride) => {
+  const buildArgs = useCallback((pg = 1, gateNameOverride, gateFilterOverride) => {
     const args = { page: pg, page_size: PAGE_SIZE }
     if (fromDate)               args.from_date    = fromDate
     if (toDate)                 args.to_date      = toDate
     if (containerNo.trim())     args.container_no = containerNo.trim()
-    if (gateFilter !== 'ALL')   args.gate_type    = gateFilter
+    const gf = gateFilterOverride !== undefined ? gateFilterOverride : gateFilter
+    if (gf !== 'ALL')           args.gate_type    = gf
     const gn = gateNameOverride !== undefined ? gateNameOverride : gateName
     if (gn)                     args.gate_name    = gn
     return args
@@ -515,19 +516,38 @@ export default function PreGateInOut() {
             </p>
           </header>
 
-          {/* ── Stats zone — visually separate tinted surface, distinct from the filter toolbar below ── */}
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" className="mb-4">
-            <StatCard label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
-            <StatCard label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
-            <StatCard label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
+          {/* ── Stats + Filter — merged into one card ── */}
+          <FilterCard>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
             <StatCard
-              label="Total Entries"
-              value={processStats.total}
+              label="Total"
+              value={total}
               icon={FiPackage}
               tone="slate"
-              isActive={processFilter === 'all'}
-              onClick={() => setProcessFilter('all')}
-              total={processStats.total}
+              isActive={gateFilter === 'ALL' && processFilter === 'all'}
+              onClick={() => {
+                setGateFilter('ALL'); setProcessFilter('all'); setPage(1)
+                fetchSurvey(buildArgs(1, undefined, 'ALL'))
+              }}
+              total={total}
+            />
+            <StatCard
+              label="Gate In"
+              value={gate_in_count}
+              icon={FiLogIn}
+              tone="emerald"
+              isActive={gateFilter === 'GATE_IN'}
+              onClick={() => { setGateFilter('GATE_IN'); setPage(1); fetchSurvey(buildArgs(1, undefined, 'GATE_IN')) }}
+              total={total}
+            />
+            <StatCard
+              label="Gate Out"
+              value={gate_out_count}
+              icon={FiLogOut}
+              tone="amber"
+              isActive={gateFilter === 'GATE_OUT'}
+              onClick={() => { setGateFilter('GATE_OUT'); setPage(1); fetchSurvey(buildArgs(1, undefined, 'GATE_OUT')) }}
+              total={total}
             />
             <StatCard
               label="Export"
@@ -568,7 +588,7 @@ export default function PreGateInOut() {
           </StatGrid>
 
           {/* ── Filter Bar — plain white toolbar, deliberately distinct from the stats zone above ── */}
-          <FilterBar className="mb-4">
+          <FilterBar bare>
             <FilterField label="From Date" icon={FiCalendar}>
               <input
                 type="date" value={fromDate}
@@ -626,6 +646,7 @@ export default function PreGateInOut() {
               </button>
             </div>
           </FilterBar>
+          </FilterCard>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

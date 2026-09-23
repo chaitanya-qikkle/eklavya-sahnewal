@@ -5,7 +5,7 @@ import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiPackage, FiUpload, FiDownload
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useLazyGetOffloadReportQuery } from '../../../store/api/ymsApi'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
@@ -142,8 +142,9 @@ const OffloadReport = () => {
               </div>
             </div>
 
-            {/* Stats zone */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {/* Stats + Filter — merged into one card */}
+            <FilterCard>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
               <StatCard
                 label="Total Entries"
                 value={processStats.total}
@@ -192,7 +193,7 @@ const OffloadReport = () => {
             </StatGrid>
 
             {/* Filter Bar — Search Criteria */}
-            <FilterBar>
+            <FilterBar bare>
               <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[180px]">
                 <input
                   type="text"
@@ -227,6 +228,7 @@ const OffloadReport = () => {
                 <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
               </div>
             </FilterBar>
+            </FilterCard>
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">

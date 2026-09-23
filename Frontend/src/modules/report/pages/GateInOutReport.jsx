@@ -5,7 +5,7 @@ import { FiFilter, FiCalendar, FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { API_ENDPOINTS } from '../../../config/api'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
@@ -220,8 +220,9 @@ const GateInOutReport = () => {
             </h2>
           </header>
 
-          {/* ── Stats zone ── */}
-          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          {/* ── Stats + Filter — merged into one card ── */}
+          <FilterCard>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
             <StatCard
               label="Total Entries"
               value={processStats.total}
@@ -270,7 +271,7 @@ const GateInOutReport = () => {
           </StatGrid>
 
           {/* ── Filter Bar ── */}
-          <FilterBar>
+          <FilterBar bare>
             <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[160px]">
               <input
                 type="text"
@@ -297,6 +298,7 @@ const GateInOutReport = () => {
               <FilterSearchBtn onClick={fetchData} loading={loading} />
             </div>
           </FilterBar>
+          </FilterCard>
 
           {/* ── Table ── */}
           <section className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">

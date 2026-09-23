@@ -11,7 +11,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetRailInQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function formatDateParts(raw) {
@@ -332,6 +332,7 @@ const RailGateIn = () => {
   const [lightbox, setLightbox] = useState(null)
   const [detailIdx, setDetailIdx] = useState(null)
   const [processFilter, setProcessFilter] = useState('all')
+  const [sizeFilter, setSizeFilter] = useState('all')
 
   useEffect(() => { setPageInput(String(page)) }, [page])
 
@@ -348,6 +349,7 @@ const RailGateIn = () => {
   const handleSearch = () => { setPage(1); fetchRailIn(buildArgs()) }
   const handleClear = () => {
     setFromDate(yesterdayStr()); setToDate(todayStr()); setContainerNo(''); setPage(1)
+    setProcessFilter('all'); setSizeFilter('all')
     fetchRailIn({ from_date: yesterdayStr(), to_date: todayStr() })
   }
 
@@ -377,9 +379,11 @@ const RailGateIn = () => {
   }, [rowsAll])
 
   const filtered = useMemo(() => {
-    if (processFilter === 'all') return sorted
-    return sorted.filter(r => String(r.Process || '').toUpperCase() === processFilter)
-  }, [sorted, processFilter])
+    let result = sorted
+    if (sizeFilter !== 'all') result = result.filter(r => String(r.ContainerSize || '').trim() === sizeFilter)
+    if (processFilter !== 'all') result = result.filter(r => String(r.Process || '').toUpperCase() === processFilter)
+    return result
+  }, [sorted, processFilter, sizeFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -391,6 +395,7 @@ const RailGateIn = () => {
   }
 
   const handleProcessFilter = (val) => { setProcessFilter(val); setPage(1) }
+  const handleSizeFilter = (val) => { setSizeFilter(val); setPage(1) }
 
   const handleExport = () => {
     const sheetData = filtered.map((row, i) => ({
@@ -450,19 +455,35 @@ const RailGateIn = () => {
             </p>
           </header>
 
-          {/* ── Stats zone ── */}
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" className="mb-4">
-            <StatCard label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
-            <StatCard label="20 ft" value={size20Count} icon={FiBox} tone="emerald" />
-            <StatCard label="40 ft" value={size40Count} icon={FiBox} tone="amber" />
+          {/* ── Stats + Filter — merged into one card ── */}
+          <FilterCard>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
             <StatCard
-              label="Total Entries"
-              value={processStats.total}
+              label="Total"
+              value={rowsAll.length}
               icon={FiLayers}
               tone="slate"
-              isActive={processFilter === 'all'}
-              onClick={() => handleProcessFilter('all')}
-              total={processStats.total}
+              isActive={sizeFilter === 'all' && processFilter === 'all'}
+              onClick={() => { handleSizeFilter('all'); handleProcessFilter('all') }}
+              total={rowsAll.length}
+            />
+            <StatCard
+              label="20 ft"
+              value={size20Count}
+              icon={FiBox}
+              tone="emerald"
+              isActive={sizeFilter === '20'}
+              onClick={() => handleSizeFilter('20')}
+              total={rowsAll.length}
+            />
+            <StatCard
+              label="40 ft"
+              value={size40Count}
+              icon={FiBox}
+              tone="amber"
+              isActive={sizeFilter === '40'}
+              onClick={() => handleSizeFilter('40')}
+              total={rowsAll.length}
             />
             <StatCard
               label="Export"
@@ -503,7 +524,7 @@ const RailGateIn = () => {
           </StatGrid>
 
           {/* ── Filter Bar ── */}
-          <FilterBar className="mb-4">
+          <FilterBar bare>
             <FilterField label="From Date" icon={FiCalendar}>
               <input
                 type="datetime-local" value={fromDate}
@@ -548,6 +569,7 @@ const RailGateIn = () => {
               </button>
             </div>
           </FilterBar>
+          </FilterCard>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

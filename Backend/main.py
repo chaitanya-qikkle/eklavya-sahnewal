@@ -63,6 +63,7 @@ STATIC_IP    = os.getenv("STATIC_IP", "").strip()
 PORT         = os.getenv("PORT", "5000").strip()
 DEBUG_MODE   = os.getenv("DEBUG", "true").strip().lower() == "true"
 
+
 app = FastAPI(
     title="YMS — Yard Management System",
     description="Enterprise Yard Management System API",

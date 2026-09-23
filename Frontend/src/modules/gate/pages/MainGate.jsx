@@ -11,7 +11,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetVehicleContainerDetectionQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function formatDateParts(raw) {
@@ -345,6 +345,7 @@ const MainGate = () => {
   const [lightbox, setLightbox] = useState(null)
   const [detailIdx, setDetailIdx] = useState(null) // index into `filtered`
   const [processFilter, setProcessFilter] = useState('all')
+  const [sizeFilter, setSizeFilter] = useState('all')
 
   // Keep the draft box in sync whenever `page` changes from anywhere else
   // (Previous/Next buttons, search/filter resetting to page 1, etc.) —
@@ -371,6 +372,9 @@ const MainGate = () => {
     let rows = rowsAll
     if (gateFilter) rows = rows.filter(r => r.GateName === gateFilter)
     if (processFilter !== 'all') rows = rows.filter(r => String(r.Process || '').toUpperCase() === processFilter)
+    if (sizeFilter === '20') rows = rows.filter(r => String(r.ContainerSize || '').trim() === '20')
+    else if (sizeFilter === '40') rows = rows.filter(r => String(r.ContainerSize || '').trim() === '40')
+    else if (sizeFilter === '40HQ') rows = rows.filter(r => String(r.ContainerSize || '').trim() === '40' && /HQ/i.test(String(r.ContainerType || '')))
     if (search.trim()) {
       const s = search.trim().toLowerCase()
       rows = rows.filter(r =>
@@ -388,7 +392,7 @@ const MainGate = () => {
       return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
     })
     return sorted
-  }, [rowsAll, gateFilter, processFilter, search, sortCol, sortDir])
+  }, [rowsAll, gateFilter, processFilter, sizeFilter, search, sortCol, sortDir])
 
   const size20Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '20').length, [rowsAll])
   const size40Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '40').length, [rowsAll])
@@ -423,7 +427,7 @@ const MainGate = () => {
     XLSX.writeFile(wb, `MainGateDetection_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  const handleClear = () => { setSearch(''); setGateFilter(''); setPage(1) }
+  const handleClear = () => { setSearch(''); setGateFilter(''); setPage(1); setProcessFilter('all'); setSizeFilter('all') }
 
   const TH = ({ col, children }) => (
     <th
@@ -460,20 +464,44 @@ const MainGate = () => {
             </p>
           </header>
 
-          {/* ── Stats zone ── */}
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-9" className="mb-4">
-            <StatCard label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
-            <StatCard label="20 ft" value={size20Count} icon={FiPackage} tone="emerald" />
-            <StatCard label="40 ft" value={size40Count} icon={FiPackage} tone="amber" />
-            <StatCard label="40 HQ" value={size40HQCount} icon={FiPackage} tone="violet" />
+          {/* ── Stats + Filter — merged into one card ── */}
+          <FilterCard>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" bare>
             <StatCard
-              label="Total Entries"
-              value={processStats.total}
+              label="Total"
+              value={rowsAll.length}
               icon={FiLayers}
               tone="slate"
-              isActive={processFilter === 'all'}
-              onClick={() => { setProcessFilter('all'); setPage(1) }}
-              total={processStats.total}
+              isActive={sizeFilter === 'all' && processFilter === 'all'}
+              onClick={() => { setSizeFilter('all'); setProcessFilter('all'); setPage(1) }}
+              total={rowsAll.length}
+            />
+            <StatCard
+              label="20 ft"
+              value={size20Count}
+              icon={FiPackage}
+              tone="emerald"
+              isActive={sizeFilter === '20'}
+              onClick={() => { setSizeFilter('20'); setPage(1) }}
+              total={rowsAll.length}
+            />
+            <StatCard
+              label="40 ft"
+              value={size40Count}
+              icon={FiPackage}
+              tone="amber"
+              isActive={sizeFilter === '40'}
+              onClick={() => { setSizeFilter('40'); setPage(1) }}
+              total={rowsAll.length}
+            />
+            <StatCard
+              label="40 HQ"
+              value={size40HQCount}
+              icon={FiPackage}
+              tone="violet"
+              isActive={sizeFilter === '40HQ'}
+              onClick={() => { setSizeFilter('40HQ'); setPage(1) }}
+              total={rowsAll.length}
             />
             <StatCard
               label="Export"
@@ -514,7 +542,7 @@ const MainGate = () => {
           </StatGrid>
 
           {/* ── Filter Bar ── */}
-          <FilterBar className="mb-4">
+          <FilterBar bare>
             <FilterSelect
               label="Gate"
               icon={FiFilter}
@@ -553,6 +581,7 @@ const MainGate = () => {
               </button>
             </div>
           </FilterBar>
+          </FilterCard>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

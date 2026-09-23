@@ -6,7 +6,7 @@ import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import { useGetTrailerGateOutListQuery, useGateOutTrailerMutation } from "../../../store/api/ymsApi";
-import { StatCard, StatGrid } from "../../../components/ui/StatCard";
+import { StatCard, StatGrid, FilterCard } from "../../../components/ui/StatCard";
 import { FilterBar } from "../../../components/ui/FilterBar";
 
 const mapRecord = (row) => ({
@@ -22,14 +22,6 @@ const mapRecord = (row) => ({
   gateOutDate: row.GateOutDate || "",
   location: row.ContainerLocation || "",
 });
-
-const filterOptions = [
-  { label: "All Entries", value: "all" },
-  { label: "Export", value: "EXPORT" },
-  { label: "Import", value: "IMPORT" },
-  { label: "Empty", value: "EMPTY" },
-  { label: "Domestic", value: "DOMESTIC" },
-];
 
 function formatDate(raw) {
   if (!raw) return "—";
@@ -282,8 +274,9 @@ const TrailerGateOut = () => {
               </p>
             </header>
 
-            {/* Stats zone */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" className="mb-4">
+            {/* Stats + Filter — merged into one card */}
+            <FilterCard>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
               <StatCard
                 label="Total Entries"
                 value={stats.total}
@@ -332,22 +325,7 @@ const TrailerGateOut = () => {
             </StatGrid>
 
             {/* Filter Bar */}
-            <FilterBar className="mb-4">
-              <div className="flex flex-wrap gap-3">
-                {filterOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setFilter(option.value)}
-                    className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
-                      ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
-                      : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
+            <FilterBar bare>
               <div className="relative flex-1 min-w-[200px]">
                 <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -373,6 +351,7 @@ const TrailerGateOut = () => {
                 </button>
               </div>
             </FilterBar>
+            </FilterCard>
 
             {/* Gate Out Register Table */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

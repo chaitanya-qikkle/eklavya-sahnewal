@@ -6,7 +6,7 @@ import { FaFileExcel } from 'react-icons/fa'
 import { FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiPackage, FiUpload, FiDownload, FiHome, FiHash } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { useLazyGetRailJourneyByDocumentQuery, useGetDocumentNumbersQuery } from '../../../store/api/ymsApi'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterClearBtn, FilterLabel } from '../../../components/ui/FilterBar'
 
 const fmtDate = (val) => {
@@ -150,8 +150,9 @@ const PreRailInReport = () => {
               </div>
             </div>
 
-            {/* Stats zone */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {/* Stats + Filter — merged into one card */}
+            <FilterCard>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
               <StatCard
                 label="Total Entries"
                 value={processStats.total}
@@ -200,7 +201,7 @@ const PreRailInReport = () => {
             </StatGrid>
 
             {/* Filter Bar — Search Criteria */}
-            <FilterBar>
+            <FilterBar bare>
               <div className="flex flex-col gap-0.5 relative w-full lg:w-[420px]" ref={docBoxRef}>
                 <FilterLabel icon={FiHash}>Document No</FilterLabel>
                 <button
@@ -265,6 +266,7 @@ const PreRailInReport = () => {
                 </button>
               </div>
             </FilterBar>
+            </FilterCard>
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">

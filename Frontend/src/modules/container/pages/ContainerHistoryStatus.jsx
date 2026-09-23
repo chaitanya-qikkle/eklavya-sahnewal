@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerHistoryReportQuery } from '../../../store/api/ymsApi'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function toDateTimeLocalParam(v) {
@@ -180,12 +180,22 @@ const ContainerHistoryStatus = () => {
           <div className="w-full space-y-6">
 
             {/* Header */}
-            <header className="px-1">
-              <h2 className="text-lg font-semibold tracking-wide text-[#0e4a78]">Container History Status</h2>
+            <header className="pt-6 pb-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                Container Management
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-3">
+                <FiPackage className="text-3xl" />
+                Container History Status
+              </h1>
+              <p className="text-slate-600 mt-1 text-sm sm:text-base">
+                Review historical gate-in and gate-out activity for every container.
+              </p>
             </header>
 
-            {/* Stats zone */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" className="mb-0">
+            {/* Stats + Filter — merged into one card */}
+            <FilterCard>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" bare>
               <StatCard
                 label="Total Records"
                 value={stats.total}
@@ -260,8 +270,7 @@ const ContainerHistoryStatus = () => {
               />
             </StatGrid>
 
-            {/* Filter Bar */}
-            <FilterBar>
+            <FilterBar bare>
               <FilterField label="Search Container" icon={FiSearch}>
                 <input
                   type="text"
@@ -295,6 +304,7 @@ const ContainerHistoryStatus = () => {
                 <FilterSearchBtn onClick={runSearch} loading={isFetching}>Filter</FilterSearchBtn>
               </div>
             </FilterBar>
+            </FilterCard>
 
             {/* Detail Section */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

@@ -50,11 +50,12 @@ export const FilterSelect = ({ label, icon, className, wrapperClassName, childre
 
 /**
  * The outer toolbar surface. Plain white card, border, modest shadow — the
- * "controls" zone. Always place this above/separate from a <StatGrid>, never
- * nested inside it.
+ * "controls" zone. Place this above/separate from a <StatGrid>, or pass
+ * `bare` to drop its own border/shadow when composed inside a <FilterCard>
+ * alongside a `bare` <StatGrid>.
  */
-export const FilterBar = ({ children, className = '', title, icon: Icon }) => (
-  <section className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${className}`}>
+export const FilterBar = ({ children, className = '', title, icon: Icon, bare = false }) => (
+  <section className={bare ? `bg-white ${className}` : `bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${className}`}>
     {title && (
       <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-4 md:px-5 py-2.5 flex items-center gap-2">
         {Icon && <Icon className="text-blue-200" size={14} />}

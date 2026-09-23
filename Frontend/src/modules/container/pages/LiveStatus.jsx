@@ -8,7 +8,7 @@ import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import ContainerMap from "../../container/pages/ContainerMap";
 import { useLazyGetContainerLiveStatusQuery, useLazySearchContainerQuery } from "../../../store/api/ymsApi";
-import { StatCard, StatGrid } from "../../../components/ui/StatCard";
+import { StatCard, StatGrid, FilterCard } from "../../../components/ui/StatCard";
 import { FilterBar } from "../../../components/ui/FilterBar";
 
 const columns = [
@@ -547,15 +547,22 @@ const LiveStatus = () => {
             )}
 
             {/* Header */}
-            <header className="mb-5 mt-8 px-1">
-              <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-[#0e4a78]">Container Live Status</h2>
-              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                Search a container to trigger live telemetry and zoom the map to its slot
+            <header className="pt-6 pb-6">
+              <p className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                Container Management
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-3">
+                <FiMapPin className="text-3xl" />
+                Container Live Status
+              </h1>
+              <p className="text-slate-600 mt-1 text-sm sm:text-base">
+                Search a container to trigger live telemetry and zoom the map to its slot.
               </p>
             </header>
 
-            {/* Stats zone */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" className="mb-4">
+            {/* Stats + Filter — merged into one card */}
+            <FilterCard>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
               <StatCard
                 label="Total Inventory"
                 value={totalStats.total}
@@ -622,7 +629,7 @@ const LiveStatus = () => {
             </StatGrid>
 
             {/* Filter Bar — container search row */}
-            <FilterBar className="mb-5">
+            <FilterBar bare>
               <div className="w-full">
                 <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Container No
@@ -743,6 +750,7 @@ const LiveStatus = () => {
                 </div>
               </div>
             </FilterBar>
+            </FilterCard>
 
             {/* Table Card */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

@@ -9,7 +9,7 @@ import { MdOutlineInventory2 } from 'react-icons/md'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerGateReportQuery } from '../../../store/api/ymsApi'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
@@ -37,6 +37,7 @@ const ContainerStatusReport = () => {
   const [toDate,   setToDate]   = useState(todayLocalDT())
   const [search,   setSearch]   = useState('')
   const [processFilter, setProcessFilter] = useState('all')
+  const [gateFilter, setGateFilter] = useState('all')
 
   const [fetchReport, { data: apiData, isFetching, isError }] = useLazyGetContainerGateReportQuery()
 
@@ -44,6 +45,8 @@ const ContainerStatusReport = () => {
 
   const rows = useMemo(() => {
     let result = allRows
+    if (gateFilter === 'inyard') result = result.filter(r => !r.GateOutDate)
+    else if (gateFilter === 'gatedout') result = result.filter(r => r.GateOutDate)
     if (processFilter !== 'all') result = result.filter(r => String(r.ProcessName || '').toUpperCase() === processFilter)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -52,7 +55,7 @@ const ContainerStatusReport = () => {
       )
     }
     return result
-  }, [allRows, search, processFilter])
+  }, [allRows, search, processFilter, gateFilter])
 
   const stats = useMemo(() => {
     const inYard   = allRows.filter(r => !r.GateOutDate).length
@@ -74,7 +77,8 @@ const ContainerStatusReport = () => {
   const handleSearch = () => fetchReport({ from_date: fromDate, to_date: toDate })
 
   const handleClear = () => {
-    setFromDate(yesterdayLocalDT()); setToDate(todayLocalDT()); setSearch(''); setProcessFilter('all')
+    setFromDate(yesterdayLocalDT()); setToDate(todayLocalDT()); setSearch('')
+    setProcessFilter('all'); setGateFilter('all')
     fetchReport({ from_date: yesterdayLocalDT(), to_date: todayLocalDT() })
   }
 
@@ -119,22 +123,35 @@ const ContainerStatusReport = () => {
             </p>
           </header>
 
-          {/* ── Stats zone ── */}
-          <StatGrid cols="grid-cols-3" className="mb-3">
-            <StatCard label="Total"     value={stats.total}    icon={FiPackage} tone="slate"   total={stats.total} />
-            <StatCard label="In Yard"   value={stats.inYard}   icon={FiLogIn}   tone="emerald" total={stats.total} />
-            <StatCard label="Gated Out" value={stats.gatedOut} icon={FiLogOut}  tone="amber"   total={stats.total} />
-          </StatGrid>
-
-          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" className="mb-4">
+          {/* ── Stats + Filter — merged into one card ── */}
+          <FilterCard>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
             <StatCard
-              label="Total Entries"
-              value={processStats.total}
+              label="Total"
+              value={stats.total}
               icon={FiPackage}
               tone="slate"
-              isActive={processFilter === 'all'}
-              onClick={() => setProcessFilter('all')}
-              total={processStats.total}
+              isActive={gateFilter === 'all' && processFilter === 'all'}
+              onClick={() => { setGateFilter('all'); setProcessFilter('all') }}
+              total={stats.total}
+            />
+            <StatCard
+              label="In Yard"
+              value={stats.inYard}
+              icon={FiLogIn}
+              tone="emerald"
+              isActive={gateFilter === 'inyard'}
+              onClick={() => setGateFilter('inyard')}
+              total={stats.total}
+            />
+            <StatCard
+              label="Gated Out"
+              value={stats.gatedOut}
+              icon={FiLogOut}
+              tone="amber"
+              isActive={gateFilter === 'gatedout'}
+              onClick={() => setGateFilter('gatedout')}
+              total={stats.total}
             />
             <StatCard
               label="Export"
@@ -175,7 +192,7 @@ const ContainerStatusReport = () => {
           </StatGrid>
 
           {/* ── Filter Bar ── */}
-          <FilterBar className="mb-6">
+          <FilterBar bare>
             <FilterField label="Gate In From" icon={FiCalendar}>
               <input type="datetime-local" value={fromDate} onChange={e => setFromDate(e.target.value)}
                 className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all w-56" />
@@ -189,6 +206,7 @@ const ContainerStatusReport = () => {
               <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
             </div>
           </FilterBar>
+          </FilterCard>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
