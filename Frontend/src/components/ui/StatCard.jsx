@@ -90,8 +90,12 @@ export const StatGrid = ({ children, cols = 'grid-cols-2 sm:grid-cols-3 lg:grid-
  * one shadow, one rounded surface — with a thin divider between the tinted
  * stats zone and the plain white filter toolbar, instead of two separate
  * floating cards. Pass `bare` to the StatGrid/FilterBar children.
+ *
+ * Carries its own bottom margin by default (mb-4) so it never sits flush
+ * against whatever section follows (e.g. the table below it) — pass
+ * className="mb-0" (or another mb-*) to override.
  */
-export const FilterCard = ({ children, className = '' }) => (
+export const FilterCard = ({ children, className = 'mb-4' }) => (
   <div className={`rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden divide-y divide-slate-200/70 ${className}`}>
     {children}
   </div>
