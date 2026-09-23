@@ -193,7 +193,7 @@ const OffloadReport = () => {
 
             {/* Filter Bar — Search Criteria */}
             <FilterBar>
-              <FilterField label="Container No" className="flex-1 min-w-[180px]">
+              <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[180px]">
                 <input
                   type="text"
                   value={containerSearch}

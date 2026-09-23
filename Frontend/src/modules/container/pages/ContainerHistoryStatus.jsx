@@ -73,6 +73,7 @@ const ContainerHistoryStatus = () => {
   const stats = useMemo(() => {
     const total = historyData.length
     let importCount = 0, exportCount = 0, emptyCount = 0, domesticCount = 0, otherCount = 0
+    let size20Count = 0, size40Count = 0
     for (const r of historyData) {
       const p = String(r.transactionType || '').toLowerCase()
       if (p === 'import') importCount++
@@ -80,8 +81,12 @@ const ContainerHistoryStatus = () => {
       else if (p === 'empty') emptyCount++
       else if (p === 'domestic') domesticCount++
       else otherCount++
+
+      const sz = String(r.size || '')
+      if (sz.includes('20')) size20Count++
+      else if (sz.includes('40')) size40Count++
     }
-    return { total, importCount, exportCount, emptyCount, domesticCount, otherCount }
+    return { total, importCount, exportCount, emptyCount, domesticCount, otherCount, size20Count, size40Count }
   }, [historyData])
 
   const statFilteredData = useMemo(() => {
@@ -121,7 +126,7 @@ const ContainerHistoryStatus = () => {
     }
 
     return rows
-  }, [statFilteredData, globalSearch, sortConfig])
+  }, [statFilteredData, sizeFilter, globalSearch, sortConfig])
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / pageSize)
@@ -180,7 +185,7 @@ const ContainerHistoryStatus = () => {
             </header>
 
             {/* Stats zone */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" className="mb-0">
+            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" className="mb-0">
               <StatCard
                 label="Total Records"
                 value={stats.total}
@@ -235,11 +240,29 @@ const ContainerHistoryStatus = () => {
                 onClick={() => handleStatCardClick('Other')}
                 total={stats.total}
               />
+              <StatCard
+                label="20 FT"
+                value={stats.size20Count}
+                icon={FiBox}
+                tone="teal"
+                isActive={sizeFilter === '20'}
+                onClick={() => { setSizeFilter(sizeFilter === '20' ? 'all' : '20'); setCurrentPage(1) }}
+                total={stats.total}
+              />
+              <StatCard
+                label="40 FT"
+                value={stats.size40Count}
+                icon={FiBox}
+                tone="slate"
+                isActive={sizeFilter === '40'}
+                onClick={() => { setSizeFilter(sizeFilter === '40' ? 'all' : '40'); setCurrentPage(1) }}
+                total={stats.total}
+              />
             </StatGrid>
 
             {/* Filter Bar */}
             <FilterBar>
-              <FilterField label="Search Container">
+              <FilterField label="Search Container" icon={FiSearch}>
                 <input
                   type="text"
                   placeholder="Search Container"
@@ -249,7 +272,7 @@ const ContainerHistoryStatus = () => {
                 />
               </FilterField>
 
-              <FilterField label="Gate In From">
+              <FilterField label="Gate In From" icon={FiCalendar}>
                 <input
                   type="datetime-local"
                   value={gateInFrom}
@@ -258,7 +281,7 @@ const ContainerHistoryStatus = () => {
                 />
               </FilterField>
 
-              <FilterField label="Gate In To">
+              <FilterField label="Gate In To" icon={FiCalendar}>
                 <input
                   type="datetime-local"
                   value={gateInTo}
@@ -267,7 +290,7 @@ const ContainerHistoryStatus = () => {
                 />
               </FilterField>
 
-              <FilterField label="Size">
+              <FilterField label="Size" icon={FiBox}>
                 <div className="flex rounded-lg border border-slate-300 overflow-hidden">
                   {[
                     { key: 'all', label: 'All' },
