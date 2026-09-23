@@ -4,7 +4,7 @@ import {
   FiActivity, FiBox, FiClock, FiRefreshCw, FiTrendingUp, FiMapPin, FiZap,
   FiBarChart2, FiPackage, FiCpu, FiPercent, FiArrowUpRight, FiArrowDownRight,
   FiWifi, FiWifiOff, FiX, FiMaximize2, FiGrid, FiList, FiSearch, FiFilter,
-  FiChevronUp, FiChevronDown, FiPieChart, FiTrendingDown, FiLayers,
+  FiChevronUp, FiChevronDown, FiPieChart, FiTrendingDown, FiLayers, FiDownload,
 } from "react-icons/fi";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -271,6 +271,31 @@ const Panel = ({ title, subtitle, icon: Icon, right, children, className = "", n
       {children}
     </div>
   </div>
+);
+
+// ─── Excel export ────────────────────────────────────────────────────────────
+const exportToExcel = (rows, sheetName, fileName) => {
+  if (!Array.isArray(rows) || !rows.length) return;
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  XLSX.writeFile(wb, `${fileName}_${stamp}.xlsx`);
+};
+
+const ExportBtn = ({ onClick, disabled }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    title="Export to Excel"
+    className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+    style={{ background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.25)" }}
+  >
+    <FiDownload className="w-3 h-3" /> Excel
+  </button>
 );
 
 // ─── Tabbed View Switcher ────────────────────────────────────────────────────
@@ -905,12 +930,21 @@ const MovesCountChart = ({ utilizationApi }) => {
     <Panel title="Daily Equipment Moves Count" subtitle="Moves per machine · utilization overlay" icon={FiBarChart2}
       accent={T.blue} className="xl:col-span-6 h-[320px]"
       right={chartData.length > 0 && (
-        <ViewSwitch value={view} onChange={setView}
-          options={[
-            { value: "chart", label: "Chart", icon: FiBarChart2 },
-            { value: "table", label: "Table", icon: FiList },
-          ]}
-        />
+        <div className="flex items-center gap-2">
+          <ViewSwitch value={view} onChange={setView}
+            options={[
+              { value: "chart", label: "Chart", icon: FiBarChart2 },
+              { value: "table", label: "Table", icon: FiList },
+            ]}
+          />
+          <ExportBtn
+            onClick={() => exportToExcel(
+              chartData.map((r) => ({ Equipment: r.name, Moves: r.moves, "Utilization %": r.utilPct })),
+              "Moves", "DailyEquipmentMoves",
+            )}
+            disabled={!chartData.length}
+          />
+        </div>
       )}
     >
       {!chartData.length ? (
@@ -1870,16 +1904,28 @@ const AdminDashboard = () => {
               accent={T.cyan}
               className="xl:col-span-12 h-[380px]"
               right={
-                <ViewSwitch
-                  value={chartView}
-                  onChange={setChartView}
-                  options={[
-                    { value: "area", label: "Area", icon: FiActivity },
-                    { value: "bar", label: "Bar", icon: FiBarChart2 },
-                    { value: "line", label: "Line", icon: FiTrendingUp },
-                    { value: "table", label: "Table", icon: FiList },
-                  ]}
-                />
+                <div className="flex items-center gap-2">
+                  <ViewSwitch
+                    value={chartView}
+                    onChange={setChartView}
+                    options={[
+                      { value: "area", label: "Area", icon: FiActivity },
+                      { value: "bar", label: "Bar", icon: FiBarChart2 },
+                      { value: "line", label: "Line", icon: FiTrendingUp },
+                      { value: "table", label: "Table", icon: FiList },
+                    ]}
+                  />
+                  <ExportBtn
+                    onClick={() => exportToExcel(
+                      hourlyThroughput.map((r) => ({
+                        Hour: r.hourSlot, In: r.in, "In 20'": r.in20, "In 40'": r.in40,
+                        Out: r.out, "Out 20'": r.out20, "Out 40'": r.out40,
+                      })),
+                      "Gate Throughput", "GateThroughput24h",
+                    )}
+                    disabled={!hourlyThroughput.length}
+                  />
+                </div>
               }
             >
               <div className="flex items-center gap-6 mb-3 text-[10px] font-black flex-wrap">
@@ -2000,15 +2046,24 @@ const AdminDashboard = () => {
                 Distribution panel) */}
             <Panel title="Process Mix" subtitle="By process · 20ft vs 40ft" icon={FiPieChart} accent={T.blue} className="xl:col-span-4 h-[340px]"
               right={
-                <ViewSwitch
-                  value={processView}
-                  onChange={setProcessView}
-                  options={[
-                    { value: "pie", label: "Pie", icon: FiPieChart },
-                    { value: "bar", label: "Bar", icon: FiBarChart2 },
-                    { value: "table", label: "Table", icon: FiList },
-                  ]}
-                />
+                <div className="flex items-center gap-2">
+                  <ViewSwitch
+                    value={processView}
+                    onChange={setProcessView}
+                    options={[
+                      { value: "pie", label: "Pie", icon: FiPieChart },
+                      { value: "bar", label: "Bar", icon: FiBarChart2 },
+                      { value: "table", label: "Table", icon: FiList },
+                    ]}
+                  />
+                  <ExportBtn
+                    onClick={() => exportToExcel(
+                      processData.map((r) => ({ Process: r.name, "20'": r.size20, "40'": r.size40, Total: r.value, TEUs: r.teus })),
+                      "Process Mix", "ProcessMix",
+                    )}
+                    disabled={!processData.length}
+                  />
+                </div>
               }
             >
               {processData.length === 0 ? (
@@ -2116,12 +2171,25 @@ const AdminDashboard = () => {
             <Panel title="Yard Inventory" subtitle={yardInvLoading ? "Loading…" : `${yardInventoryData.length} blocks`} icon={FiLayers}
               accent={T.teal} className="xl:col-span-8 h-[340px]"
               right={
-                <ViewSwitch value={yardInvView} onChange={setYardInvView}
-                  options={[
-                    { value: "table", label: "Table", icon: FiList },
-                    { value: "chart", label: "Chart", icon: FiBarChart2 },
-                  ]}
-                />
+                <div className="flex items-center gap-2">
+                  <ViewSwitch value={yardInvView} onChange={setYardInvView}
+                    options={[
+                      { value: "table", label: "Table", icon: FiList },
+                      { value: "chart", label: "Chart", icon: FiBarChart2 },
+                    ]}
+                  />
+                  <ExportBtn
+                    onClick={() => exportToExcel(
+                      yardInventoryData.map((r) => ({
+                        Block: r.location, "20'": r.s20, "40'": r.s40, Count: r.count, TEUs: r.teus,
+                        "Ground Slots": r.slot, "Slot Capacity": r.capacity,
+                        "Utilization %": r.capacity > 0 ? r.utilization : "",
+                      })),
+                      "Yard Inventory", "YardInventory",
+                    )}
+                    disabled={!yardInventoryData.length}
+                  />
+                </div>
               }
             >
               {yardInventoryData.length === 0 ? (
@@ -2199,30 +2267,6 @@ const AdminDashboard = () => {
               accent={T.amber} className="xl:col-span-6 h-[320px]"
               right={
                 <div className="flex items-center gap-2">
-                  {ageingView === "table" && (
-                    <button
-                      onClick={() => {
-                        const ageTotal = ageingBuckets.reduce((s, b) => s + b.count, 0);
-                        const ws = XLSX.utils.json_to_sheet(
-                          ageingBuckets.map((b) => ({
-                            "Day Range": b.label,
-                            "Import": b.import,
-                            "Export": b.export,
-                            "Domestic": b.domestic,
-                            "Empty": b.empty,
-                            "Total": b.count,
-                            "Utilized(%)": ageTotal > 0 ? +((b.count / ageTotal) * 100).toFixed(2) : 0,
-                          }))
-                        );
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, "ContainerAgeing");
-                        XLSX.writeFile(wb, `ContainerAgeing_${new Date().toISOString().slice(0,10)}.xlsx`);
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
-                    >
-                      ↓ Excel
-                    </button>
-                  )}
                   <ViewSwitch
                     value={ageingView}
                     onChange={setAgeingView}
@@ -2230,6 +2274,24 @@ const AdminDashboard = () => {
                       { value: "chart", label: "Chart", icon: FiBarChart2 },
                       { value: "table", label: "Table", icon: FiList },
                     ]}
+                  />
+                  <ExportBtn
+                    onClick={() => {
+                      const ageTotal = ageingBuckets.reduce((s, b) => s + b.count, 0);
+                      exportToExcel(
+                        ageingBuckets.map((b) => ({
+                          "Day Range": b.label,
+                          "Import": b.import,
+                          "Export": b.export,
+                          "Domestic": b.domestic,
+                          "Empty": b.empty,
+                          "Total": b.count,
+                          "Utilized(%)": ageTotal > 0 ? +((b.count / ageTotal) * 100).toFixed(2) : 0,
+                        })),
+                        "Container Ageing", "ContainerAgeing",
+                      );
+                    }}
+                    disabled={!ageingBuckets.length}
                   />
                 </div>
               }
@@ -2321,12 +2383,21 @@ const AdminDashboard = () => {
             <Panel title="Shipping Line Wise Inventory" subtitle="Container count by line · 20ft vs 40ft" icon={FiBarChart2}
               accent={T.indigo} className="xl:col-span-12 h-[340px]"
               right={
-                <ViewSwitch value={shippingView} onChange={setShippingView}
-                  options={[
-                    { value: "chart", label: "Chart", icon: FiBarChart2 },
-                    { value: "table", label: "Table", icon: FiList },
-                  ]}
-                />
+                <div className="flex items-center gap-2">
+                  <ViewSwitch value={shippingView} onChange={setShippingView}
+                    options={[
+                      { value: "chart", label: "Chart", icon: FiBarChart2 },
+                      { value: "table", label: "Table", icon: FiList },
+                    ]}
+                  />
+                  <ExportBtn
+                    onClick={() => exportToExcel(
+                      shippingLineData.map((r) => ({ Line: r.name, "20ft": r.size20, "40ft": r.size40, Total: r.total, "%": r.pct })),
+                      "Shipping Line Inventory", "ShippingLineInventory",
+                    )}
+                    disabled={!shippingLineData.length}
+                  />
+                </div>
               }
             >
               {shippingView === "table" ? (

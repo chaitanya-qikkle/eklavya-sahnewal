@@ -79,7 +79,7 @@ def create_menu(request: MenuCreateRequest, current_user: dict = Depends(get_cur
             SELECT @issuccess AS result;
         """
         params = (
-            0,  # @MenuID — SP ignores this on insert (identity column)
+            0, 
             request.menu_name,
             request.parent_menu_id or 0,
             request.plant_id or 1,
@@ -169,8 +169,7 @@ def set_role_menus(request: RoleMenuSetRequest, current_user: dict = Depends(get
         created_by = request.created_by or "00000000-0000-0000-0000-000000000000"
         now = datetime.now()
 
-        # sp_BulkInsertRoleMenu takes @RoleID and a RoleMenu-typed table parameter
-        # (RoleID, MenuID, CreatedBy, CreatedDate) — pyodbc passes TVPs as a list of tuples.
+   
         tvp_rows = [(role_id, mid, created_by, now) for mid in menu_ids]
 
         cursor = db.conn.cursor()
