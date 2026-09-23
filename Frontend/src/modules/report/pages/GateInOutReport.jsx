@@ -81,7 +81,7 @@ const GateInOutReport = () => {
   const [sortConfig,      setSortConfig]      = useState({ key: null, dir: null })
   const [colFilters,      setColFilters]      = useState({
     ContainerNo: '', ContainerSize: '', ContainerType: '',
-    Process: '', DocumentNo: '', ContainerStatus: '',
+    Process: '', Mode: '', DocumentNo: '', ContainerStatus: '',
     GateInDate: '', GateOutDate: '', GateName: '',
     ContainerLocationName: '', TrailerNo: '',
   })
@@ -127,7 +127,7 @@ const GateInOutReport = () => {
     setRecords([])
     setFetched(false)
     setError(null)
-    setColFilters({ ContainerNo: '', ContainerSize: '', ContainerType: '', Process: '', DocumentNo: '', ContainerStatus: '', GateInDate: '', GateOutDate: '', GateName: '', ContainerLocationName: '', TrailerNo: '' })
+    setColFilters({ ContainerNo: '', ContainerSize: '', ContainerType: '', Process: '', Mode: '', DocumentNo: '', ContainerStatus: '', GateInDate: '', GateOutDate: '', GateName: '', ContainerLocationName: '', TrailerNo: '' })
     setSortConfig({ key: null, dir: null })
   }
 
@@ -213,6 +213,7 @@ const GateInOutReport = () => {
     { key: 'ContainerSize',         label: 'Size',          ph: 'Size…'        },
     { key: 'ContainerType',         label: 'Type',          ph: 'Type…'        },
     { key: 'Process',               label: 'Process',       ph: 'Process…'     },
+    { key: 'Mode',                  label: 'Mode',          ph: 'Mode…'        },
     { key: 'BookingNo',             label: 'Booking No',    ph: 'Booking…'     },
     { key: 'ContainerLocationName', label: 'Location',      ph: 'Location…'    },
     { key: 'TrailerNo',             label: 'Trailer No',    ph: 'Trailer…'     },
@@ -399,6 +400,7 @@ const GateInOutReport = () => {
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-100">{row.ContainerSize || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-100">{row.ContainerType || '—'}</td>
                         <td className="px-3 py-2.5 border-r border-slate-100"><StatusBadge val={row.Process} /></td>
+                        <td className="px-3 py-2.5 text-slate-600 border-r border-slate-100 whitespace-nowrap">{row.Mode || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-100 whitespace-nowrap">{row.BookingNo || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-100">{row.ContainerLocationName || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-600 border-r border-slate-100">{row.TrailerNo || '—'}</td>

@@ -48,10 +48,8 @@ const normalizeTrailerRow = (row) => ({
   process: row?.ProcessName ?? '',
   gateIn: row?.GateInDate ?? '',
   gateOut: row?.GateOutDate ?? '',
-  offload: '',
   location: '',
   tat: row?.TAT ?? '',
-  survey: '',
 })
 
 // TAT comes back as "HHH:MM" (e.g. "000:39") — convert to total hours for bucketing
@@ -59,6 +57,14 @@ const tatToHours = (tat) => {
   const [h, m] = String(tat || '').split(':').map(Number)
   if (!Number.isFinite(h)) return null
   return h + (Number.isFinite(m) ? m / 60 : 0)
+}
+
+const fmtDate = (val) => {
+  if (!val) return ''
+  const d = new Date(String(val).replace(' ', 'T'))
+  if (isNaN(d)) return String(val)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
@@ -140,7 +146,18 @@ const TrailerStatus = () => {
   }
 
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredData)
+    const exportRows = filteredData.map((r) => ({
+      'Trailer No': r.trailerNo,
+      'Activity': r.activity,
+      'Container No': r.containerNo,
+      'Size': r.size,
+      'Process': r.process,
+      'Gate In Date': fmtDate(r.gateIn),
+      'Gate Out Date': fmtDate(r.gateOut),
+      'Location': r.location,
+      'TAT': r.tat,
+    }))
+    const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Trailer Status')
     XLSX.writeFile(wb, `TrailerStatus_${fromDate}_${toDate}.xlsx`)
@@ -309,17 +326,15 @@ const TrailerStatus = () => {
                       <TH col="process">Process</TH>
                       <TH col="gateIn">Gate In Date</TH>
                       <TH col="gateOut">Gate Out Date</TH>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Offload Date</th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
                       <TH col="tat">TAT</TH>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Survey</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
                     {paginatedData.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="py-16 text-center">
+                        <td colSpan={10} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range or search</p>
@@ -345,12 +360,10 @@ const TrailerStatus = () => {
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{row.size || '—'}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-[11px] text-slate-600 font-medium">{row.process || '—'}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{row.gateIn || <span className="text-slate-300">—</span>}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{row.gateOut || <span className="text-slate-300">—</span>}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{row.offload || <span className="text-slate-300">—</span>}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{fmtDate(row.gateIn) || <span className="text-slate-300">—</span>}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{fmtDate(row.gateOut) || <span className="text-slate-300">—</span>}</td>
                           <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[140px] truncate">{row.location || <span className="text-slate-300">—</span>}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.tat || <span className="text-slate-300">—</span>}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{row.survey || <span className="text-slate-300">—</span>}</td>
                         </tr>
                       )
                     })}
