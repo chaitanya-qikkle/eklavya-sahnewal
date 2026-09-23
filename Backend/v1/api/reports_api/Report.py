@@ -392,8 +392,8 @@ def get_inventory_mismatch(
     db = SQLManager()
     try:
         now = datetime.now()
-        f_date = from_date or (now - timedelta(days=15)).strftime("%Y-%m-%d")
-        t_date = to_date or now.strftime("%Y-%m-%d")
+        f_date = _to_proc_datetime(from_date) or (now - timedelta(days=15))
+        t_date = _to_proc_datetime(to_date) or now
 
         result = db.execute_query(
             "EXEC dbo.GET_MISMATCH_CONTAINER_HANDLE_DATA ?, ?",
@@ -546,8 +546,8 @@ def get_physical_inventory_log(
     db = SQLManager()
     try:
         plant_id = current_user.get("plant_id", 1)
-        f_date = (from_date or '').strip()
-        t_date = (to_date or '').strip() or f_date
+        f_date = _to_proc_datetime(from_date)
+        t_date = _to_proc_datetime(to_date) or f_date
 
         result = db.execute_query(
             "EXEC dbo.GET_PHYSICAL_INVENTORY_LOG ?, ?, ?",
@@ -590,8 +590,8 @@ def get_container_update_history(
     db = SQLManager()
     try:
         plant_id = current_user.get("plant_id", 1)
-        f_date = (from_date or '').strip()
-        t_date = (to_date or '').strip() or f_date
+        f_date = _to_proc_datetime(from_date)
+        t_date = _to_proc_datetime(to_date) or f_date
 
         result = db.execute_query(
             "EXEC dbo.GET_CONTAINER_UPDATE_HISTORY ?, ?, ?",
@@ -638,8 +638,8 @@ def get_month_wise_inventory(
 
         plant_id = current_user.get("plant_id", 1)
         now = datetime.now()
-        f_date = from_date or (now - timedelta(days=90)).strftime("%Y-%m-%d")
-        t_date = to_date or now.strftime("%Y-%m-%d")
+        f_date = _to_proc_datetime(from_date) or (now - timedelta(days=90))
+        t_date = _to_proc_datetime(to_date) or now
 
         result = db.execute_query(
             "EXEC dbo.GET_RPT_MONTHWISE_INVENTORY ?, ?, ?, ?",
@@ -767,8 +767,8 @@ def get_actual_vs_proposed_plan(
     db = SQLManager()
     try:
         now = datetime.now()
-        f_date = from_date or (now - timedelta(days=7)).strftime("%Y-%m-%d")
-        t_date = to_date or now.strftime("%Y-%m-%d")
+        f_date = _to_proc_datetime(from_date) or (now - timedelta(days=7))
+        t_date = _to_proc_datetime(to_date) or now
 
         result = db.execute_query(
             "EXEC dbo.GET_ACTUAL_VS_PROPOSED_PLAN ?, ?",

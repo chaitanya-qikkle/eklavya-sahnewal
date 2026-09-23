@@ -18,6 +18,7 @@ esurvey_crud.py/gate_detection_crud.py's image endpoints.
 import logging
 import os
 import pathlib
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -29,6 +30,21 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 RAIL_IN_IMG_ROOT = pathlib.Path(os.getenv("RAIL_IN_IMG_ROOT", r"D:\Application\eklavya-budget-main\stitching"))
+
+
+def _to_proc_datetime(value: Optional[str]):
+ 
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            pass
+    return None
 
 
 def _img_url(abs_path):
@@ -55,9 +71,11 @@ def get_rail_in(
 ):
     db = SQLManager()
     try:
+        from_dt = _to_proc_datetime(from_date)
+        to_dt = _to_proc_datetime(to_date)
         result = db.execute_query(
             "EXEC dbo.GET_RPT_RAIL_IN @fromDate = ?, @toDate = ?, @ContainerNo = ?",
-            (from_date or None, to_date or None, (container_no or "").strip()),
+            (from_dt, to_dt, (container_no or "").strip()),
         )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}

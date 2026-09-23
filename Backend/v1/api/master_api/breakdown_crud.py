@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends
 from typing import Optional
 from utils.db_utils import SQLManager
@@ -5,6 +6,27 @@ from middleware.auth_middleware import get_current_user
 from pydantic import BaseModel
 
 breakdown_router = APIRouter()
+
+
+def _to_proc_datetime(value: Optional[str]):
+    """Parse common UI date inputs into a datetime object.
+
+    Returns a native datetime (not a formatted string) so pyodbc binds it as
+    SQL_TIMESTAMP directly — a string param (especially one containing the
+    datetime-local 'T' separator) is implicitly converted by SQL Server using
+    the connection's DATEFORMAT session setting and throws error 8114.
+    """
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            pass
+    return None
 
 
 class BreakdownSaveRequest(BaseModel):
@@ -121,7 +143,7 @@ def get_breakdowns_filtered(
     try:
         result = db.execute_query(
             "EXEC dbo.GET_BREAKDOWN_DETAIL_FILTER ?, ?, ?",
-            (current_user.get("plant_id", 1), from_date, to_date),
+            (current_user.get("plant_id", 1), _to_proc_datetime(from_date), _to_proc_datetime(to_date)),
         )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}

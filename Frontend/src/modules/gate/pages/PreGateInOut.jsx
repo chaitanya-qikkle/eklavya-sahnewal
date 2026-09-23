@@ -556,7 +556,7 @@ export default function PreGateInOut() {
         <main className="flex-1 px-4 sm:px-6 pb-10">
 
           {/* ── Header ── */}
-          <header className="pt-6 pb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <header className="pt-6 pb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
               <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
@@ -567,17 +567,11 @@ export default function PreGateInOut() {
               </p>
             </div>
 
-            {/* Stat cards */}
-            <div className="grid grid-cols-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[540px] shrink-0">
+            {/* Stat cards — single row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full xl:w-[1180px] shrink-0">
               <StatTile label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
               <StatTile label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
               <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
-            </div>
-          </header>
-
-          {/* ── Process filter pills (client-side, current page) ── */}
-          <div className="mb-4">
-            <div className="grid grid-cols-5 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm w-full lg:w-[840px]">
               <StatTile
                 label="Total Entries"
                 value={processStats.total}
@@ -624,7 +618,7 @@ export default function PreGateInOut() {
                 total={processStats.total}
               />
             </div>
-          </div>
+          </header>
 
           {/* ── Filter Bar ── */}
           <div className="bg-white/95 rounded-xl shadow-lg border border-slate-300 px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">

@@ -1,6 +1,7 @@
 import os
 import pathlib
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
@@ -11,6 +12,27 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 STITCHING_DIR = pathlib.Path(os.getenv("STITCHING_DIR", r"D:\stitching\outputs"))
+
+
+def _to_proc_datetime(value: Optional[str]):
+    """Parse common UI date inputs into a datetime object.
+
+    Returns a native datetime (not a formatted string) so pyodbc binds it as
+    SQL_TIMESTAMP directly — a string param (especially one containing the
+    datetime-local 'T' separator) is implicitly converted by SQL Server using
+    the connection's DATEFORMAT session setting and throws error 8114.
+    """
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            pass
+    return None
 
 # ── Image endpoint ────────────────────────────────────────────────────────────
 @router.get("/img", include_in_schema=False)
@@ -70,7 +92,7 @@ def get_pre_gate_survey(
     try:
         result = db.execute_query(
             "EXEC dbo.GET_ESURVEY_DETAIL @PlantID = ?, @FromDate = ?, @ToDate = ?, @ContainerNo = NULL, @GateName = ?",
-            (plant_id, from_date or None, to_date or None, gate_name or None),
+            (plant_id, _to_proc_datetime(from_date), _to_proc_datetime(to_date), gate_name or None),
         )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": [], "total": 0}

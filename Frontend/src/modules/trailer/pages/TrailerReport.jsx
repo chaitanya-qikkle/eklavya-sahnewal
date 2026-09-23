@@ -12,6 +12,11 @@ const toLocalInputValue = (d) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 const todayLocalDT = () => toLocalInputValue(new Date())
+const yesterdayLocalDT = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
 
 const formatDate = (raw) => {
   if (!raw) return '—'
@@ -48,7 +53,7 @@ const COLS = [
 
 const TrailerReport = () => {
   const [trailerNo,   setTrailerNo]   = useState('')
-  const [fromDate,    setFromDate]    = useState(todayLocalDT())
+  const [fromDate,    setFromDate]    = useState(yesterdayLocalDT())
   const [toDate,      setToDate]      = useState(todayLocalDT())
   const [records,     setRecords]     = useState([])
   const [loading,     setLoading]     = useState(false)
@@ -95,7 +100,7 @@ const TrailerReport = () => {
 
   const handleClear = () => {
     setTrailerNo('')
-    setFromDate(todayLocalDT())
+    setFromDate(yesterdayLocalDT())
     setToDate(todayLocalDT())
     setRecords([])
     setFetched(false)
