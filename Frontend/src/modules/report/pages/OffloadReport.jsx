@@ -27,16 +27,64 @@ const fmtDate = (val) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
+// Colored pill for Process (Import/Export/Empty/Domestic) — same tone system
+// used by the stat cards above the table.
+const ProcessBadge = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const upper = String(val).toUpperCase()
+  const cls = upper === 'IMPORT'
+    ? 'bg-emerald-100 text-emerald-700'
+    : upper === 'EXPORT'
+    ? 'bg-amber-100 text-amber-700'
+    : upper === 'DOMESTIC'
+    ? 'bg-rose-100 text-rose-700'
+    : upper === 'EMPTY'
+    ? 'bg-violet-100 text-violet-700'
+    : 'bg-slate-100 text-slate-600'
+  return <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{val}</span>
+}
+
+// Offload TAT comes back as "DD:HH:MM:SS" (or sometimes just "HH:MM") —
+// parse to total hours and colour-code: fast (green) / moderate (amber) /
+// slow (red), so the column reads at a glance instead of as plain text.
+const tatToHours = (tat) => {
+  const parts = String(tat || '').split(':').map(Number)
+  if (!parts.length || parts.some((p) => !Number.isFinite(p))) return null
+  // 2 segments = "HH:MM", 3 = "HH:MM:SS", 4 = "DD:HH:MM:SS"
+  if (parts.length === 4) {
+    const [d, h, m] = parts
+    return d * 24 + h + m / 60
+  }
+  if (parts.length >= 2) {
+    const [h, m] = parts
+    return h + (Number.isFinite(m) ? m / 60 : 0)
+  }
+  return null
+}
+
+const TatBadge = ({ val }) => {
+  if (!val) return <span className="text-slate-300 text-xs">—</span>
+  const hours = tatToHours(val)
+  const cls = hours == null
+    ? 'bg-slate-100 text-slate-600'
+    : hours < 2
+    ? 'bg-emerald-100 text-emerald-700'
+    : hours < 6
+    ? 'bg-amber-100 text-amber-700'
+    : 'bg-rose-100 text-rose-700'
+  return <span className={`px-2 py-0.5 rounded text-xs font-bold tabular-nums ${cls}`}>{val}</span>
+}
+
 const COLUMNS = [
   { key: 'ContNo',       label: 'Container' },
   { key: 'ContSize',     label: 'Size' },
   { key: 'ContTypeName', label: 'Type' },
   { key: 'ActivityName', label: 'Activity' },
-  { key: 'ProcessName',  label: 'Process' },
+  { key: 'ProcessName',  label: 'Process', render: (v) => <ProcessBadge val={v} /> },
   { key: 'GateName',     label: 'Gate' },
   { key: 'GateInDate',   label: 'Gate In Date', format: fmtDate },
   { key: 'OffloadDate',  label: 'Offload Date', format: fmtDate },
-  { key: 'OffloadTAT',   label: 'Offload TAT' },
+  { key: 'OffloadTAT',   label: 'Offload TAT', render: (v) => <TatBadge val={v} /> },
 ]
 
 const OffloadReport = () => {
@@ -306,7 +354,9 @@ const OffloadReport = () => {
                         >
                           {COLUMNS.map((col) => {
                             const raw = row[col.key]
-                            const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
+                            const display = col.render
+                              ? col.render(raw)
+                              : col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
                             return (
                               <td
                                 key={col.key}
