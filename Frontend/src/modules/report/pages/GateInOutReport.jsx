@@ -5,47 +5,8 @@ import { FiFilter, FiCalendar, FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { API_ENDPOINTS } from '../../../config/api'
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`}`}>
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1.5">{label}</p>
-          <p className={`text-2xl font-black leading-none tracking-tight transition-colors ${isActive ? t.valueColor : "text-slate-700"}`}>{value}</p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>{pct}%</span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-        )}
-      </div>
-    </button>
-  )
-}
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
@@ -252,66 +213,16 @@ const GateInOutReport = () => {
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 space-y-5">
 
-          {/* ── Filter card ── */}
-          <section className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-5 py-3">
-              <h2 className="text-white font-bold text-base tracking-wide uppercase flex items-center gap-2">
-                <FiFilter className="text-blue-200" /> Gate In / Out Report
-              </h2>
-            </div>
+          {/* ── Header ── */}
+          <header className="px-1">
+            <h2 className="text-lg font-bold tracking-wide text-[#0e4a78] uppercase flex items-center gap-2">
+              <FiFilter /> Gate In / Out Report
+            </h2>
+          </header>
 
-            <div className="p-5 bg-slate-50">
-              <div className="flex flex-wrap items-end gap-4">
-
-                <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <FiSearch size={10} /> Container No
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Search container…"
-                    value={searchContainer}
-                    onChange={e => setSearchContainer(e.target.value.toUpperCase())}
-                    onKeyDown={e => e.key === 'Enter' && fetchData()}
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <FiCalendar size={10} /> From Date
-                  </label>
-                  <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <FiCalendar size={10} /> To Date
-                  </label>
-                  <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={handleClear}
-                    className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 text-sm font-semibold hover:bg-slate-100 transition-all">
-                    Clear
-                  </button>
-                  <button onClick={fetchData} disabled={loading}
-                    className="flex items-center gap-2 bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white px-5 py-2 rounded-lg text-sm font-bold shadow hover:from-[#0b3e66] hover:to-[#072c4a] transition-all disabled:opacity-60">
-                    <FiRefreshCw className={loading ? 'animate-spin' : ''} size={13} />
-                    {loading ? 'Loading…' : 'Search'}
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          </section>
-
-          {/* ── Process filter pills ── */}
-          <div className="grid grid-cols-5 gap-2 w-full lg:w-[840px]">
-            <StatTile
+          {/* ── Stats zone ── */}
+          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            <StatCard
               label="Total Entries"
               value={processStats.total}
               icon={FiPackage}
@@ -320,7 +231,7 @@ const GateInOutReport = () => {
               onClick={() => setColFilter('Process', '')}
               total={processStats.total}
             />
-            <StatTile
+            <StatCard
               label="Export"
               value={processStats.exportCount}
               icon={FiUpload}
@@ -329,7 +240,7 @@ const GateInOutReport = () => {
               onClick={() => setColFilter('Process', 'EXPORT')}
               total={processStats.total}
             />
-            <StatTile
+            <StatCard
               label="Import"
               value={processStats.importCount}
               icon={FiDownload}
@@ -338,7 +249,7 @@ const GateInOutReport = () => {
               onClick={() => setColFilter('Process', 'IMPORT')}
               total={processStats.total}
             />
-            <StatTile
+            <StatCard
               label="Empty"
               value={processStats.emptyCount}
               icon={FiPackage}
@@ -347,7 +258,7 @@ const GateInOutReport = () => {
               onClick={() => setColFilter('Process', 'EMPTY')}
               total={processStats.total}
             />
-            <StatTile
+            <StatCard
               label="Domestic"
               value={processStats.domesticCount}
               icon={FiHome}
@@ -356,7 +267,36 @@ const GateInOutReport = () => {
               onClick={() => setColFilter('Process', 'DOMESTIC')}
               total={processStats.total}
             />
-          </div>
+          </StatGrid>
+
+          {/* ── Filter Bar ── */}
+          <FilterBar>
+            <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[160px]">
+              <input
+                type="text"
+                placeholder="Search container…"
+                value={searchContainer}
+                onChange={e => setSearchContainer(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && fetchData()}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
+              />
+            </FilterField>
+
+            <FilterField label="From Date" icon={FiCalendar}>
+              <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
+            </FilterField>
+
+            <FilterField label="To Date" icon={FiCalendar}>
+              <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
+            </FilterField>
+
+            <div className="flex gap-2">
+              <FilterClearBtn onClick={handleClear} />
+              <FilterSearchBtn onClick={fetchData} loading={loading} />
+            </div>
+          </FilterBar>
 
           {/* ── Table ── */}
           <section className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">

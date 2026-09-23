@@ -5,6 +5,8 @@ import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerHistoryReportQuery } from '../../../store/api/ymsApi'
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function toDateTimeLocalParam(v) {
   // datetime-local gives "YYYY-MM-DDTHH:mm" — SP wants a value SQL Server can cast to DATETIME
@@ -172,153 +174,127 @@ const ContainerHistoryStatus = () => {
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
           <div className="w-full space-y-6">
 
-            {/* Filter Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <header className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white px-6 py-3">
-                <h2 className="text-lg font-semibold tracking-wide">Container History Status</h2>
-              </header>
-              <div className="p-6">
-                <div className="flex flex-wrap items-end gap-6">
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Search Container"
-                      value={containerSearch}
-                      onChange={(e) => setContainerSearch(e.target.value)}
-                      className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 focus:border-[#0e4a78] outline-none text-slate-700 placeholder:text-slate-400"
-                    />
-                  </div>
+            {/* Header */}
+            <header className="px-1">
+              <h2 className="text-lg font-semibold tracking-wide text-[#0e4a78]">Container History Status</h2>
+            </header>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Gate In From
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="datetime-local"
-                        value={gateInFrom}
-                        onChange={(e) => setGateInFrom(e.target.value)}
-                        className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700"
-                      />
-                    </div>
-                  </div>
+            {/* Stats zone */}
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" className="mb-0">
+              <StatCard
+                label="Total Records"
+                value={stats.total}
+                icon={FiPackage}
+                tone="slate"
+                isActive={statFilter === 'all'}
+                onClick={() => handleStatCardClick('all')}
+                total={stats.total}
+              />
+              <StatCard
+                label="Import"
+                value={stats.importCount}
+                icon={FiDownload}
+                tone="emerald"
+                isActive={statFilter === 'Import'}
+                onClick={() => handleStatCardClick('Import')}
+                total={stats.total}
+              />
+              <StatCard
+                label="Export"
+                value={stats.exportCount}
+                icon={FiUpload}
+                tone="amber"
+                isActive={statFilter === 'Export'}
+                onClick={() => handleStatCardClick('Export')}
+                total={stats.total}
+              />
+              <StatCard
+                label="Empty"
+                value={stats.emptyCount}
+                icon={FiBox}
+                tone="sky"
+                isActive={statFilter === 'Empty'}
+                onClick={() => handleStatCardClick('Empty')}
+                total={stats.total}
+              />
+              <StatCard
+                label="Domestic"
+                value={stats.domesticCount}
+                icon={FiPackage}
+                tone="rose"
+                isActive={statFilter === 'Domestic'}
+                onClick={() => handleStatCardClick('Domestic')}
+                total={stats.total}
+              />
+              <StatCard
+                label="Other"
+                value={stats.otherCount}
+                icon={FiBox}
+                tone="violet"
+                isActive={statFilter === 'Other'}
+                onClick={() => handleStatCardClick('Other')}
+                total={stats.total}
+              />
+            </StatGrid>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Gate In To
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="datetime-local"
-                        value={gateInTo}
-                        onChange={(e) => setGateInTo(e.target.value)}
-                        className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700"
-                      />
-                    </div>
-                  </div>
+            {/* Filter Bar */}
+            <FilterBar>
+              <FilterField label="Search Container">
+                <input
+                  type="text"
+                  placeholder="Search Container"
+                  value={containerSearch}
+                  onChange={(e) => setContainerSearch(e.target.value)}
+                  className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 focus:border-[#0e4a78] outline-none text-slate-700 placeholder:text-slate-400"
+                />
+              </FilterField>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Size
-                    </label>
-                    <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-                      {[
-                        { key: 'all', label: 'All' },
-                        { key: '20', label: '20 FT' },
-                        { key: '40', label: '40 FT' },
-                      ].map((opt) => (
-                        <button
-                          key={opt.key}
-                          type="button"
-                          onClick={() => { setSizeFilter(opt.key); setCurrentPage(1) }}
-                          className={`px-4 py-2.5 text-sm font-semibold transition ${
-                            sizeFilter === opt.key
-                              ? 'bg-[#0e4a78] text-white'
-                              : 'bg-white text-slate-600 hover:bg-slate-50'
-                          } ${opt.key !== 'all' ? 'border-l border-slate-300' : ''}`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+              <FilterField label="Gate In From">
+                <input
+                  type="datetime-local"
+                  value={gateInFrom}
+                  onChange={(e) => setGateInFrom(e.target.value)}
+                  className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700"
+                />
+              </FilterField>
 
-                  <div className="flex gap-3">
+              <FilterField label="Gate In To">
+                <input
+                  type="datetime-local"
+                  value={gateInTo}
+                  onChange={(e) => setGateInTo(e.target.value)}
+                  className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700"
+                />
+              </FilterField>
+
+              <FilterField label="Size">
+                <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+                  {[
+                    { key: 'all', label: 'All' },
+                    { key: '20', label: '20 FT' },
+                    { key: '40', label: '40 FT' },
+                  ].map((opt) => (
                     <button
-                      onClick={handleClear}
-                      className="px-6 py-2.5 rounded-lg border border-slate-300 text-slate-600 font-semibold hover:bg-slate-50 transition uppercase text-sm tracking-wide"
+                      key={opt.key}
+                      type="button"
+                      onClick={() => { setSizeFilter(opt.key); setCurrentPage(1) }}
+                      className={`px-4 py-2.5 text-sm font-semibold transition ${
+                        sizeFilter === opt.key
+                          ? 'bg-[#0e4a78] text-white'
+                          : 'bg-white text-slate-600 hover:bg-slate-50'
+                      } ${opt.key !== 'all' ? 'border-l border-slate-300' : ''}`}
                     >
-                      Clear
+                      {opt.label}
                     </button>
-                    <button
-                      onClick={runSearch}
-                      disabled={isFetching}
-                      className="px-6 py-2.5 rounded-lg bg-[#0e4a78] text-white font-semibold hover:bg-[#0b3e66] transition shadow-md uppercase text-sm tracking-wide disabled:opacity-60"
-                    >
-                      {isFetching ? 'Loading…' : 'Filter'}
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              </FilterField>
 
-              {/* Stat strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3">
-                <StatTile
-                  label="Total Records"
-                  value={stats.total}
-                  icon={FiPackage}
-                  tone="slate"
-                  isActive={statFilter === 'all'}
-                  onClick={() => handleStatCardClick('all')}
-                  total={stats.total}
-                />
-                <StatTile
-                  label="Import"
-                  value={stats.importCount}
-                  icon={FiDownload}
-                  tone="emerald"
-                  isActive={statFilter === 'Import'}
-                  onClick={() => handleStatCardClick('Import')}
-                  total={stats.total}
-                />
-                <StatTile
-                  label="Export"
-                  value={stats.exportCount}
-                  icon={FiUpload}
-                  tone="amber"
-                  isActive={statFilter === 'Export'}
-                  onClick={() => handleStatCardClick('Export')}
-                  total={stats.total}
-                />
-                <StatTile
-                  label="Empty"
-                  value={stats.emptyCount}
-                  icon={FiBox}
-                  tone="sky"
-                  isActive={statFilter === 'Empty'}
-                  onClick={() => handleStatCardClick('Empty')}
-                  total={stats.total}
-                />
-                <StatTile
-                  label="Domestic"
-                  value={stats.domesticCount}
-                  icon={FiPackage}
-                  tone="rose"
-                  isActive={statFilter === 'Domestic'}
-                  onClick={() => handleStatCardClick('Domestic')}
-                  total={stats.total}
-                />
-                <StatTile
-                  label="Other"
-                  value={stats.otherCount}
-                  icon={FiBox}
-                  tone="violet"
-                  isActive={statFilter === 'Other'}
-                  onClick={() => handleStatCardClick('Other')}
-                  total={stats.total}
-                />
+              <div className="flex gap-3">
+                <FilterClearBtn onClick={handleClear} />
+                <FilterSearchBtn onClick={runSearch} loading={isFetching}>Filter</FilterSearchBtn>
               </div>
-            </section>
+            </FilterBar>
 
             {/* Detail Section */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
@@ -484,68 +460,6 @@ const ContainerHistoryStatus = () => {
         <Footer />
       </div>
     </div>
-  )
-}
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-white", cardBg: "bg-sky-50",           border: "border-sky-200",      valueColor: "text-sky-700",     badgeBg: "bg-white", activeBg: "bg-sky-600"     },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="px-3.5 py-3 flex items-center gap-3">
-        <span
-          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm ${
-            isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
-          } transition-all duration-150`}
-        >
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none mb-1 truncate">
-            {label}
-          </p>
-          <p
-            className={`text-xl font-black leading-none tracking-tight transition-colors ${
-              isActive ? t.valueColor : "text-slate-700"
-            }`}
-          >
-            {value}
-          </p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span
-            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg} transition-colors`}
-            style={{ color: t.accent }}
-          >
-            {pct}%
-          </span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div
-            className="h-full transition-all duration-700 rounded-full"
-            style={{ width: `${pct}%`, background: t.accent }}
-          />
-        )}
-      </div>
-    </button>
   )
 }
 

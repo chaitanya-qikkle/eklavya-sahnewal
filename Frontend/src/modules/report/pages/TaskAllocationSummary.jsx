@@ -5,6 +5,7 @@ import { FiSearch, FiRefreshCw, FiX, FiClipboard, FiCheckCircle, FiClock, FiList
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useGetTaskAllocationSummaryQuery } from '../../../store/api/ymsApi'
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
 
 const COLUMNS = [
   { key: 'YardName',      label: 'Yard Name' },
@@ -13,39 +14,6 @@ const COLUMNS = [
   { key: 'PendingTask',   label: 'Pending Task' },
   { key: 'NearEquipment', label: 'Near By Equipment' },
 ]
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700"   },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  return (
-    <div className={`relative text-left overflow-hidden rounded-xl border ${t.cardBg} ${t.border}`}>
-      <div className="px-3.5 py-3 flex items-center gap-3">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm ${t.iconBg} ${t.iconColor}`}>
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1 truncate">
-            {label}
-          </p>
-          <p className={`text-xl font-black leading-none tracking-tight ${t.valueColor}`}>
-            {value.toLocaleString()}
-          </p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white" style={{ color: t.accent }}>
-            {pct}%
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
 
 const TaskAllocationSummary = () => {
   const { data, isFetching, isError, refetch } = useGetTaskAllocationSummaryQuery()
@@ -96,24 +64,23 @@ const TaskAllocationSummary = () => {
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
           <div className="w-full space-y-6">
 
-            {/* Page Title + Stats */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
-                  <FiClipboard className="text-white text-xl" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-[#0e4a78]">Task Allocation Summary</h1>
-                  <p className="text-slate-500 text-sm">Today's yard-wise task counts and nearby equipment</p>
-                </div>
+            {/* Page Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#0e4a78] flex items-center justify-center shadow">
+                <FiClipboard className="text-white text-xl" />
               </div>
-
-              <div className="grid grid-cols-3 gap-2 w-full lg:w-[480px] shrink-0">
-                <StatTile label="Total Task"     value={stats.total}     icon={FiList}        tone="slate"   total={stats.total} />
-                <StatTile label="Completed"      value={stats.completed} icon={FiCheckCircle} tone="emerald" total={stats.total} />
-                <StatTile label="Pending"        value={stats.pending}   icon={FiClock}       tone="amber"   total={stats.total} />
+              <div>
+                <h1 className="text-2xl font-bold text-[#0e4a78]">Task Allocation Summary</h1>
+                <p className="text-slate-500 text-sm">Today's yard-wise task counts and nearby equipment</p>
               </div>
             </div>
+
+            {/* Stats zone */}
+            <StatGrid cols="grid-cols-3">
+              <StatCard label="Total Task" value={stats.total}     icon={FiList}        tone="slate"   total={stats.total} />
+              <StatCard label="Completed"  value={stats.completed} icon={FiCheckCircle} tone="emerald" total={stats.total} />
+              <StatCard label="Pending"    value={stats.pending}   icon={FiClock}       tone="amber"   total={stats.total} />
+            </StatGrid>
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">

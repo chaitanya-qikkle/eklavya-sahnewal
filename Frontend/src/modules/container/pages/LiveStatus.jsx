@@ -8,6 +8,8 @@ import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import ContainerMap from "../../container/pages/ContainerMap";
 import { useLazyGetContainerLiveStatusQuery, useLazySearchContainerQuery } from "../../../store/api/ymsApi";
+import { StatCard, StatGrid } from "../../../components/ui/StatCard";
+import { FilterBar } from "../../../components/ui/FilterBar";
 
 const columns = [
   { key: "CONTAINER_NO", label: "Container No", sortable: true },
@@ -544,17 +546,84 @@ const LiveStatus = () => {
               </div>
             )}
 
-            {/* Header bar */}
-            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible mb-5 mt-8">
-              <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-4 rounded-t-2xl">
-                <h2 className="text-lg sm:text-xl font-semibold tracking-wide">Container Live Status</h2>
-                <p className="text-[11px] sm:text-xs text-white/70 mt-0.5">
-                  Search a container to trigger live telemetry and zoom the map to its slot
-                </p>
-              </div>
+            {/* Header */}
+            <header className="mb-5 mt-8 px-1">
+              <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-[#0e4a78]">Container Live Status</h2>
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                Search a container to trigger live telemetry and zoom the map to its slot
+              </p>
+            </header>
 
-              {/* Search row */}
-              <div className="px-6 py-5">
+            {/* Stats zone */}
+            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" className="mb-4">
+              <StatCard
+                label="Total Inventory"
+                value={totalStats.total}
+                icon={FiPackage}
+                tone="slate"
+                isActive={filter === "all"}
+                onClick={() => handleStatCardClick("all")}
+                total={totalStats.total}
+              />
+              <StatCard
+                label="Import"
+                value={totalStats.importCount}
+                icon={FiDownload}
+                tone="emerald"
+                isActive={filter === "Import"}
+                onClick={() => handleStatCardClick("Import")}
+                total={totalStats.total}
+              />
+              <StatCard
+                label="Export"
+                value={totalStats.exportCount}
+                icon={FiUpload}
+                tone="amber"
+                isActive={filter === "Export"}
+                onClick={() => handleStatCardClick("Export")}
+                total={totalStats.total}
+              />
+              <StatCard
+                label="Empty"
+                value={totalStats.emptyCount}
+                icon={FiBox}
+                tone="slate"
+                isActive={filter === "Empty"}
+                onClick={() => handleStatCardClick("Empty")}
+                total={totalStats.total}
+              />
+              <StatCard
+                label="Domestic"
+                value={totalStats.domesticCount}
+                icon={FiTruck}
+                tone="violet"
+                isActive={filter === "Domestic"}
+                onClick={() => handleStatCardClick("Domestic")}
+                total={totalStats.total}
+              />
+              <StatCard
+                label="20 ft"
+                value={totalStats.size20Count}
+                icon={FiPackage}
+                tone="emerald"
+                isActive={filter === "20ft"}
+                onClick={() => handleStatCardClick("20ft")}
+                total={totalStats.total}
+              />
+              <StatCard
+                label="40 ft"
+                value={totalStats.size40Count}
+                icon={FiPackage}
+                tone="amber"
+                isActive={filter === "40ft"}
+                onClick={() => handleStatCardClick("40ft")}
+                total={totalStats.total}
+              />
+            </StatGrid>
+
+            {/* Filter Bar — container search row */}
+            <FilterBar className="mb-5">
+              <div className="w-full">
                 <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Container No
                 </label>
@@ -673,74 +742,7 @@ const LiveStatus = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Stat strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-3 mt-3 border-t border-slate-200">
-                <StatTile
-                  label="Total Inventory"
-                  value={totalStats.total}
-                  icon={FiPackage}
-                  tone="slate"
-                  isActive={filter === "all"}
-                  onClick={() => handleStatCardClick("all")}
-                  total={totalStats.total}
-                />
-                <StatTile
-                  label="Import"
-                  value={totalStats.importCount}
-                  icon={FiDownload}
-                  tone="emerald"
-                  isActive={filter === "Import"}
-                  onClick={() => handleStatCardClick("Import")}
-                  total={totalStats.total}
-                />
-                <StatTile
-                  label="Export"
-                  value={totalStats.exportCount}
-                  icon={FiUpload}
-                  tone="amber"
-                  isActive={filter === "Export"}
-                  onClick={() => handleStatCardClick("Export")}
-                  total={totalStats.total}
-                />
-                <StatTile
-                  label="Empty"
-                  value={totalStats.emptyCount}
-                  icon={FiBox}
-                  tone="slate"
-                  isActive={filter === "Empty"}
-                  onClick={() => handleStatCardClick("Empty")}
-                  total={totalStats.total}
-                />
-                <StatTile
-                  label="Domestic"
-                  value={totalStats.domesticCount}
-                  icon={FiTruck}
-                  tone="violet"
-                  isActive={filter === "Domestic"}
-                  onClick={() => handleStatCardClick("Domestic")}
-                  total={totalStats.total}
-                />
-                <StatTile
-                  label="20 ft"
-                  value={totalStats.size20Count}
-                  icon={FiPackage}
-                  tone="emerald"
-                  isActive={filter === "20ft"}
-                  onClick={() => handleStatCardClick("20ft")}
-                  total={totalStats.total}
-                />
-                <StatTile
-                  label="40 ft"
-                  value={totalStats.size40Count}
-                  icon={FiPackage}
-                  tone="amber"
-                  isActive={filter === "40ft"}
-                  onClick={() => handleStatCardClick("40ft")}
-                  total={totalStats.total}
-                />
-              </div>
-            </section>
+            </FilterBar>
 
             {/* Table Card */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
@@ -996,73 +998,6 @@ const LiveStatus = () => {
         <Footer />
       </div>
     </div>
-  );
-};
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-};
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate;
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        {/* Icon badge */}
-        <span
-          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
-            isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
-          }`}
-        >
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-
-        {/* Text block */}
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none mb-1.5 truncate">
-            {label}
-          </p>
-          <p
-            className={`text-2xl font-black leading-none tracking-tight transition-colors ${
-              isActive ? t.valueColor : "text-slate-700"
-            }`}
-          >
-            {value}
-          </p>
-        </div>
-
-        {/* Percentage pill — only for non-total tiles */}
-        {total > 0 && tone !== "slate" && (
-          <span
-            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`}
-            style={{ color: t.accent }}
-          >
-            {pct}%
-          </span>
-        )}
-      </div>
-
-      {/* Bottom progress line — always rendered so tile heights stay aligned */}
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div
-            className="h-full transition-all duration-700 rounded-full"
-            style={{ width: `${pct}%`, background: t.accent }}
-          />
-        )}
-      </div>
-    </button>
   );
 };
 

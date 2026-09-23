@@ -5,47 +5,8 @@ import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiPackage, FiUpload, FiDownload
 import { FaFileExcel } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
 import { useLazyGetOffloadReportQuery } from '../../../store/api/ymsApi'
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`}`}>
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1.5">{label}</p>
-          <p className={`text-2xl font-black leading-none tracking-tight transition-colors ${isActive ? t.valueColor : "text-slate-700"}`}>{value.toLocaleString()}</p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>{pct}%</span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-        )}
-      </div>
-    </button>
-  )
-}
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
@@ -181,79 +142,9 @@ const OffloadReport = () => {
               </div>
             </div>
 
-            {/* Filter Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2">
-                <FiSearch className="text-white text-base" />
-                <h2 className="text-white font-bold text-base tracking-wide">Search Criteria</h2>
-              </div>
-
-              <div className="p-6">
-                <div className="flex flex-col md:flex-row md:items-end gap-4">
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">Container No</label>
-                    <input
-                      type="text"
-                      value={containerSearch}
-                      onChange={(e) => setContainerSearch(e.target.value.toUpperCase())}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      placeholder="Search container…"
-                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">From Date</label>
-                    <div className="relative">
-                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                      <input
-                        type="datetime-local"
-                        value={fromDate}
-                        onChange={(e) => setFromDate(e.target.value)}
-                        className="w-full sm:w-52 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">To Date</label>
-                    <div className="relative">
-                      <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                      <input
-                        type="datetime-local"
-                        value={toDate}
-                        onChange={(e) => setToDate(e.target.value)}
-                        className="w-full sm:w-52 pl-9 pr-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleClear}
-                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      onClick={handleSearch}
-                      disabled={isFetching}
-                      className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md disabled:opacity-60 uppercase tracking-wide"
-                    >
-                      {isFetching
-                        ? <FiRefreshCw className="animate-spin text-base" />
-                        : <FiSearch className="text-base" />
-                      }
-                      {isFetching ? 'Loading…' : 'Search'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Process filter pills */}
-            <div className="grid grid-cols-5 gap-2 w-full lg:w-[840px]">
-              <StatTile
+            {/* Stats zone */}
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+              <StatCard
                 label="Total Entries"
                 value={processStats.total}
                 icon={FiPackage}
@@ -262,7 +153,7 @@ const OffloadReport = () => {
                 onClick={() => { setProcessFilter('all'); setCurrentPage(1) }}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Export"
                 value={processStats.exportCount}
                 icon={FiUpload}
@@ -271,7 +162,7 @@ const OffloadReport = () => {
                 onClick={() => { setProcessFilter('EXPORT'); setCurrentPage(1) }}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Import"
                 value={processStats.importCount}
                 icon={FiDownload}
@@ -280,7 +171,7 @@ const OffloadReport = () => {
                 onClick={() => { setProcessFilter('IMPORT'); setCurrentPage(1) }}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Empty"
                 value={processStats.emptyCount}
                 icon={FiPackage}
@@ -289,7 +180,7 @@ const OffloadReport = () => {
                 onClick={() => { setProcessFilter('EMPTY'); setCurrentPage(1) }}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Domestic"
                 value={processStats.domesticCount}
                 icon={FiHome}
@@ -298,7 +189,44 @@ const OffloadReport = () => {
                 onClick={() => { setProcessFilter('DOMESTIC'); setCurrentPage(1) }}
                 total={processStats.total}
               />
-            </div>
+            </StatGrid>
+
+            {/* Filter Bar — Search Criteria */}
+            <FilterBar>
+              <FilterField label="Container No" className="flex-1 min-w-[180px]">
+                <input
+                  type="text"
+                  value={containerSearch}
+                  onChange={(e) => setContainerSearch(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  placeholder="Search container…"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
+                />
+              </FilterField>
+
+              <FilterField label="From Date" icon={FiCalendar}>
+                <input
+                  type="datetime-local"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="w-full sm:w-52 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
+                />
+              </FilterField>
+
+              <FilterField label="To Date" icon={FiCalendar}>
+                <input
+                  type="datetime-local"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="w-full sm:w-52 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] shadow-sm transition-colors"
+                />
+              </FilterField>
+
+              <div className="flex items-center gap-2">
+                <FilterClearBtn onClick={handleClear} />
+                <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
+              </div>
+            </FilterBar>
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">

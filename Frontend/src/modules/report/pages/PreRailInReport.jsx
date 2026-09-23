@@ -6,47 +6,8 @@ import { FaFileExcel } from 'react-icons/fa'
 import { FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiPackage, FiUpload, FiDownload, FiHome } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { useLazyGetRailJourneyByDocumentQuery, useGetDocumentNumbersQuery } from '../../../store/api/ymsApi'
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`}`}>
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1.5">{label}</p>
-          <p className={`text-2xl font-black leading-none tracking-tight transition-colors ${isActive ? t.valueColor : "text-slate-700"}`}>{value.toLocaleString()}</p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>{pct}%</span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-        )}
-      </div>
-    </button>
-  )
-}
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 const fmtDate = (val) => {
   if (!val) return '—'
@@ -189,95 +150,9 @@ const PreRailInReport = () => {
               </div>
             </div>
 
-            {/* Filter Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-visible">
-              <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex items-center gap-2 rounded-t-2xl">
-                <FiSearch className="text-white text-base" />
-                <h2 className="text-white font-bold text-base tracking-wide">Search Criteria</h2>
-              </div>
-
-              <div className="p-6 rounded-b-2xl">
-                <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-
-                  {/* Document No multi-select */}
-                  <div className="flex flex-col gap-1.5 relative w-full lg:w-[420px]" ref={docBoxRef}>
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">Document No</label>
-                    <button
-                      type="button"
-                      onClick={() => setDocOpen((o) => !o)}
-                      className="flex items-center justify-between w-full px-3 py-2.5 min-h-[42px] rounded-lg border border-slate-300 bg-white text-sm text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] transition-colors"
-                    >
-                      <span className="flex flex-wrap gap-1.5 items-center">
-                        {selectedDocs.length === 0 ? (
-                          <span className="text-slate-500">None selected</span>
-                        ) : selectedDocs.length <= 3 ? (
-                          selectedDocs.map((doc) => (
-                            <span key={doc} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-semibold">
-                              {doc}
-                              <FiX className="text-[10px] hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeDoc(doc) }} />
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-[#0e4a78] font-semibold text-xs">{selectedDocs.length} documents selected</span>
-                        )}
-                      </span>
-                      <FiChevronDown className={`text-slate-400 shrink-0 ml-2 transition-transform ${docOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {docOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white rounded-lg border border-slate-200 shadow-lg overflow-hidden">
-                        <div className="p-2 border-b border-slate-100 relative">
-                          <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none" />
-                          <input
-                            type="text"
-                            value={docSearch}
-                            onChange={(e) => setDocSearch(e.target.value)}
-                            placeholder="Search document no…"
-                            className="w-full pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#0e4a78]"
-                            autoFocus
-                          />
-                        </div>
-                        <div className="max-h-56 overflow-y-auto">
-                          {filteredDocOptions.map((doc) => (
-                            <label key={doc} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-[#eaf1f7] transition-colors">
-                              <input type="checkbox" checked={selectedDocs.includes(doc)} onChange={() => toggleDoc(doc)} className="accent-[#0e4a78]" />
-                              <span className="text-slate-700">{doc}</span>
-                            </label>
-                          ))}
-                          {filteredDocOptions.length === 0 && (
-                            <p className="px-3 py-4 text-center text-xs text-slate-400">No matches</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleClear}
-                      className="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      onClick={handleSearch}
-                      disabled={isFetching || !selectedDocs.length}
-                      className="flex items-center gap-2 px-8 py-2.5 rounded-lg bg-[#0e4a78] text-white text-sm font-bold hover:bg-[#0a3b61] transition-colors shadow-md disabled:opacity-60 uppercase tracking-wide"
-                    >
-                      {isFetching
-                        ? <FiRefreshCw className="animate-spin text-base" />
-                        : <FiSearch className="text-base" />
-                      }
-                      {isFetching ? 'Loading…' : 'Search'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Process filter pills */}
-            <div className="grid grid-cols-5 gap-2 w-full lg:w-[840px]">
-              <StatTile
+            {/* Stats zone */}
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+              <StatCard
                 label="Total Entries"
                 value={processStats.total}
                 icon={FiPackage}
@@ -286,7 +161,7 @@ const PreRailInReport = () => {
                 onClick={() => setProcessFilter('all')}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Export"
                 value={processStats.exportCount}
                 icon={FiUpload}
@@ -295,7 +170,7 @@ const PreRailInReport = () => {
                 onClick={() => setProcessFilter('EXPORT')}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Import"
                 value={processStats.importCount}
                 icon={FiDownload}
@@ -304,7 +179,7 @@ const PreRailInReport = () => {
                 onClick={() => setProcessFilter('IMPORT')}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Empty"
                 value={processStats.emptyCount}
                 icon={FiPackage}
@@ -313,7 +188,7 @@ const PreRailInReport = () => {
                 onClick={() => setProcessFilter('EMPTY')}
                 total={processStats.total}
               />
-              <StatTile
+              <StatCard
                 label="Domestic"
                 value={processStats.domesticCount}
                 icon={FiHome}
@@ -322,7 +197,74 @@ const PreRailInReport = () => {
                 onClick={() => setProcessFilter('DOMESTIC')}
                 total={processStats.total}
               />
-            </div>
+            </StatGrid>
+
+            {/* Filter Bar — Search Criteria */}
+            <FilterBar>
+              <div className="flex flex-col gap-1.5 relative w-full lg:w-[420px]" ref={docBoxRef}>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-[0.12em]">Document No</label>
+                <button
+                  type="button"
+                  onClick={() => setDocOpen((o) => !o)}
+                  className="flex items-center justify-between w-full px-3 py-2.5 min-h-[42px] rounded-lg border border-slate-300 bg-white text-sm text-left shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0e4a78] focus:border-[#0e4a78] transition-colors"
+                >
+                  <span className="flex flex-wrap gap-1.5 items-center">
+                    {selectedDocs.length === 0 ? (
+                      <span className="text-slate-500">None selected</span>
+                    ) : selectedDocs.length <= 3 ? (
+                      selectedDocs.map((doc) => (
+                        <span key={doc} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-semibold">
+                          {doc}
+                          <FiX className="text-[10px] hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeDoc(doc) }} />
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[#0e4a78] font-semibold text-xs">{selectedDocs.length} documents selected</span>
+                    )}
+                  </span>
+                  <FiChevronDown className={`text-slate-400 shrink-0 ml-2 transition-transform ${docOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {docOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white rounded-lg border border-slate-200 shadow-lg overflow-hidden">
+                    <div className="p-2 border-b border-slate-100 relative">
+                      <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none" />
+                      <input
+                        type="text"
+                        value={docSearch}
+                        onChange={(e) => setDocSearch(e.target.value)}
+                        placeholder="Search document no…"
+                        className="w-full pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-[#0e4a78]"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto">
+                      {filteredDocOptions.map((doc) => (
+                        <label key={doc} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-[#eaf1f7] transition-colors">
+                          <input type="checkbox" checked={selectedDocs.includes(doc)} onChange={() => toggleDoc(doc)} className="accent-[#0e4a78]" />
+                          <span className="text-slate-700">{doc}</span>
+                        </label>
+                      ))}
+                      {filteredDocOptions.length === 0 && (
+                        <p className="px-3 py-4 text-center text-xs text-slate-400">No matches</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <FilterClearBtn onClick={handleClear} />
+                <button
+                  onClick={handleSearch}
+                  disabled={isFetching || !selectedDocs.length}
+                  className="flex items-center gap-2 bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white px-5 py-2 rounded-lg text-sm font-bold shadow hover:from-[#0b3e66] hover:to-[#072c4a] transition-all disabled:opacity-60"
+                >
+                  <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
+                  {isFetching ? 'Loading…' : 'Search'}
+                </button>
+              </div>
+            </FilterBar>
 
             {/* Results Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">

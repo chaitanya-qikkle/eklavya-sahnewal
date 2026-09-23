@@ -6,6 +6,8 @@ import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import { useGetTrailerGateOutListQuery, useGateOutTrailerMutation } from "../../../store/api/ymsApi";
+import { StatCard, StatGrid } from "../../../components/ui/StatCard";
+import { FilterBar } from "../../../components/ui/FilterBar";
 
 const mapRecord = (row) => ({
   trailerNo: row.TrailerNo || "",
@@ -270,114 +272,110 @@ const TrailerGateOut = () => {
               </div>
             </section>
 
-            {/* Gate Out Register Table */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <header className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-4 sm:px-6 py-4 sm:py-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center">
-                    <FiPackage className="text-2xl" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-semibold tracking-wide">
-                      Trailer Gate-Out Register
-                    </h2>
-                    <p className="text-xs sm:text-sm text-white/80">
-                      Click on column headers to sort | Excel ready report
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70" />
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search trailer, container, line..."
-                      className="w-full rounded-xl border border-white/20 bg-white/15 pl-12 pr-4 py-3 text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white/40"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleRefresh}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white/20 hover:bg-white/30 transition text-white font-semibold border border-white/30"
-                    >
-                      <FiRefreshCw /> Clear
-                    </button>
-                    <button
-                      onClick={handleExport}
-                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                    >
-                      <FaFileExcel /> Export
-                    </button>
-                  </div>
-                </div>
-              </header>
+            {/* Header */}
+            <header className="px-1 mb-4">
+              <h2 className="text-xl sm:text-2xl font-semibold tracking-wide text-[#0e4a78] flex items-center gap-2">
+                <FiPackage /> Trailer Gate-Out Register
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Click on column headers to sort | Excel ready report
+              </p>
+            </header>
 
-              <div className="px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-200 bg-slate-50/80">
-                <div className="flex flex-wrap gap-3">
-                  {filterOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setFilter(option.value)}
-                      className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
-                        ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
-                        : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
-                        }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Stats zone */}
+            <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" className="mb-4">
+              <StatCard
+                label="Total Entries"
+                value={stats.total}
+                icon={FiPackage}
+                tone="slate"
+                isActive={filter === "all"}
+                onClick={() => setFilter("all")}
+                total={stats.total}
+              />
+              <StatCard
+                label="Export"
+                value={stats.exportCount}
+                icon={FiUpload}
+                tone="amber"
+                isActive={filter === "EXPORT"}
+                onClick={() => setFilter("EXPORT")}
+                total={stats.total}
+              />
+              <StatCard
+                label="Import"
+                value={stats.importCount}
+                icon={FiDownload}
+                tone="emerald"
+                isActive={filter === "IMPORT"}
+                onClick={() => setFilter("IMPORT")}
+                total={stats.total}
+              />
+              <StatCard
+                label="Empty"
+                value={stats.emptyCount}
+                icon={FiPackage}
+                tone="violet"
+                isActive={filter === "EMPTY"}
+                onClick={() => setFilter("EMPTY")}
+                total={stats.total}
+              />
+              <StatCard
+                label="Domestic"
+                value={stats.domesticCount}
+                icon={FiTruck}
+                tone="rose"
+                isActive={filter === "DOMESTIC"}
+                onClick={() => setFilter("DOMESTIC")}
+                total={stats.total}
+              />
+            </StatGrid>
 
-                <div className="grid grid-cols-5 gap-2 w-full lg:w-[840px] shrink-0">
-                  <StatTile
-                    label="Total Entries"
-                    value={stats.total}
-                    icon={FiPackage}
-                    tone="slate"
-                    isActive={filter === "all"}
-                    onClick={() => setFilter("all")}
-                    total={stats.total}
-                  />
-                  <StatTile
-                    label="Export"
-                    value={stats.exportCount}
-                    icon={FiUpload}
-                    tone="amber"
-                    isActive={filter === "EXPORT"}
-                    onClick={() => setFilter("EXPORT")}
-                    total={stats.total}
-                  />
-                  <StatTile
-                    label="Import"
-                    value={stats.importCount}
-                    icon={FiDownload}
-                    tone="emerald"
-                    isActive={filter === "IMPORT"}
-                    onClick={() => setFilter("IMPORT")}
-                    total={stats.total}
-                  />
-                  <StatTile
-                    label="Empty"
-                    value={stats.emptyCount}
-                    icon={FiPackage}
-                    tone="violet"
-                    isActive={filter === "EMPTY"}
-                    onClick={() => setFilter("EMPTY")}
-                    total={stats.total}
-                  />
-                  <StatTile
-                    label="Domestic"
-                    value={stats.domesticCount}
-                    icon={FiTruck}
-                    tone="rose"
-                    isActive={filter === "DOMESTIC"}
-                    onClick={() => setFilter("DOMESTIC")}
-                    total={stats.total}
-                  />
-                </div>
+            {/* Filter Bar */}
+            <FilterBar className="mb-4">
+              <div className="flex flex-wrap gap-3">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setFilter(option.value)}
+                    className={`px-4 py-2 rounded-full border text-sm font-semibold transition-all ${filter === option.value
+                      ? "bg-[#0e4a78] text-white border-[#0e4a78] shadow-md"
+                      : "bg-white text-slate-700 border-slate-300 hover:border-[#0e4a78] hover:bg-blue-50"
+                      }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
 
+              <div className="relative flex-1 min-w-[200px]">
+                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search trailer, container, line..."
+                  className="w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 py-3 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRefresh}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-slate-300 text-slate-600 font-semibold hover:bg-slate-100 transition"
+                >
+                  <FiRefreshCw /> Clear
+                </button>
+                <button
+                  onClick={handleExport}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 transition text-white font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                >
+                  <FaFileExcel /> Export
+                </button>
+              </div>
+            </FilterBar>
+
+            {/* Gate Out Register Table */}
+            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
               <div className="overflow-auto max-h-[500px] custom-scrollbar">
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 z-10">
@@ -545,67 +543,6 @@ const TrailerGateOut = () => {
         }
       `}</style>
     </div>
-  );
-};
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
-};
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate;
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : "border-transparent hover:border-current/20 hover:shadow-sm"
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span
-          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
-            isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
-          }`}
-        >
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1.5">
-            {label}
-          </p>
-          <p
-            className={`text-2xl font-black leading-none tracking-tight transition-colors ${
-              isActive ? t.valueColor : "text-slate-700"
-            }`}
-          >
-            {value}
-          </p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span
-            className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`}
-            style={{ color: t.accent }}
-          >
-            {pct}%
-          </span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div
-            className="h-full transition-all duration-700 rounded-full"
-            style={{ width: `${pct}%`, background: t.accent }}
-          />
-        )}
-      </div>
-    </button>
   );
 };
 

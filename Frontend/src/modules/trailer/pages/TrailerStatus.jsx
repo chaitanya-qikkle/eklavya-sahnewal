@@ -9,36 +9,8 @@ import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetTrailerReportQuery } from '../../../store/api/ymsApi'
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white" },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white" },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white" },
-  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-white", cardBg: "bg-sky-50",           border: "border-sky-200",      valueColor: "text-sky-700",     badgeBg: "bg-white" },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white" },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate" }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  return (
-    <div className={`relative text-left overflow-hidden rounded-xl border ${t.cardBg} ${t.border}`}>
-      <div className="px-3.5 py-3 flex items-center gap-3">
-        <span className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg shadow-sm ${t.iconBg} ${t.iconColor}`}>
-          {Icon && <Icon className="text-sm" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-slate-500 leading-tight mb-1 truncate">
-            {label}
-          </p>
-          <p className={`text-xl font-black leading-none tracking-tight ${t.valueColor}`}>
-            {value.toLocaleString()}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 const normalizeTrailerRow = (row) => ({
   trailerNo: row?.TrailerNo ?? '',
@@ -219,71 +191,55 @@ const TrailerStatus = () => {
         <main className="flex-1 px-4 sm:px-6 pb-10">
 
           {/* ── Header ── */}
-          <header className="pt-6 pb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Trailer Management</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
-                <FaTruck /> Trailer Status
-              </h1>
-              <p className="text-slate-500 mt-0.5 text-sm">
-                {cardData[0].value.toLocaleString()} total records
-              </p>
-            </div>
-
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 w-full xl:w-[760px] shrink-0">
-              {cardData.map((card) => (
-                <StatTile key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
-              ))}
-            </div>
+          <header className="pt-6 pb-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Trailer Management</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
+              <FaTruck /> Trailer Status
+            </h1>
+            <p className="text-slate-500 mt-0.5 text-sm">
+              {cardData[0].value.toLocaleString()} total records
+            </p>
           </header>
 
+          {/* ── Stats zone ── */}
+          <StatGrid cols="grid-cols-2 sm:grid-cols-5" className="mb-4">
+            {cardData.map((card) => (
+              <StatCard key={card.label} label={card.label} value={card.value} icon={card.icon} tone={card.tone} />
+            ))}
+          </StatGrid>
+
           {/* ── Filter Bar ── */}
-          <div className="bg-white/95 rounded-xl shadow-lg border border-slate-300 px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiCalendar className="text-[#0e4a78]" size={11} /> From Date
-              </label>
+          <FilterBar className="mb-4">
+            <FilterField label="From Date" icon={FiCalendar}>
               <input
                 type="datetime-local" value={fromDate}
                 onChange={e => setFromDate(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
-            </div>
+            </FilterField>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiCalendar className="text-[#0e4a78]" size={11} /> To Date
-              </label>
+            <FilterField label="To Date" icon={FiCalendar}>
               <input
                 type="datetime-local" value={toDate}
                 onChange={e => setToDate(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
-            </div>
+            </FilterField>
 
-            <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiSearch className="text-[#0e4a78]" size={11} /> Search
-              </label>
+            <FilterField label="Search" icon={FiSearch} className="flex-1 min-w-[180px]">
               <div className="relative">
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                 <input
                   value={globalSearch}
                   onChange={e => { setGlobalSearch(e.target.value); setPage(1) }}
                   placeholder="Search trailer, container…"
-                  className="w-full border-2 border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                  className="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
                 />
               </div>
-            </div>
+            </FilterField>
 
             <div className="flex gap-2">
-              <button
-                onClick={handleClear}
-                className="px-4 py-2 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all"
-              >
-                Clear
-              </button>
+              <FilterClearBtn onClick={handleClear} />
               <button
                 onClick={handleExport}
                 disabled={!filteredData.length}
@@ -293,7 +249,7 @@ const TrailerStatus = () => {
                 Excel
               </button>
             </div>
-          </div>
+          </FilterBar>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

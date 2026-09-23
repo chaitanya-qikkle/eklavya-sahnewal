@@ -12,6 +12,8 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetPreGateSurveyQuery, useGetGateNamesQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function prettyGateName(name) {
   return String(name || '')
@@ -19,60 +21,6 @@ function prettyGateName(name) {
     .filter(Boolean)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
-}
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white",    cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white",    activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white",    cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white",    activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white",    cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white",    activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white",    cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white",    activeBg: "bg-violet-600"  },
-  sky:     { accent: "#0284c7", iconColor: "text-sky-600",     iconBg: "bg-white",    cardBg: "bg-sky-50",           border: "border-sky-200",      valueColor: "text-sky-700",     badgeBg: "bg-white",    activeBg: "bg-sky-600"     },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white",    cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white",    activeBg: "bg-rose-600"    },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", total, isActive, onClick }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  const clickable = typeof onClick === 'function'
-  const Tag = clickable ? 'button' : 'div'
-  return (
-    <Tag
-      type={clickable ? 'button' : undefined}
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : clickable ? "border-transparent hover:border-current/20 hover:shadow-sm" : t.border
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="px-3.5 py-3 flex items-center gap-3">
-        <span className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
-          clickable && isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
-        }`}>
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1 truncate">
-            {label}
-          </p>
-          <p className={`text-xl font-black leading-none tracking-tight transition-colors ${clickable && !isActive ? "text-slate-700" : t.valueColor}`}>
-            {value.toLocaleString()}
-          </p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>
-            {pct}%
-          </span>
-        )}
-      </div>
-      {clickable && (
-        <div className="h-[2px] bg-slate-100">
-          {total > 0 && tone !== "slate" && (
-            <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-          )}
-        </div>
-      )}
-    </Tag>
-  )
 }
 
 const PAGE_SIZE = 20
@@ -557,116 +505,102 @@ export default function PreGateInOut() {
         <main className="flex-1 px-4 sm:px-6 pb-10">
 
           {/* ── Header ── */}
-          <header className="pt-6 pb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
-                <FaTruck /> Pre Gate In / Out
-              </h1>
-              <p className="text-slate-500 mt-0.5 text-sm">
-                {total.toLocaleString()} total records
-              </p>
-            </div>
-
-            {/* Stat cards — single row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 w-full xl:w-[1180px] shrink-0">
-              <StatTile label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
-              <StatTile label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
-              <StatTile label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
-              <StatTile
-                label="Total Entries"
-                value={processStats.total}
-                icon={FiPackage}
-                tone="slate"
-                isActive={processFilter === 'all'}
-                onClick={() => setProcessFilter('all')}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Export"
-                value={processStats.exportCount}
-                icon={FiDownloadIcon}
-                tone="amber"
-                isActive={processFilter === 'EXPORT'}
-                onClick={() => setProcessFilter('EXPORT')}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Import"
-                value={processStats.importCount}
-                icon={FiTruckIcon}
-                tone="emerald"
-                isActive={processFilter === 'IMPORT'}
-                onClick={() => setProcessFilter('IMPORT')}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Empty"
-                value={processStats.emptyCount}
-                icon={FiBox}
-                tone="violet"
-                isActive={processFilter === 'EMPTY'}
-                onClick={() => setProcessFilter('EMPTY')}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Domestic"
-                value={processStats.domesticCount}
-                icon={FiHome}
-                tone="rose"
-                isActive={processFilter === 'DOMESTIC'}
-                onClick={() => setProcessFilter('DOMESTIC')}
-                total={processStats.total}
-              />
-            </div>
+          <header className="pt-6 pb-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
+              <FaTruck /> Pre Gate In / Out
+            </h1>
+            <p className="text-slate-500 mt-0.5 text-sm">
+              {total.toLocaleString()} total records
+            </p>
           </header>
 
-          {/* ── Filter Bar ── */}
-          <div className="bg-white/95 rounded-xl shadow-lg border border-slate-300 px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiCalendar className="text-[#0e4a78]" size={11} /> From Date
-              </label>
+          {/* ── Stats zone — visually separate tinted surface, distinct from the filter toolbar below ── */}
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" className="mb-4">
+            <StatCard label="Total"    value={total}          icon={FiPackage} tone="slate"   total={total} />
+            <StatCard label="Gate In"  value={gate_in_count}  icon={FiLogIn}   tone="emerald" total={total} />
+            <StatCard label="Gate Out" value={gate_out_count} icon={FiLogOut}  tone="amber"   total={total} />
+            <StatCard
+              label="Total Entries"
+              value={processStats.total}
+              icon={FiPackage}
+              tone="slate"
+              isActive={processFilter === 'all'}
+              onClick={() => setProcessFilter('all')}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Export"
+              value={processStats.exportCount}
+              icon={FiDownloadIcon}
+              tone="amber"
+              isActive={processFilter === 'EXPORT'}
+              onClick={() => setProcessFilter('EXPORT')}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Import"
+              value={processStats.importCount}
+              icon={FiTruckIcon}
+              tone="emerald"
+              isActive={processFilter === 'IMPORT'}
+              onClick={() => setProcessFilter('IMPORT')}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Empty"
+              value={processStats.emptyCount}
+              icon={FiBox}
+              tone="violet"
+              isActive={processFilter === 'EMPTY'}
+              onClick={() => setProcessFilter('EMPTY')}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Domestic"
+              value={processStats.domesticCount}
+              icon={FiHome}
+              tone="rose"
+              isActive={processFilter === 'DOMESTIC'}
+              onClick={() => setProcessFilter('DOMESTIC')}
+              total={processStats.total}
+            />
+          </StatGrid>
+
+          {/* ── Filter Bar — plain white toolbar, deliberately distinct from the stats zone above ── */}
+          <FilterBar className="mb-4">
+            <FilterField label="From Date" icon={FiCalendar}>
               <input
                 type="date" value={fromDate}
                 onChange={e => setFromDate(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
-            </div>
+            </FilterField>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiCalendar className="text-[#0e4a78]" size={11} /> To Date
-              </label>
+            <FilterField label="To Date" icon={FiCalendar}>
               <input
                 type="date" value={toDate}
                 onChange={e => setToDate(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
-            </div>
+            </FilterField>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiFilter className="text-[#0e4a78]" size={11} /> Gate
-              </label>
-              <select
-                value={gateName}
-                onChange={e => setGateName(e.target.value)}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all min-w-[160px]"
-              >
-                <option value="">All Gates</option>
-                {gateOptions
-                  .filter(g => !['complexgate', 'railgate'].includes(prettyGateName(g).toLowerCase()))
-                  .map(g => (
-                    <option key={g} value={g}>{prettyGateName(g)}</option>
-                  ))}
-              </select>
-            </div>
+            <FilterSelect
+              label="Gate"
+              icon={FiFilter}
+              value={gateName}
+              onChange={e => setGateName(e.target.value)}
+              className="min-w-[160px]"
+            >
+              <option value="">All Gates</option>
+              {gateOptions
+                .filter(g => !['complexgate', 'railgate'].includes(prettyGateName(g).toLowerCase()))
+                .map(g => (
+                  <option key={g} value={g}>{prettyGateName(g)}</option>
+                ))}
+            </FilterSelect>
 
-            <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiSearch className="text-[#0e4a78]" size={11} /> Container No
-              </label>
+            <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[180px]">
               <div className="relative">
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                 <input
@@ -674,26 +608,14 @@ export default function PreGateInOut() {
                   onChange={e => setContainerNo(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   placeholder="Search container…"
-                  className="w-full border-2 border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                  className="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
                 />
               </div>
-            </div>
+            </FilterField>
 
             <div className="flex gap-2">
-              <button
-                onClick={handleClear}
-                className="px-4 py-2 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all"
-              >
-                Clear
-              </button>
-              <button
-                onClick={handleSearch}
-                disabled={isFetching}
-                className="flex items-center gap-2 bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] hover:from-[#0b3e66] hover:to-[#072c4a] text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-60"
-              >
-                <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
-                {isFetching ? 'Loading…' : 'Search'}
-              </button>
+              <FilterClearBtn onClick={handleClear} />
+              <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
               <button
                 onClick={handleExport}
                 disabled={!data?.data?.length || isExporting}
@@ -703,7 +625,7 @@ export default function PreGateInOut() {
                 {isExporting ? 'Exporting…' : 'Excel'}
               </button>
             </div>
-          </div>
+          </FilterBar>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">

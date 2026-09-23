@@ -11,59 +11,8 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetVehicleContainerDetectionQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-
-const TONE_MAP = {
-  slate:   { accent: "#0e4a78", iconColor: "text-[#0e4a78]",   iconBg: "bg-white", cardBg: "bg-[#0e4a78]/[0.06]", border: "border-[#0e4a78]/15", valueColor: "text-[#0e4a78]",   badgeBg: "bg-white", activeBg: "bg-[#0e4a78]"   },
-  emerald: { accent: "#059669", iconColor: "text-emerald-600", iconBg: "bg-white", cardBg: "bg-emerald-50",       border: "border-emerald-200",  valueColor: "text-emerald-700", badgeBg: "bg-white", activeBg: "bg-emerald-600" },
-  amber:   { accent: "#d97706", iconColor: "text-amber-600",   iconBg: "bg-white", cardBg: "bg-amber-50",         border: "border-amber-200",    valueColor: "text-amber-700",   badgeBg: "bg-white", activeBg: "bg-amber-500"   },
-  violet:  { accent: "#7c3aed", iconColor: "text-violet-600",  iconBg: "bg-white", cardBg: "bg-violet-50",        border: "border-violet-200",   valueColor: "text-violet-700",  badgeBg: "bg-white", activeBg: "bg-violet-600"  },
-  rose:    { accent: "#e11d48", iconColor: "text-rose-600",    iconBg: "bg-white", cardBg: "bg-rose-50",          border: "border-rose-200",     valueColor: "text-rose-700",    badgeBg: "bg-white", activeBg: "bg-rose-600"    },
-}
-
-const StatTile = ({ label, value, icon: Icon, tone = "slate", isActive, onClick, total }) => {
-  const t = TONE_MAP[tone] || TONE_MAP.slate
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0
-  const clickable = typeof onClick === 'function'
-  const Tag = clickable ? 'button' : 'div'
-  return (
-    <Tag
-      type={clickable ? 'button' : undefined}
-      onClick={onClick}
-      className={`group relative text-left overflow-hidden rounded-xl border transition-all duration-150 ${t.cardBg} ${
-        isActive ? `${t.border} shadow-sm ring-1 ring-inset ring-current` : clickable ? "border-transparent hover:border-current/20 hover:shadow-sm" : t.border
-      }`}
-      style={isActive ? { color: t.accent } : undefined}
-    >
-      <div className="pl-4 pr-4 py-3.5 flex items-center gap-3.5">
-        <span
-          className={`flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-lg shadow-sm transition-all duration-150 ${
-            isActive ? `${t.activeBg} text-white` : `${t.iconBg} ${t.iconColor}`
-          }`}
-        >
-          {Icon && <Icon className="text-[15px]" />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-tight mb-1.5">
-            {label}
-          </p>
-          <p className={`text-2xl font-black leading-none tracking-tight transition-colors ${isActive ? t.valueColor : "text-slate-700"}`}>
-            {value.toLocaleString()}
-          </p>
-        </div>
-        {total > 0 && tone !== "slate" && (
-          <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.badgeBg}`} style={{ color: t.accent }}>
-            {pct}%
-          </span>
-        )}
-      </div>
-      <div className="h-[2px] bg-slate-100">
-        {total > 0 && tone !== "slate" && (
-          <div className="h-full transition-all duration-700 rounded-full" style={{ width: `${pct}%`, background: t.accent }} />
-        )}
-      </div>
-    </Tag>
-  )
-}
+import { StatCard, StatGrid } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn } from '../../../components/ui/FilterBar'
 
 function formatDateParts(raw) {
   if (!raw) return null
@@ -501,120 +450,98 @@ const MainGate = () => {
         <main className="flex-1 px-4 sm:px-6 pb-10">
 
           {/* ── Header ── */}
-          <header className="pt-6 pb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
-                <FaDoorOpen /> Main Gate
-              </h1>
-              <p className="text-slate-500 mt-0.5 text-sm">
-                {rowsAll.length.toLocaleString()} total detections
-              </p>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 w-full lg:w-[680px] shrink-0">
-              <StatTile label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
-              <StatTile label="20 ft" value={size20Count} icon={FiPackage} tone="emerald" />
-              <StatTile label="40 ft" value={size40Count} icon={FiPackage} tone="amber" />
-              <StatTile label="40 HQ" value={size40HQCount} icon={FiPackage} tone="violet" />
-            </div>
+          <header className="pt-6 pb-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
+              <FaDoorOpen /> Main Gate
+            </h1>
+            <p className="text-slate-500 mt-0.5 text-sm">
+              {rowsAll.length.toLocaleString()} total detections
+            </p>
           </header>
 
-          {/* ── Process filter pills ── */}
-          <div className="mb-4">
-            <div className="grid grid-cols-5 gap-2 w-full lg:w-[840px]">
-              <StatTile
-                label="Total Entries"
-                value={processStats.total}
-                icon={FiLayers}
-                tone="slate"
-                isActive={processFilter === 'all'}
-                onClick={() => { setProcessFilter('all'); setPage(1) }}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Export"
-                value={processStats.exportCount}
-                icon={FiDownloadIcon}
-                tone="amber"
-                isActive={processFilter === 'EXPORT'}
-                onClick={() => { setProcessFilter('EXPORT'); setPage(1) }}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Import"
-                value={processStats.importCount}
-                icon={FiTruckIcon}
-                tone="emerald"
-                isActive={processFilter === 'IMPORT'}
-                onClick={() => { setProcessFilter('IMPORT'); setPage(1) }}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Empty"
-                value={processStats.emptyCount}
-                icon={FiPackage}
-                tone="violet"
-                isActive={processFilter === 'EMPTY'}
-                onClick={() => { setProcessFilter('EMPTY'); setPage(1) }}
-                total={processStats.total}
-              />
-              <StatTile
-                label="Domestic"
-                value={processStats.domesticCount}
-                icon={FiHome}
-                tone="rose"
-                isActive={processFilter === 'DOMESTIC'}
-                onClick={() => { setProcessFilter('DOMESTIC'); setPage(1) }}
-                total={processStats.total}
-              />
-            </div>
-          </div>
+          {/* ── Stats zone ── */}
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-9" className="mb-4">
+            <StatCard label="Total" value={rowsAll.length} icon={FiLayers} tone="slate" />
+            <StatCard label="20 ft" value={size20Count} icon={FiPackage} tone="emerald" />
+            <StatCard label="40 ft" value={size40Count} icon={FiPackage} tone="amber" />
+            <StatCard label="40 HQ" value={size40HQCount} icon={FiPackage} tone="violet" />
+            <StatCard
+              label="Total Entries"
+              value={processStats.total}
+              icon={FiLayers}
+              tone="slate"
+              isActive={processFilter === 'all'}
+              onClick={() => { setProcessFilter('all'); setPage(1) }}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Export"
+              value={processStats.exportCount}
+              icon={FiDownloadIcon}
+              tone="amber"
+              isActive={processFilter === 'EXPORT'}
+              onClick={() => { setProcessFilter('EXPORT'); setPage(1) }}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Import"
+              value={processStats.importCount}
+              icon={FiTruckIcon}
+              tone="emerald"
+              isActive={processFilter === 'IMPORT'}
+              onClick={() => { setProcessFilter('IMPORT'); setPage(1) }}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Empty"
+              value={processStats.emptyCount}
+              icon={FiPackage}
+              tone="violet"
+              isActive={processFilter === 'EMPTY'}
+              onClick={() => { setProcessFilter('EMPTY'); setPage(1) }}
+              total={processStats.total}
+            />
+            <StatCard
+              label="Domestic"
+              value={processStats.domesticCount}
+              icon={FiHome}
+              tone="rose"
+              isActive={processFilter === 'DOMESTIC'}
+              onClick={() => { setProcessFilter('DOMESTIC'); setPage(1) }}
+              total={processStats.total}
+            />
+          </StatGrid>
 
           {/* ── Filter Bar ── */}
-          <div className="bg-white/95 rounded-xl shadow-lg border border-slate-300 px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Gate</label>
-              <select
-                value={gateFilter}
-                onChange={e => { setGateFilter(e.target.value); setPage(1) }}
-                className="border-2 border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all min-w-[160px]"
-              >
-                <option value="">All Gates</option>
-                {gateOptions.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
+          <FilterBar className="mb-4">
+            <FilterSelect
+              label="Gate"
+              value={gateFilter}
+              onChange={e => { setGateFilter(e.target.value); setPage(1) }}
+              className="min-w-[160px]"
+            >
+              <option value="">All Gates</option>
+              {gateOptions.map(g => <option key={g} value={g}>{g}</option>)}
+            </FilterSelect>
 
-            <div className="flex flex-col gap-1 flex-1 min-w-[220px]">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <FiSearch className="text-[#0e4a78]" size={11} /> Vehicle / Container No
-              </label>
+            <FilterField label="Vehicle / Container No" icon={FiSearch} className="flex-1 min-w-[220px]">
               <div className="relative">
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                 <input
                   value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1) }}
                   placeholder="Search vehicle or container…"
-                  className="w-full border-2 border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                  className="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
                 />
               </div>
-            </div>
+            </FilterField>
 
             <div className="flex gap-2">
-              <button
-                onClick={handleClear}
-                className="px-4 py-2 rounded-lg border-2 border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 hover:border-slate-400 transition-all"
-              >
-                Clear
-              </button>
-              <button
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="flex items-center gap-2 bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] hover:from-[#0b3e66] hover:to-[#072c4a] text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-60"
-              >
-                <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={13} />
+              <FilterClearBtn onClick={handleClear} />
+              <FilterSearchBtn onClick={() => refetch()} loading={isFetching}>
                 {isFetching ? 'Loading…' : 'Refresh'}
-              </button>
+              </FilterSearchBtn>
               <button
                 onClick={handleExport}
                 disabled={!filtered.length}
@@ -624,7 +551,7 @@ const MainGate = () => {
                 Excel
               </button>
             </div>
-          </div>
+          </FilterBar>
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
