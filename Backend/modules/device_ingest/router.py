@@ -39,6 +39,33 @@ _log_lock = _make_json_file_logger("device.data.lock_unlock", "device-data-lock-
 _log_hist = _make_json_file_logger("device.data.hist",        "device-data-hist.log")
 
 
+def _safe_coord_str(value, field_name: str, lo: float, hi: float) -> str:
+    """API_INS_EKY_DEVICE_DATA does `CAST(@LAT/@LON as float)` internally on
+    whatever string we send, and a downstream call (INS_EKY_TRN_LOCK_DATA)
+    builds a `geography::STGeomFromText('POINT(lon lat)', ...)` from those
+    same values with no range check. A device sending an empty string,
+    "N/A", swapped lat/lon, or any out-of-range number makes either the
+    CAST (SQL 8114) or the geography constructor (latitude must be
+    -90..90) throw and roll back the whole insert. Validate the numeric
+    range here so a bad GPS value degrades to "0" instead of failing the
+    packet — "0" is always a valid float and always inside -90..90/-180..180.
+    """
+    if value is None:
+        return "0"
+    raw = str(value).strip()
+    if not raw:
+        return "0"
+    try:
+        num = float(raw)
+    except ValueError:
+        logger.warning("device-data: non-numeric %s=%r, coercing to 0", field_name, value)
+        return "0"
+    if not (lo <= num <= hi):
+        logger.warning("device-data: %s=%r out of range [%s, %s], coercing to 0", field_name, value, lo, hi)
+        return "0"
+    return raw
+
+
 class DeviceDataPayload(BaseModel):
     # All fields typed as Any — IoT devices send mixed int/float/str values
     TYP: Any = None
@@ -80,11 +107,14 @@ async def insert_device_data(payload: DeviceDataPayload):
         except Exception as e:
             logger.warning("device-data log write failed: %s", e)
 
+        safe_lat = _safe_coord_str(payload.LAT, "LAT", -90, 90)
+        safe_lon = _safe_coord_str(payload.LON, "LON", -180, 180)
+
         result = db.execute_query(
             "EXEC dbo.API_INS_EKY_DEVICE_DATA ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?",
             (
                 payload.TYP, payload.LOH, payload.TIM, payload.POS,
-                payload.LAT, payload.LAD, payload.LON, payload.LOD,
+                safe_lat, payload.LAD, safe_lon, payload.LOD,
                 payload.NOS, payload.ALT, payload.AN1, payload.AN2,
                 payload.DL1, payload.DL2, payload.DID, payload.CID, payload.FNO,
             ),
