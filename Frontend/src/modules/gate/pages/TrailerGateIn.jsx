@@ -15,7 +15,7 @@ const mapRecord = (row) => ({
   type: row.ContainerType || "N/A",
   transactionType: (row.Process || "").toUpperCase() || "N/A",
   gateInDate: row.GateInDate || "",
-  location: row.ContainerLocation || "",
+  // location: row.ContainerLocation || "",
 });
 
 function formatDate(raw) {
@@ -34,7 +34,7 @@ const columns = [
   { key: "type", label: "Type", sortable: true },
   { key: "transactionType", label: "Txn Type", sortable: true },
   { key: "gateInDate", label: "Gate In Date", sortable: true },
-  { key: "location", label: "Location", sortable: true },
+  // { key: "location", label: "Location", sortable: true },
 ];
 
 const TrailerGateIn = () => {
@@ -78,7 +78,7 @@ const TrailerGateIn = () => {
         record.trailerNo.toLowerCase().includes(term) ||
         record.containerNo.toLowerCase().includes(term) ||
         record.activityName.toLowerCase().includes(term) ||
-        record.location.toLowerCase().includes(term) ||
+        // record.location.toLowerCase().includes(term) ||
         record.type.toLowerCase().includes(term)
       );
     }
@@ -339,12 +339,12 @@ const TrailerGateIn = () => {
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">
                           {formatDate(record.gateInDate)}
                         </td>
-                        <td className="px-4 sm:px-5 py-3 border-r border-slate-200 last:border-r-0">
+                        {/* <td className="px-4 sm:px-5 py-3 border-r border-slate-200 last:border-r-0">
                           <div className="flex items-center gap-2">
                             <FiMapPin className="text-blue-500" />
                             <span className="font-medium text-slate-800">{record.location}</span>
                           </div>
-                        </td>
+                        </td> */}
                       </tr>
                     ))}
                   </tbody>

@@ -445,6 +445,15 @@ const Heatmap = ({ data, color = T.cyan }) => {
 
 // ─── Drill-down Modal ────────────────────────────────────────────────────────
 const DrillModal = ({ open, onClose, kpi }) => {
+  const [activeFilter, setActiveFilter] = useState(null); // import | export | empty | damaged
+  const [search, setSearch] = useState("");
+
+  // Modal khulne / KPI badalne par filter reset
+  useEffect(() => {
+    setActiveFilter(null);
+    setSearch("");
+  }, [kpi?.key, open]);
+
   useEffect(() => {
     if (!open) return;
     const onEsc = (e) => e.key === "Escape" && onClose();
@@ -456,13 +465,38 @@ const DrillModal = ({ open, onClose, kpi }) => {
     };
   }, [open, onClose]);
 
+  const allRows = kpi?.table?.rows || [];
+  const allTags = kpi?.table?.tags || null;
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allRows.filter((r, i) => {
+      if (activeFilter && !(allTags?.[i] || []).includes(activeFilter)) return false;
+      if (q && !r.some((cell) => String(cell ?? "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [allRows, allTags, activeFilter, search]);
+
   if (!open || !kpi) return null;
-  const { label, value, suffix, accent, history, decimals, sub, table, breakdown } = kpi;
+  const { label, value, suffix, accent, decimals, sub, table, breakdown } = kpi;
+  const hasTable = !!(table && table.cols && allRows.length > 0);
+
+  const handleExport = () => {
+    if (!filteredRows.length) return;
+    const data = filteredRows.map((r) => {
+      const obj = {};
+      table.cols.forEach((c, i) => { obj[c] = r[i] ?? ""; });
+      return obj;
+    });
+    const name = `${label.replace(/\s+/g, "")}${activeFilter ? "_" + activeFilter : ""}`;
+    exportToExcel(data, label, name);
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fadein" onClick={onClose}>
       <div
-        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl"
+        // Table wale popup ki height FIXED — data kitna bhi ho popup bada nahi hoga
+        className={`w-full max-w-5xl rounded-3xl flex flex-col overflow-hidden ${hasTable ? "h-[90vh]" : "max-h-[90vh]"}`}
         style={{
           background: "linear-gradient(145deg, #ffffff, #f0f4ff)",
           border: `1px solid ${T.border}`,
@@ -471,7 +505,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: T.border }}>
+        <div className="flex items-center justify-between px-6 py-5 border-b shrink-0" style={{ borderColor: T.border }}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
               style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}30` }}>
@@ -489,12 +523,10 @@ const DrillModal = ({ open, onClose, kpi }) => {
           </button>
         </div>
 
-        <div className="p-6 grid grid-cols-1 gap-4">
-          {/* Big value — Min/Max/Avg and the "Session Trend" chart were removed:
-              `history` is a client-side buffer that only accumulates from page
-              load (empty session), not a real historical series from the DB,
-              so Min/Max/Avg/trend over it were not meaningful. */}
-          <div className="rounded-2xl p-5" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
+        {/* body */}
+        <div className={`p-6 flex flex-col gap-4 flex-1 min-h-0 ${hasTable ? "overflow-hidden" : "overflow-y-auto"}`}>
+          {/* Current */}
+          <div className="rounded-2xl p-5 shrink-0" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
             <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: T.textMute }}>Current</div>
             <div className="flex items-baseline gap-2 mb-1">
               <div className="text-5xl font-black tabular-nums" style={{ color: T.text }}>
@@ -505,44 +537,92 @@ const DrillModal = ({ open, onClose, kpi }) => {
             <div className="text-xs" style={{ color: T.textDim }}>{sub}</div>
           </div>
 
-          {/* Breakdown */}
+          {/* Breakdown — clickable filter boxes */}
           {breakdown && breakdown.length > 0 && (
-            <div className="rounded-2xl p-5" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
-              <div className="text-[10px] uppercase tracking-widest font-black mb-3" style={{ color: T.textMute }}>Breakdown</div>
+            <div className="rounded-2xl p-5 shrink-0" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: T.textMute }}>
+                  Breakdown{hasTable && allTags ? " · click to filter" : ""}
+                </div>
+                {activeFilter && (
+                  <button onClick={() => setActiveFilter(null)}
+                    className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md text-slate-500 hover:bg-slate-100">
+                    Clear filter ✕
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {breakdown.map((b, i) => (
-                  <div key={i} className="rounded-xl p-3" style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="w-2 h-2 rounded-full" style={{ background: b.color || accent }} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.textDim }}>{b.name}</span>
+                {breakdown.map((b, i) => {
+                  const clickable = hasTable && allTags && !!b.filterKey;
+                  const selected = clickable && activeFilter === b.filterKey;
+                  const color = b.color || accent;
+                  return (
+                    <div
+                      key={i}
+                      role={clickable ? "button" : undefined}
+                      onClick={() => clickable && setActiveFilter(selected ? null : b.filterKey)}
+                      className={`rounded-xl p-3 transition-all ${clickable ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : ""}`}
+                      style={{
+                        background: selected ? `${color}12` : "white",
+                        border: selected ? `2px solid ${color}` : `1px solid ${T.border}`,
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.textDim }}>{b.name}</span>
+                      </div>
+                      <div className="text-xl font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(b.value)}</div>
                     </div>
-                    <div className="text-xl font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(b.value)}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Table */}
-          {table && table.rows && table.rows.length > 0 && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "white", border: `1px solid ${T.border}` }}>
-              <div className="px-5 py-3 text-[10px] uppercase tracking-widest font-black border-b" style={{ color: T.textMute, borderColor: T.border }}>
-                {table.title || "Details"}
+          {/* Table — andar hi scroll, popup ki size fixed */}
+          {hasTable && (
+            <div className="rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0" style={{ background: "white", border: `1px solid ${T.border}` }}>
+              <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap shrink-0" style={{ borderColor: T.border }}>
+                <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: T.textMute }}>
+                  {table.title || "Details"}
+                  <span className="ml-2 normal-case tracking-normal font-bold" style={{ color: accent }}>
+                    {fmtNumber(filteredRows.length)} / {fmtNumber(allRows.length)}
+                    {activeFilter ? ` · ${activeFilter}` : ""}
+                  </span>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="relative">
+                    <FiSearch className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search…"
+                      className="pl-7 pr-2 py-1 rounded-md text-xs border focus:outline-none focus:ring-2 focus:ring-indigo-200 w-40"
+                      style={{ borderColor: T.border, background: "#f8fafc", color: T.text }}
+                    />
+                  </div>
+                  <ExportBtn onClick={handleExport} disabled={!filteredRows.length} />
+                </div>
               </div>
-              <div className="overflow-x-auto max-h-72">
+              <div className="flex-1 min-h-0 overflow-auto">
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0" style={{ background: "#f8fafc" }}>
+                  <thead className="sticky top-0 z-10" style={{ background: "#f8fafc" }}>
                     <tr>
+                      <th className="px-4 py-2 text-left font-black uppercase tracking-wider text-[10px]" style={{ color: T.textMute }}>#</th>
                       {table.cols.map((c, i) => (
-                        <th key={i} className="px-4 py-2 text-left font-black uppercase tracking-wider text-[10px]" style={{ color: T.textMute }}>{c}</th>
+                        <th key={i} className="px-4 py-2 text-left font-black uppercase tracking-wider text-[10px] whitespace-nowrap" style={{ color: T.textMute }}>{c}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {table.rows.map((r, i) => (
-                      <tr key={i} className="border-t" style={{ borderColor: T.border }}>
+                    {filteredRows.length === 0 ? (
+                      <tr><td colSpan={table.cols.length + 1} className="text-center py-10" style={{ color: T.textMute }}>No data</td></tr>
+                    ) : filteredRows.map((r, i) => (
+                      <tr key={i} className="border-t hover:bg-indigo-50/40" style={{ borderColor: T.border }}>
+                        <td className="px-4 py-2.5 tabular-nums" style={{ color: T.textMute }}>{i + 1}</td>
                         {r.map((cell, j) => (
-                          <td key={j} className="px-4 py-2.5" style={{ color: T.textDim }}>{cell}</td>
+                          <td key={j} className="px-4 py-2.5 whitespace-nowrap" style={{ color: T.textDim }}>{cell}</td>
                         ))}
                       </tr>
                     ))}
@@ -662,7 +742,36 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
   }, [allEquipment, doFetch]);
 
   const handleFetch = () => doFetch(selDate, selDate, allEquipment);
+    const handleExport = () => {
+    if (!rows.length) return;
+    const data = rows.map((r) => ({
+      "Equipment":      r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "",
+      "Breakdown":      r.BreakdownTime ?? r.breakdowntime ?? "",
+      "Idle Time":      r.IdleTime ?? r.idletime ?? "",
+      "Work Time":      r.WorkTime ?? r.worktime ?? "",
+      "Total Moves":    Number(r.TotalMoves ?? r.totalmoves ?? 0),
+      "Work Hours":     Number(r.WorkingHours ?? r.workinghours ?? 0),
+      "Hourly Moves":   Number(r.HourlyMoves ?? r.hourlymoves ?? 0),
+      "Expected Hrs":   Number(r.ExpectedWorkingHours ?? r.expectedworkinghours ?? 18),
+      "Utilization %":  Number(r.PercentageUtilization ?? r.percentageutilization ?? 0),
+    }));
 
+    // Last me Average row
+    const n = Math.max(chartData.length, 1);
+    data.push({
+      "Equipment":      "AVERAGE",
+      "Breakdown":      "",
+      "Idle Time":      "",
+      "Work Time":      "",
+      "Total Moves":    chartData.reduce((s, d) => s + d.moves, 0),
+      "Work Hours":     +(chartData.reduce((s, d) => s + d.workHours, 0) / n).toFixed(1),
+      "Hourly Moves":   +(chartData.reduce((s, d) => s + d.hourlyMoves, 0) / n).toFixed(1),
+      "Expected Hrs":   "",
+      "Utilization %":  +(chartData.reduce((s, d) => s + d.utilPct, 0) / n).toFixed(2),
+    });
+
+    exportToExcel(data, "Equipment Utilization", `EquipmentUtilization_${selDate}`);
+  };
   const maxUtil = Math.max(...chartData.map(d => d.utilPct), 100);
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -711,6 +820,7 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
             {utilizationLoading ? "Loading…" : "Fetch"}
           </button>
           {/* Chart type toggle */}
+          
           {rows.length > 0 && (
             <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: T.border }}>
               {[["table","Table"],["bar","Bar"],["composed","Mixed"]].map(([v,l]) => (
@@ -722,6 +832,8 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
               ))}
             </div>
           )}
+          {/* Excel export */}
+          <ExportBtn onClick={handleExport} disabled={!rows.length || utilizationLoading} />
         </div>
       </div>
 
@@ -1662,7 +1774,7 @@ const AdminDashboard = () => {
 
   // ─── KPI configs (for cards + drill-down) ─────────────────────────────────
   const kpis = useMemo(() => [
-    {
+        {
       key: "inventory",
       icon: FiPackage,
       label: "Yard Inventory",
@@ -1672,21 +1784,33 @@ const AdminDashboard = () => {
       loading: liveStatusLoading,
       history: history.inventory,
       breakdown: [
-        { name: "Import", value: containerStats.imp, color: T.blue },
-        { name: "Export", value: containerStats.exp, color: T.pink },
-        { name: "Empty", value: containerStats.empty, color: T.amber },
-        { name: "Damaged", value: containerStats.damaged, color: T.red },
+        { name: "Import",  value: containerStats.imp,     color: T.blue,  filterKey: "import" },
+        { name: "Export",  value: containerStats.exp,     color: T.pink,  filterKey: "export" },
+        { name: "Empty",   value: containerStats.empty,   color: T.amber, filterKey: "empty" },
+        { name: "Damaged", value: containerStats.damaged, color: T.red,   filterKey: "damaged" },
       ],
       table: {
-        title: "Top 10 Containers (most recent)",
+        title: "All Containers",
         cols: ["Container No", "Process", "Size", "Location", "Gate In"],
-        rows: containers.slice(0, 10).map((c) => [
+        // Ab saare containers (slice(0,10) hata diya)
+        rows: containers.map((c) => [
           get(c, "CONTAINER_NO", "container_no") || "—",
           get(c, "CONTAINER_PROCESS", "container_process") || "—",
           get(c, "CONTAINER_SIZE", "container_size") || "—",
           get(c, "MASTERTABLE", "LOCATION_NAME", "YARD_NAME") || "—",
-          get(c, "GATE_IN_DATE", "gate_in_date") || "—",
+          fmtDate(parseDateTime(get(c, "GATE_IN_DATE", "gate_in_date"))),
         ]),
+        // Har row ke filter tags (same logic jo containerStats me hai)
+        tags: containers.map((c) => {
+          const t = [];
+          const p = String(get(c, "CONTAINER_PROCESS", "container_process") || "").toLowerCase();
+          if (p === "import") t.push("import");
+          else if (p === "export") t.push("export");
+          else if (p === "empty") t.push("empty");
+          const st = String(get(c, "INVENTORY_STATUS", "inventory_status") || "").toLowerCase();
+          if (st.includes("damage")) t.push("damaged");
+          return t;
+        }),
       },
     },
     {

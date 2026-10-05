@@ -195,7 +195,7 @@ const ContainerHistoryStatus = () => {
 
             {/* Stats + Filter — merged into one card */}
             <FilterCard>
-            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" bare>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
               <StatCard
                 label="Total Records"
                 value={stats.total}
@@ -241,7 +241,7 @@ const ContainerHistoryStatus = () => {
                 onClick={() => handleStatCardClick('Domestic')}
                 total={stats.total}
               />
-              <StatCard
+              {/* <StatCard
                 label="Other"
                 value={stats.otherCount}
                 icon={FiBox}
@@ -249,7 +249,7 @@ const ContainerHistoryStatus = () => {
                 isActive={statFilter === 'Other'}
                 onClick={() => handleStatCardClick('Other')}
                 total={stats.total}
-              />
+              /> */}
               <StatCard
                 label="20 FT"
                 value={stats.size20Count}
@@ -344,8 +344,8 @@ const ContainerHistoryStatus = () => {
                         { key: 'documentNo', label: 'Document No' },
                         { key: 'bookingNo', label: 'Container Status' },
                         { key: 'mode', label: 'Mode' },
-                        { key: 'gateInDate', label: 'GATE IN DATE' },
-                        { key: 'gateOutDate', label: 'GATE OUT DATE' },
+                        { key: 'gateInDate', label: 'Gate In Date' },
+                        { key: 'gateOutDate', label: 'Gate Out Date' },
                         { key: 'tat', label: 'TAT' }
                       ].map(col => (
                         <th

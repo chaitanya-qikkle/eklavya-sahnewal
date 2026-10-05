@@ -19,7 +19,7 @@ const mapRecord = (row) => ({
   lineName: row.ShippingLine || "",
   gateInDate: row.GateInDate || "",
   gateOutDate: row.GateOutDate || "",
-  location: row.ContainerLocation || "",
+  // location: row.ContainerLocation || "",
 });
 
 function formatDate(raw) {
@@ -40,7 +40,7 @@ const columns = [
   { key: "lineName", label: "Line Name", sortable: true },
   { key: "gateInDate", label: "Gate In Date", sortable: true },
   { key: "gateOutDate", label: "Gate Out Date", sortable: true },
-  { key: "location", label: "Location", sortable: true },
+  // { key: "location", label: "Location", sortable: true },
 ];
 
 const parseDateTime = (value) => {
@@ -101,7 +101,7 @@ const TrailerGateOut = () => {
           record.outContainerNo,
           record.activityName,
           record.lineName,
-          record.location,
+          // record.location,
           record.type,
           record.transactionType,
         ]
@@ -428,12 +428,12 @@ const TrailerGateOut = () => {
                         <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">
                           {formatDate(record.gateOutDate)}
                         </td>
-                        <td className="px-4 sm:px-5 py-3 border-r border-slate-200 last:border-r-0">
+                        {/* <td className="px-4 sm:px-5 py-3 border-r border-slate-200 last:border-r-0">
                           <div className="flex items-center gap-2">
                             <FiMapPin className="text-blue-500" />
                             <span className="font-medium text-slate-800">{record.location}</span>
                           </div>
-                        </td>
+                        </td> */}
                       </tr>
                     ))}
                   </tbody>

@@ -238,3 +238,22 @@ def delete_equipment_transaction(request: EquipmentTransactionDeleteRequest, cur
         return {"status": "error", "message": f"Server Error: {str(e)}"}
     finally:
         db.close_connection()
+
+@equipment_transaction_router.get("/get-equipment-status")
+def get_equipment_status(asset_no: str):
+   
+    db = SQLManager()
+    try:
+        asset = (asset_no or "").strip()
+        if not asset:
+            return {"status": "error", "message": "asset_no is required"}
+
+        response = db.execute_query(
+            "EXEC dbo.GET_TRN_EQUIPMENT_STATUS ?",
+            (asset,),
+        )
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
