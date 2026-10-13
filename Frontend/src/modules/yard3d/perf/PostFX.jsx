@@ -2,6 +2,7 @@
 // quality profile from useQuality(). Renders nothing on low/mobile.
 
 import React, { useMemo } from "react";
+import { useThree } from "@react-three/fiber";
 import { EffectComposer, Bloom, SSAO, SMAA, Vignette } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import { useQuality } from "./qualityStore";
@@ -9,6 +10,9 @@ import { useQuality } from "./qualityStore";
 export default function PostFX() {
   const settings = useQuality(s => s.settings);
   const px = settings.postfx;
+  // gl can be null if the WebGL context failed to create or was lost after
+  // mount — EffectComposer crashes hard on a null renderer, so bail out.
+  const gl = useThree(s => s.gl);
 
   // Skip composer entirely on tiers without any effects — avoids the cost
   // of an extra render target.
@@ -40,7 +44,7 @@ export default function PostFX() {
     return list;
   }, [px.smaa, px.ssao, px.bloom, px.vignette, settings.tier, anyEffect]);
 
-  if (!anyEffect) return null;
+  if (!anyEffect || !gl) return null;
   return (
     <EffectComposer multisampling={settings.tier === "ultra" ? 4 : 0} enableNormalPass={px.ssao}>
       {effects}

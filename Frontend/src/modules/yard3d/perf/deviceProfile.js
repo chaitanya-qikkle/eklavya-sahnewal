@@ -15,15 +15,16 @@ function detectGpuName() {
   try {
     const c = document.createElement("canvas");
     const gl = c.getContext("webgl2") || c.getContext("webgl");
-    if (!gl) return { name: "unknown", vendor: "unknown" };
+    if (!gl) return { name: "unknown", vendor: "unknown", available: false };
     const dbg = gl.getExtension("WEBGL_debug_renderer_info");
-    if (!dbg) return { name: gl.getParameter(gl.RENDERER) || "unknown", vendor: gl.getParameter(gl.VENDOR) || "unknown" };
+    if (!dbg) return { name: gl.getParameter(gl.RENDERER) || "unknown", vendor: gl.getParameter(gl.VENDOR) || "unknown", available: true };
     return {
       name: gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || "unknown",
       vendor: gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) || "unknown",
+      available: true,
     };
   } catch {
-    return { name: "unknown", vendor: "unknown" };
+    return { name: "unknown", vendor: "unknown", available: false };
   }
 }
 
@@ -73,6 +74,7 @@ export async function detectDeviceProfile() {
     tier,
     gpu: gpu.name,
     vendor: gpu.vendor,
+    webglAvailable: gpu.available,
     cores,
     ram,
     dpr,

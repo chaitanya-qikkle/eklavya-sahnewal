@@ -1,4 +1,4 @@
-{
+﻿{
   "site": "sahnewal",
   "bounds": {
     "minX": -409.2580931057237,
@@ -21907,6 +21907,16 @@
       "y": -440.5627061822152,
       "rot": 89,
       "modelUrl": "/models/custom/white_suv_lineup_3d_model-29d3ad5c.glb"
+    },
+    {
+      "id": "custom_model-1-tollplaza",
+      "type": "custom_model",
+      "x": 33.858569548929765,
+      "y": -229.32332470238237,
+      "rot": 0,
+      "modelUrl": "/models/custom/toll_plaza_3d_model-31cad5ec.glb",
+      "scaleX": 6.5,
+      "scaleY": 4
     }
   ]
 }

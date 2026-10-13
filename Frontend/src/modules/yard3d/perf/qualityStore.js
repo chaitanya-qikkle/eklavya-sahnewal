@@ -9,6 +9,7 @@ const DEFAULT_TIER = "high";
 export const useQuality = create((set, get) => ({
   ready: false,
   device: null,
+  webglAvailable: true,
   tier: DEFAULT_TIER,
   settings: settingsForTier(DEFAULT_TIER),
   auto: true,           // FPS-based auto-adjustment enabled
@@ -19,7 +20,7 @@ export const useQuality = create((set, get) => ({
     if (get().ready) return;
     const device = await detectDeviceProfile();
     const tier = get().override || device.tier;
-    set({ ready: true, device, tier, settings: settingsForTier(tier) });
+    set({ ready: true, device, tier, settings: settingsForTier(tier), webglAvailable: device.webglAvailable !== false });
   },
 
   setTier: (tier) => {

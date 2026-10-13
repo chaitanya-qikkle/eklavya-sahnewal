@@ -1456,6 +1456,7 @@ export default function YardScene({
   const qualityReady = useQuality(s => s.ready);
   const initQuality  = useQuality(s => s.init);
   const settings     = useQuality(s => s.settings);
+  const webglAvailable = useQuality(s => s.webglAvailable);
   useEffect(() => { if (!qualityReady) initQuality(); }, [qualityReady, initQuality]);
 
   // lowPerfMode (legacy prop) forces a hard floor on the adaptive system.
@@ -1472,6 +1473,23 @@ export default function YardScene({
   const shadowExtent = camDist * 1.3; // ortho half-width covering the yard
   // Re-bake the shadow map whenever the structural footprint changes.
   const shadowSignature = `${items.length}|${shadowSize}|${enableShadows}`;
+
+  if (qualityReady && !webglAvailable) {
+    return (
+      <div style={{
+        width: "100%", height: "100%", minHeight: 400, display: "flex",
+        flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 8, color: "#64748b", background: "#0b1220", textAlign: "center", padding: 24,
+      }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#cbd5e1" }}>3D view unavailable</div>
+        <div style={{ fontSize: 13, maxWidth: 420 }}>
+          Your browser could not create a WebGL context, so the 3D yard can't render here.
+          Try enabling hardware acceleration in the browser's GPU settings, update your
+          graphics driver, or reopen this page after restarting the browser.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Canvas
