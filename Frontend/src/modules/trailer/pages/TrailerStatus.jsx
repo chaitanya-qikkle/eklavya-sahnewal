@@ -6,6 +6,8 @@ import {
 } from 'react-icons/fi'
 import { FaTruck } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetTrailerReportQuery } from '../../../store/api/ymsApi'
@@ -20,10 +22,11 @@ const normalizeTrailerRow = (row) => ({
   process: row?.ProcessName ?? '',
   gateIn: row?.GateInDate ?? '',
   gateOut: row?.GateOutDate ?? '',
+  hrtat: row?.HRTAT ?? '',
   tat: row?.TAT ?? '',
 })
 
-// TAT comes back as "HHH:MM" (e.g. "000:39") — convert to total hours for bucketing
+// HRTAT comes back as "H:MM" (e.g. "0:31", "19:17") — convert to total hours for bucketing/sorting
 const tatToHours = (tat) => {
   const [h, m] = String(tat || '').split(':').map(Number)
   if (!Number.isFinite(h)) return null
@@ -38,16 +41,21 @@ const fmtDate = (val) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
-const toLocalInputValue = (d) => {
+// Date object -> "YYYY-MM-DDTHH:mm" (same format the API received before)
+const toApiParam = (d) => {
+  if (!d) return undefined
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
-const todayLocalDT = () => toLocalInputValue(new Date())
-const yesterdayLocalDT = () => {
+
+// Date object -> "YYYYMMDDTHHmm" for the export file name
+const toFileStamp = (d) => (d ? toApiParam(d).replace(/[-:]/g, '') : '')
+
+const todayDT = () => new Date()
+const yesterdayDT = () => {
   const d = new Date()
   d.setDate(d.getDate() - 1)
-  return toLocalInputValue(d)
+  return d
 }
 
 const PAGE_SIZE = 10
@@ -60,10 +68,10 @@ function SortIcon({ col, sortCol, sortDir }) {
 }
 
 const TrailerStatus = () => {
-  const [fromDate, setFromDate] = useState(yesterdayLocalDT())
-  const [toDate, setToDate] = useState(todayLocalDT())
-  const [queryFromDate, setQueryFromDate] = useState(fromDate)
-  const [queryToDate, setQueryToDate] = useState(toDate)
+  const [fromDate, setFromDate] = useState(yesterdayDT())
+  const [toDate, setToDate] = useState(todayDT())
+  const [queryFromDate, setQueryFromDate] = useState(toApiParam(fromDate))
+  const [queryToDate, setQueryToDate] = useState(toApiParam(toDate))
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortCol, setSortCol] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
@@ -71,12 +79,12 @@ const TrailerStatus = () => {
   const [processFilter, setProcessFilter] = useState('all')
   const [tatFilter, setTatFilter] = useState('all')
 
-  // Debounce the datetime-local inputs before triggering the (non-lazy) query,
-  // since datetime-local fires onChange per keystroke/segment.
+  // Debounce the date inputs before triggering the (non-lazy) query,
+  // since the picker can fire onChange while the user is still typing.
   useEffect(() => {
     const t = setTimeout(() => {
-      setQueryFromDate(fromDate)
-      setQueryToDate(toDate)
+      setQueryFromDate(toApiParam(fromDate))
+      setQueryToDate(toApiParam(toDate))
     }, 500)
     return () => clearTimeout(t)
   }, [fromDate, toDate])
@@ -92,7 +100,7 @@ const TrailerStatus = () => {
     const empty  = trailerData.filter((r) => String(r.process).toUpperCase() === 'EMPTY').length
     const imp    = trailerData.filter((r) => String(r.process).toUpperCase() === 'IMPORT').length
     const exp    = trailerData.filter((r) => String(r.process).toUpperCase() === 'EXPORT').length
-    const hours  = trailerData.map((r) => tatToHours(r.tat)).filter((h) => h !== null)
+    const hours  = trailerData.map((r) => tatToHours(r.hrtat)).filter((h) => h !== null)
     const bucket = (lo, hi) => hours.filter((h) => h >= lo && (hi == null || h < hi)).length
 
     return [
@@ -123,11 +131,12 @@ const TrailerStatus = () => {
     if (tatFilter !== 'all') {
       const [lo, hi] = TAT_BUCKETS[tatFilter]
       data = data.filter((r) => {
-        const h = tatToHours(r.tat)
+        const h = tatToHours(r.hrtat)
         return h !== null && h >= lo && (hi == null || h < hi)
       })
     }
 
+    // Global search — hrtat and tat are included automatically via Object.values
     if (globalSearch) {
       const lowerSearch = globalSearch.toLowerCase()
       data = data.filter(item =>
@@ -138,9 +147,13 @@ const TrailerStatus = () => {
     }
 
     if (sortCol) {
+      // TAT Hours sorts numerically (so "5:10" < "19:17"); everything else sorts as-is
+      const getVal = (r) => (sortCol === 'hrtat' ? (tatToHours(r.hrtat) ?? -1) : r[sortCol])
       data.sort((a, b) => {
-        if (a[sortCol] < b[sortCol]) return sortDir === 'asc' ? -1 : 1
-        if (a[sortCol] > b[sortCol]) return sortDir === 'asc' ? 1 : -1
+        const va = getVal(a)
+        const vb = getVal(b)
+        if (va < vb) return sortDir === 'asc' ? -1 : 1
+        if (va > vb) return sortDir === 'asc' ? 1 : -1
         return 0
       })
     }
@@ -165,16 +178,17 @@ const TrailerStatus = () => {
       'Process': r.process,
       'Gate In Date': fmtDate(r.gateIn),
       'Gate Out Date': fmtDate(r.gateOut),
-      'TAT': r.tat,
+      'TAT Hours': r.hrtat,
+      'TAT Days': r.tat,
     }))
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Trailer Status')
-    XLSX.writeFile(wb, `TrailerStatus_${fromDate.replace(/:/g, '')}_${toDate.replace(/:/g, '')}.xlsx`)
+    XLSX.writeFile(wb, `TrailerStatus_${toFileStamp(fromDate)}_${toFileStamp(toDate)}.xlsx`)
   }
 
   const handleClear = () => {
-    setFromDate(yesterdayLocalDT()); setToDate(todayLocalDT())
+    setFromDate(yesterdayDT()); setToDate(todayDT())
     setGlobalSearch(''); setPage(1)
     setProcessFilter('all'); setTatFilter('all')
   }
@@ -244,18 +258,39 @@ const TrailerStatus = () => {
           {/* ── Filter Bar ── */}
           <FilterBar bare>
             <FilterField label="From Date" icon={FiCalendar}>
-              <input
-                type="datetime-local" value={fromDate}
-                onChange={e => setFromDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+              <DatePicker
+                selected={fromDate}
+                onChange={(date) => date && setFromDate(date)}
+                showTimeSelect
+                timeFormat="HH:mm"
+                timeIntervals={15}
+                dateFormat="dd-MM-yyyy HH:mm"
+                placeholderText="dd-mm-yyyy hh:mm"
+                selectsStart
+                startDate={fromDate}
+                endDate={toDate}
+                popperClassName="!z-50"
+                wrapperClassName="w-full md:w-60"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
             </FilterField>
 
             <FilterField label="To Date" icon={FiCalendar}>
-              <input
-                type="datetime-local" value={toDate}
-                onChange={e => setToDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+              <DatePicker
+                selected={toDate}
+                onChange={(date) => date && setToDate(date)}
+                showTimeSelect
+                timeFormat="HH:mm"
+                timeIntervals={15}
+                dateFormat="dd-MM-yyyy HH:mm"
+                placeholderText="dd-mm-yyyy hh:mm"
+                selectsEnd
+                startDate={fromDate}
+                endDate={toDate}
+                minDate={fromDate}
+                popperClassName="!z-50"
+                wrapperClassName="w-full md:w-60"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
               />
             </FilterField>
 
@@ -329,14 +364,15 @@ const TrailerStatus = () => {
                       <TH col="process">Process</TH>
                       <TH col="gateIn">Gate In Date</TH>
                       <TH col="gateOut">Gate Out Date</TH>
-                      <TH col="tat">TAT</TH>
+                      <TH col="hrtat">TAT Hours</TH>
+                      <TH col="tat">TAT Days</TH>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
                     {paginatedData.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-16 text-center">
+                        <td colSpan={10} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range or search</p>
@@ -364,6 +400,7 @@ const TrailerStatus = () => {
                           <td className="px-3 py-2 whitespace-nowrap text-[11px] text-slate-600 font-medium">{row.process || '—'}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{fmtDate(row.gateIn) || <span className="text-slate-300">—</span>}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-700">{fmtDate(row.gateOut) || <span className="text-slate-300">—</span>}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.hrtat || <span className="text-slate-300">—</span>}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.tat || <span className="text-slate-300">—</span>}</td>
                         </tr>
                       )

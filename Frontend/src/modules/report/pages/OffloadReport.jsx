@@ -44,7 +44,7 @@ const ProcessBadge = ({ val }) => {
   return <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{val}</span>
 }
 
-// Offload TAT comes back as "DD:HH:MM:SS" (or sometimes just "HH:MM") —
+// HRTAT comes back as "H:MM" (e.g. "4:04", "26:06") —
 // parse to total hours and colour-code: fast (green) / moderate (amber) /
 // slow (red), so the column reads at a glance instead of as plain text.
 const tatToHours = (tat) => {
@@ -84,7 +84,8 @@ const COLUMNS = [
   { key: 'GateName',     label: 'Gate' },
   { key: 'GateInDate',   label: 'Gate In Date', format: fmtDate },
   { key: 'OffloadDate',  label: 'Offload Date', format: fmtDate },
-  { key: 'OffloadTAT',   label: 'Offload TAT', render: (v) => <TatBadge val={v} /> },
+  { key: 'HRTAT',        label: 'TAT Hours', render: (v) => <TatBadge val={v} /> },
+  { key: 'OffloadTAT',   label: 'TAT Days' },
 ]
 
 const OffloadReport = () => {
@@ -138,6 +139,7 @@ const OffloadReport = () => {
   const filteredData = useMemo(() => {
     let result = rows
     if (processFilter !== 'all') result = result.filter(r => String(r.ProcessName || '').toUpperCase() === processFilter)
+    // Table search — HRTAT is included automatically because it is in COLUMNS
     if (tableSearch.trim()) {
       const q = tableSearch.trim().toLowerCase()
       result = result.filter((r) =>

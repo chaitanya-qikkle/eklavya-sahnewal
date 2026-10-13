@@ -119,8 +119,8 @@ const GateInOutReport = () => {
       'Trailer No':           r.TrailerNo               || '',
       'Gate In Date':         formatDate(r.GateInDate),
       'Gate Out Date':        formatDate(r.GateOutDate),
-      'In TAT':               r.INTAT                   || '',
-      'Out TAT':              r.OUTTAT                  || '',
+      'In Hours':               r.INTAT                   || '',
+      'TAT Days':              r.OUTTAT                  || '',
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
@@ -189,8 +189,8 @@ const GateInOutReport = () => {
     { key: 'TrailerNo',             label: 'Trailer No',    ph: 'Trailer…'     },
     { key: 'GateInDate',            label: 'Gate In Date',  ph: 'dd/mm/yyyy…'  },
     { key: 'GateOutDate',           label: 'Gate Out Date', ph: 'dd/mm/yyyy…'  },
-    { key: 'INTAT',                 label: 'In TAT',        ph: 'TAT…'         },
-    { key: 'OUTTAT',                label: 'Out TAT',       ph: 'TAT…'         },
+    { key: 'INTAT',                 label: 'TAT Hours',        ph: 'TAT…'         },
+    { key: 'OUTTAT',                label: 'TAT Days',       ph: 'TAT…'         },
   ]
 
   const SortIcon = ({ colKey }) => (

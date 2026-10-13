@@ -24,71 +24,77 @@ const HEIGHTS = [1, 2, 3, 4]
 // per the real GET_BLOCK_LIST output. OWH's Row/Column were swapped in the
 // source data (Row numeric, Column letters) and have been corrected here to
 // match every other block's convention (Row = letters, Column = numbers).
-const FALLBACK_BLOCKS = [
-  {
-    "Block": "EMR",
-    "MinRow": "EMR",
-    "MaxRow": "EMR",
-    "MinColumn": 1,
-    "MaxColumn": 14
-  },
-  {
-    "Block": "EMT",
-    "MinRow": "A",
-    "MaxRow": "V",
-    "MinColumn": 1,
-    "MaxColumn": 60
-  },
-  {
-    "Block": "EXP",
-    "MinRow": "A",
-    "MaxRow": "G",
-    "MinColumn": 1,
-    "MaxColumn": 28
-  },
-  {
-    "Block": "EXP-EX",
-    "MinRow": "A",
-    "MaxRow": "L",
-    "MinColumn": 1,
-    "MaxColumn": 63
-  },
-  {
-    "Block": "IMP",
-    "MinRow": "A",
-    "MaxRow": "H",
-    "MinColumn": 1,
-    "MaxColumn": 72
-  },
-  {
-    "Block": "IMP-EX",
-    "MinRow": "A",
-    "MaxRow": "R",
-    "MinColumn": 1,
-    "MaxColumn": 30
-  },
-  {
-    "Block": "OWH",
-    "MinRow": "A",
-    "MaxRow": "H",
-    "MinColumn": 1,
-    "MaxColumn": 41
-  },
-  {
-    "Block": "RAIL",
-    "MinRow": "A",
-    "MaxRow": "C",
-    "MinColumn": 1,
-    "MaxColumn": 129
-  },
-  {
-    "Block": "TG",
-    "MinRow": "A",
-    "MaxRow": "D",
-    "MinColumn": 1,
-    "MaxColumn": 12
-  }
-]
+const FALLBACK_BLOCKS =  [
+    {
+      "Block": "EMR",
+      "MinRow": "EMR",
+      "MaxRow": "EMR",
+      "MinColumn": 1,
+      "MaxColumn": 14
+    },
+    {
+      "Block": "EMT",
+      "MinRow": "A",
+      "MaxRow": "V",
+      "MinColumn": 1,
+      "MaxColumn": 60
+    },
+    {
+      "Block": "EXP",
+      "MinRow": "1",
+      "MaxRow": "G",
+      "MinColumn": 16,
+      "MaxColumn": 21
+    },
+    {
+      "Block": "EXP-EX",
+      "MinRow": "A",
+      "MaxRow": "L",
+      "MinColumn": 1,
+      "MaxColumn": 63
+    },
+    {
+      "Block": "HAZ",
+      "MinRow": "A",
+      "MaxRow": "B",
+      "MinColumn": 1,
+      "MaxColumn": 13
+    },
+    {
+      "Block": "IMP",
+      "MinRow": "A",
+      "MaxRow": "H",
+      "MinColumn": 1,
+      "MaxColumn": 72
+    },
+    {
+      "Block": "IMP-EX",
+      "MinRow": "A",
+      "MaxRow": "R",
+      "MinColumn": 1,
+      "MaxColumn": 32
+    },
+    {
+      "Block": "OWH",
+      "MinRow": "1",
+      "MaxRow": "9"
+    },
+    {
+      "Block": "RAIL",
+      "MinRow": "A",
+      "MaxRow": "C",
+      "MinColumn": 1,
+      "MaxColumn": 129
+    },
+    {
+      "Block": "TG",
+      "MinRow": "A",
+      "MaxRow": "D",
+      "MinColumn": 1,
+      "MaxColumn": 12
+    }
+  ]
+
 
 const letterRange = (min, max) => {
   const start = String(min || 'A').toUpperCase().charCodeAt(0)

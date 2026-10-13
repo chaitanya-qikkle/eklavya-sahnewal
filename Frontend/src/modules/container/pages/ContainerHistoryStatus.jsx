@@ -2,15 +2,19 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiCalendar, FiPackage, FiDownload, FiUpload, FiBox } from 'react-icons/fi'
 import { FaFilePdf } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetContainerHistoryReportQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
-function toDateTimeLocalParam(v) {
-  // datetime-local gives "YYYY-MM-DDTHH:mm" — SP wants a value SQL Server can cast to DATETIME
-  return v ? v.replace('T', ' ') : undefined
+// DatePicker gives a Date object — convert to "YYYY-MM-DD HH:mm" which SQL Server can cast to DATETIME
+function toDateTimeLocalParam(d) {
+  if (!d) return undefined
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 // SP returns raw "YYYY-MM-DD HH:mm:ss"-style strings — format to the app's
@@ -34,14 +38,15 @@ function mapRow(r) {
     mode: r.Mode || '',
     gateInDate: r.GateInDate || '',
     gateOutDate: r.GateOutDate || '',
+    hrtat: r.HRTAT || '',
     tat: r.TAT || '',
   }
 }
 
 const ContainerHistoryStatus = () => {
   const [containerSearch, setContainerSearch] = useState('')
-  const [gateInFrom, setGateInFrom] = useState('')
-  const [gateInTo, setGateInTo] = useState('')
+  const [gateInFrom, setGateInFrom] = useState(null)
+  const [gateInTo, setGateInTo] = useState(null)
   const [globalSearch, setGlobalSearch] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null })
   const [currentPage, setCurrentPage] = useState(1)
@@ -106,7 +111,7 @@ const ContainerHistoryStatus = () => {
       rows = rows.filter((r) => String(r.size || '').includes(sizeFilter))
     }
 
-    // Global Search (Table search)
+    // Global Search (Table search) — hrtat is included automatically via Object.values
     if (globalSearch) {
       const lowerSearch = globalSearch.toLowerCase()
       rows = rows.filter(item =>
@@ -142,8 +147,8 @@ const ContainerHistoryStatus = () => {
 
   const handleClear = () => {
     setContainerSearch('')
-    setGateInFrom('')
-    setGateInTo('')
+    setGateInFrom(null)
+    setGateInTo(null)
     setGlobalSearch('')
     setStatFilter('all')
     setSizeFilter('all')
@@ -158,14 +163,29 @@ const ContainerHistoryStatus = () => {
 
   const handleExportExcel = () => {
     const exportRows = filteredData.map((r) => ({
-      ...r,
-      gateInDate: formatDate(r.gateInDate),
-      gateOutDate: formatDate(r.gateOutDate),
+      'Container No': r.containerNo,
+      'Size': r.size,
+      'Type': r.type,
+      'Transaction Type': r.transactionType,
+      'Document No': r.documentNo,
+      'Container Status': r.bookingNo,
+      'Mode': r.mode,
+      'Gate In Date': formatDate(r.gateInDate),
+      'Gate Out Date': formatDate(r.gateOutDate),
+      'TAT Hours': r.hrtat,
+      'TAT Days': r.tat,
     }))
     const worksheet = XLSX.utils.json_to_sheet(exportRows)
+
+    // Column widths (optional, readable banane ke liye)
+    worksheet['!cols'] = [
+      { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 18 }, { wch: 26 },
+      { wch: 18 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 14 },
+    ]
+
     const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Container History")
-    XLSX.writeFile(workbook, "container-history.xlsx")
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Container History')
+    XLSX.writeFile(workbook, 'container-history.xlsx')
   }
 
   return (
@@ -180,291 +200,311 @@ const ContainerHistoryStatus = () => {
           <div className="w-full space-y-6">
 
             {/* Header */}
-            <header className="pt-6 pb-6">
-              <p className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
-                Container Management
-              </p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-3">
-                <FiPackage className="text-3xl" />
-                Container History Status
-              </h1>
-              <p className="text-slate-600 mt-1 text-sm sm:text-base">
-                Review historical gate-in and gate-out activity for every container.
-              </p>
-            </header>
-
-            {/* Stats + Filter — merged into one card */}
-            <FilterCard>
-            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
-              <StatCard
-                label="Total Records"
-                value={stats.total}
-                icon={FiPackage}
-                tone="slate"
-                isActive={statFilter === 'all'}
-                onClick={() => handleStatCardClick('all')}
-                total={stats.total}
-              />
-              <StatCard
-                label="Import"
-                value={stats.importCount}
-                icon={FiDownload}
-                tone="emerald"
-                isActive={statFilter === 'Import'}
-                onClick={() => handleStatCardClick('Import')}
-                total={stats.total}
-              />
-              <StatCard
-                label="Export"
-                value={stats.exportCount}
-                icon={FiUpload}
-                tone="amber"
-                isActive={statFilter === 'Export'}
-                onClick={() => handleStatCardClick('Export')}
-                total={stats.total}
-              />
-              <StatCard
-                label="Empty"
-                value={stats.emptyCount}
-                icon={FiBox}
-                tone="sky"
-                isActive={statFilter === 'Empty'}
-                onClick={() => handleStatCardClick('Empty')}
-                total={stats.total}
-              />
-              <StatCard
-                label="Domestic"
-                value={stats.domesticCount}
-                icon={FiPackage}
-                tone="rose"
-                isActive={statFilter === 'Domestic'}
-                onClick={() => handleStatCardClick('Domestic')}
-                total={stats.total}
-              />
-              {/* <StatCard
-                label="Other"
-                value={stats.otherCount}
-                icon={FiBox}
-                tone="violet"
-                isActive={statFilter === 'Other'}
-                onClick={() => handleStatCardClick('Other')}
-                total={stats.total}
-              /> */}
-              <StatCard
-                label="20 FT"
-                value={stats.size20Count}
-                icon={FiBox}
-                tone="teal"
-                isActive={sizeFilter === '20'}
-                onClick={() => { setSizeFilter(sizeFilter === '20' ? 'all' : '20'); setCurrentPage(1) }}
-                total={stats.total}
-              />
-              <StatCard
-                label="40 FT"
-                value={stats.size40Count}
-                icon={FiBox}
-                tone="slate"
-                isActive={sizeFilter === '40'}
-                onClick={() => { setSizeFilter(sizeFilter === '40' ? 'all' : '40'); setCurrentPage(1) }}
-                total={stats.total}
-              />
-            </StatGrid>
-
-            <FilterBar bare>
-              <FilterField label="Search Container" icon={FiSearch}>
-                <input
-                  type="text"
-                  placeholder="Search Container"
-                  value={containerSearch}
-                  onChange={(e) => setContainerSearch(e.target.value)}
-                  className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 focus:border-[#0e4a78] outline-none text-slate-700 placeholder:text-slate-400"
-                />
-              </FilterField>
-
-              <FilterField label="Gate In From" icon={FiCalendar}>
-                <input
-                  type="datetime-local"
-                  value={gateInFrom}
-                  onChange={(e) => setGateInFrom(e.target.value)}
-                  className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700"
-                />
-              </FilterField>
-
-              <FilterField label="Gate In To" icon={FiCalendar}>
-                <input
-                  type="datetime-local"
-                  value={gateInTo}
-                  onChange={(e) => setGateInTo(e.target.value)}
-                  className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700"
-                />
-              </FilterField>
-
-              <div className="flex gap-3">
-                <FilterClearBtn onClick={handleClear} />
-                <FilterSearchBtn onClick={runSearch} loading={isFetching}>Filter</FilterSearchBtn>
-              </div>
-            </FilterBar>
-            </FilterCard>
-
-            {/* Detail Section */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
-              <header className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <h2 className="text-lg font-semibold tracking-wide">Container History Detail</h2>
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="flex items-center gap-2">
-                    <FilterExportBtn onClick={handleExportExcel} disabled={filteredData.length === 0} />
-                    <button
-                      className="w-9 h-9 flex items-center justify-center rounded bg-red-600 hover:bg-red-700 transition text-white shadow"
-                      title="Export PDF"
-                    >
-                      <FaFilePdf className="text-lg" />
-                    </button>
-                  </div>
-                  <div className="relative flex-1 sm:flex-initial">
-                    <span className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 text-white/70 text-sm">Search:</span>
-                    <input
-                      type="text"
-                      value={globalSearch}
-                      onChange={(e) => setGlobalSearch(e.target.value)}
-                      className="w-full sm:w-48 pl-3 sm:pl-16 pr-4 py-1.5 rounded bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 text-sm"
-                    />
-                  </div>
-                </div>
+              <header className="pt-2 pb-0">
+                {/* <p className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                  Container Management
+                </p> */}
+                <h1 className="text-2px sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-3">
+                  <FiPackage className="text-3xl" />
+                  Container History Status
+                </h1>
               </header>
 
-              <div className="overflow-x-auto w-full">
-                <table className="min-w-full text-xs md:text-sm text-left">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white">
-                      {[
-                        { key: 'containerNo', label: 'Container No' },
-                        { key: 'size', label: 'Size' },
-                        { key: 'type', label: 'Type' },
-                        { key: 'transactionType', label: 'Transaction Type' },
-                        { key: 'documentNo', label: 'Document No' },
-                        { key: 'bookingNo', label: 'Container Status' },
-                        { key: 'mode', label: 'Mode' },
-                        { key: 'gateInDate', label: 'Gate In Date' },
-                        { key: 'gateOutDate', label: 'Gate Out Date' },
-                        { key: 'tat', label: 'TAT' }
-                      ].map(col => (
-                        <th
-                          key={col.key}
-                          onClick={() => handleSort(col.key)}
-                          className="px-4 sm:px-5 py-3 text-left font-semibold border-r border-white/30 last:border-r-0 cursor-pointer hover:bg-white/10 whitespace-nowrap"
-                        >
-                          <div className="flex items-center gap-1">
-                            {col.label}
-                            <div className="flex flex-col opacity-50">
-                              <FiChevronUp className="w-2.5 h-2.5 -mb-0.5" />
-                              <FiChevronDown className="w-2.5 h-2.5 -mt-0.5" />
-                            </div>
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {!isFetching && !isError && paginatedData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.containerNo}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.size}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.type}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.transactionType}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.documentNo}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.bookingNo}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.mode}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{formatDate(row.gateInDate)}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{formatDate(row.gateOutDate)}</td>
-                        <td className="px-4 sm:px-5 py-3 text-slate-700 font-medium whitespace-nowrap">{row.tat}</td>
-                      </tr>
-                    ))}
-                    {isFetching && (
-                      <tr>
-                        <td colSpan="10" className="px-6 py-8 text-center text-slate-500 bg-white">
-                          Loading…
-                        </td>
-                      </tr>
-                    )}
-                    {!isFetching && isError && (
-                      <tr>
-                        <td colSpan="10" className="px-6 py-8 text-center text-red-500 bg-white">
-                          Failed to load container history. Check backend connection.
-                        </td>
-                      </tr>
-                    )}
-                    {!isFetching && !isError && paginatedData.length === 0 && (
-                      <tr>
-                        <td colSpan="10" className="px-6 py-8 text-center text-slate-500 bg-white">
-                          <div className="flex flex-col items-center gap-2">
-                            <FiSearch className="text-3xl text-slate-300" />
-                            <span>No matching records found</span>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {/* Stats + Filter — merged into one card */}
+              <FilterCard>
+              <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
+                <StatCard
+                  label="Total Records"
+                  value={stats.total}
+                  icon={FiPackage}
+                  tone="slate"
+                  isActive={statFilter === 'all'}
+                  onClick={() => handleStatCardClick('all')}
+                  total={stats.total}
+                />
+                <StatCard
+                  label="Import"
+                  value={stats.importCount}
+                  icon={FiDownload}
+                  tone="emerald"
+                  isActive={statFilter === 'Import'}
+                  onClick={() => handleStatCardClick('Import')}
+                  total={stats.total}
+                />
+                <StatCard
+                  label="Export"
+                  value={stats.exportCount}
+                  icon={FiUpload}
+                  tone="amber"
+                  isActive={statFilter === 'Export'}
+                  onClick={() => handleStatCardClick('Export')}
+                  total={stats.total}
+                />
+                <StatCard
+                  label="Empty"
+                  value={stats.emptyCount}
+                  icon={FiBox}
+                  tone="sky"
+                  isActive={statFilter === 'Empty'}
+                  onClick={() => handleStatCardClick('Empty')}
+                  total={stats.total}
+                />
+                <StatCard
+                  label="Domestic"
+                  value={stats.domesticCount}
+                  icon={FiPackage}
+                  tone="rose"
+                  isActive={statFilter === 'Domestic'}
+                  onClick={() => handleStatCardClick('Domestic')}
+                  total={stats.total}
+                />
+                {/* <StatCard
+                  label="Other"
+                  value={stats.otherCount}
+                  icon={FiBox}
+                  tone="violet"
+                  isActive={statFilter === 'Other'}
+                  onClick={() => handleStatCardClick('Other')}
+                  total={stats.total}
+                /> */}
+                <StatCard
+                  label="20 FT"
+                  value={stats.size20Count}
+                  icon={FiBox}
+                  tone="teal"
+                  isActive={sizeFilter === '20'}
+                  onClick={() => { setSizeFilter(sizeFilter === '20' ? 'all' : '20'); setCurrentPage(1) }}
+                  total={stats.total}
+                />
+                <StatCard
+                  label="40 FT"
+                  value={stats.size40Count}
+                  icon={FiBox}
+                  tone="slate"
+                  isActive={sizeFilter === '40'}
+                  onClick={() => { setSizeFilter(sizeFilter === '40' ? 'all' : '40'); setCurrentPage(1) }}
+                  total={stats.total}
+                />
+              </StatGrid>
 
-              <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
-                <div>
-                  Showing <strong className="text-[#0e4a78]">{filteredData.length === 0 ? 0 : Math.min(pageSize, filteredData.length - (currentPage - 1) * pageSize)}</strong> of{' '}
-                  <strong className="text-[#0e4a78]">{filteredData.length.toLocaleString()}</strong> total records (Page{' '}
-                  <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
+              <FilterBar bare>
+                <FilterField label="Search Container" icon={FiSearch}>
+                  <input
+                    type="text"
+                    placeholder="Search Container"
+                    value={containerSearch}
+                    onChange={(e) => setContainerSearch(e.target.value)}
+                    className="w-full md:w-64 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 focus:border-[#0e4a78] outline-none text-slate-700 placeholder:text-slate-400"
+                  />
+                </FilterField>
+
+                <FilterField label="Gate In From" icon={FiCalendar}>
+                  <DatePicker
+                    selected={gateInFrom}
+                    onChange={(date) => setGateInFrom(date)}
+                    showTimeSelect
+                    timeFormat="HH:mm"
+                    timeIntervals={15}
+                    dateFormat="dd-MM-yyyy HH:mm"
+                    placeholderText="dd-mm-yyyy hh:mm"
+                    selectsStart
+                    startDate={gateInFrom}
+                    endDate={gateInTo}
+                    isClearable
+                    popperClassName="!z-50"
+                    wrapperClassName="w-full md:w-64"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700 placeholder:text-slate-400"
+                  />
+                </FilterField>
+
+                <FilterField label="Gate In To" icon={FiCalendar}>
+                  <DatePicker
+                    selected={gateInTo}
+                    onChange={(date) => setGateInTo(date)}
+                    showTimeSelect
+                    timeFormat="HH:mm"
+                    timeIntervals={15}
+                    dateFormat="dd-MM-yyyy HH:mm"
+                    placeholderText="dd-mm-yyyy hh:mm"
+                    selectsEnd
+                    startDate={gateInFrom}
+                    endDate={gateInTo}
+                    minDate={gateInFrom}
+                    isClearable
+                    popperClassName="!z-50"
+                    wrapperClassName="w-full md:w-64"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#0e4a78]/50 outline-none text-slate-700 placeholder:text-slate-400"
+                  />
+                </FilterField>
+
+                <div className="flex gap-3">
+                  <FilterClearBtn onClick={handleClear} />
+                  <FilterSearchBtn onClick={runSearch} loading={isFetching}>Filter</FilterSearchBtn>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                      currentPage === 1
-                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                        : 'text-[#0e4a78] hover:bg-blue-50'
-                    }`}
-                  >
-                    Previous
-                  </button>
+              </FilterBar>
+              </FilterCard>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600">Page</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={totalPages || 1}
-                      value={currentPage}
-                      onChange={(e) => {
-                        const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
-                        setCurrentPage(p)
-                      }}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
-                    />
-                    <span className="text-slate-600">of {totalPages || 1}</span>
+              {/* Detail Section */}
+              <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
+                <header className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <h2 className="text-lg font-semibold tracking-wide">Container History Detail</h2>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2">
+                      <FilterExportBtn onClick={handleExportExcel} disabled={filteredData.length === 0} />
+                      <button
+                        className="w-9 h-9 flex items-center justify-center rounded bg-red-600 hover:bg-red-700 transition text-white shadow"
+                        title="Export PDF"
+                      >
+                        <FaFilePdf className="text-lg" />
+                      </button>
+                    </div>
+                    <div className="relative flex-1 sm:flex-initial">
+                      <span className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 text-white/70 text-sm">Search:</span>
+                      <input
+                        type="text"
+                        value={globalSearch}
+                        onChange={(e) => setGlobalSearch(e.target.value)}
+                        className="w-full sm:w-48 pl-3 sm:pl-16 pr-4 py-1.5 rounded bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 text-sm"
+                      />
+                    </div>
                   </div>
+                </header>
 
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                      currentPage === totalPages || totalPages === 0
-                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                        : 'text-[#0e4a78] hover:bg-blue-50'
-                    }`}
-                  >
-                    Next
-                  </button>
+                <div className="overflow-x-auto w-full">
+                  <table className="min-w-full text-xs md:text-sm text-left">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white">
+                        {[
+                          { key: 'containerNo', label: 'Container No' },
+                          { key: 'size', label: 'Size' },
+                          { key: 'type', label: 'Type' },
+                          { key: 'transactionType', label: 'Transaction Type' },
+                          { key: 'documentNo', label: 'Document No' },
+                          { key: 'bookingNo', label: 'Container Status' },
+                          { key: 'mode', label: 'Mode' },
+                          { key: 'gateInDate', label: 'Gate In Date' },
+                          { key: 'gateOutDate', label: 'Gate Out Date' },
+                          { key: 'hrtat', label: 'TAT Hours' },
+                          { key: 'tat', label: 'TAT Days' },
+                        ].map(col => (
+                          <th
+                            key={col.key}
+                            onClick={() => handleSort(col.key)}
+                            className="px-4 sm:px-5 py-3 text-left font-semibold border-r border-white/30 last:border-r-0 cursor-pointer hover:bg-white/10 whitespace-nowrap"
+                          >
+                            <div className="flex items-center gap-1">
+                              {col.label}
+                              <div className="flex flex-col opacity-50">
+                                <FiChevronUp className="w-2.5 h-2.5 -mb-0.5" />
+                                <FiChevronDown className="w-2.5 h-2.5 -mt-0.5" />
+                              </div>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {!isFetching && !isError && paginatedData.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium">{row.containerNo}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.size}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.type}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.transactionType}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.documentNo}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.bookingNo}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200">{row.mode}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{formatDate(row.gateInDate)}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 whitespace-nowrap">{formatDate(row.gateOutDate)}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 font-medium whitespace-nowrap">{row.hrtat}</td>
+                          <td className="px-4 sm:px-5 py-3 text-slate-700 border-r border-slate-200 font-medium whitespace-nowrap">{row.tat}</td>
+                        </tr>
+                      ))}
+                      {isFetching && (
+                        <tr>
+                          <td colSpan="11" className="px-6 py-8 text-center text-slate-500 bg-white">
+                            Loading…
+                          </td>
+                        </tr>
+                      )}
+                      {!isFetching && isError && (
+                        <tr>
+                          <td colSpan="11" className="px-6 py-8 text-center text-red-500 bg-white">
+                            Failed to load container history. Check backend connection.
+                          </td>
+                        </tr>
+                      )}
+                      {!isFetching && !isError && paginatedData.length === 0 && (
+                        <tr>
+                          <td colSpan="11" className="px-6 py-8 text-center text-slate-500 bg-white">
+                            <div className="flex flex-col items-center gap-2">
+                              <FiSearch className="text-3xl text-slate-300" />
+                              <span>No matching records found</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </section>
 
-          </div>
-        </main>
-        <Footer />
+                <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-slate-600">
+                  <div>
+                    Showing <strong className="text-[#0e4a78]">{filteredData.length === 0 ? 0 : Math.min(pageSize, filteredData.length - (currentPage - 1) * pageSize)}</strong> of{' '}
+                    <strong className="text-[#0e4a78]">{filteredData.length.toLocaleString()}</strong> total records (Page{' '}
+                    <strong>{currentPage}</strong> of <strong>{totalPages || 1}</strong>)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === 1
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Previous
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">Page</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages || 1}
+                        value={currentPage}
+                        onChange={(e) => {
+                          const p = Math.max(1, Math.min(totalPages || 1, Number(e.target.value) || 1))
+                          setCurrentPage(p)
+                        }}
+                        className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                      />
+                      <span className="text-slate-600">of {totalPages || 1}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages || 1, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
+                        currentPage === totalPages || totalPages === 0
+                          ? 'text-slate-400 cursor-not-allowed bg-slate-100'
+                          : 'text-[#0e4a78] hover:bg-blue-50'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+            </div>
+          </main>
+          <Footer />
+        </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
-export default ContainerHistoryStatus
+  export default ContainerHistoryStatus

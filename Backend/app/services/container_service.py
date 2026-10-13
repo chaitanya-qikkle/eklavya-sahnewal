@@ -103,9 +103,9 @@ class ContainerService:
         plant_id: int = 0,
     ) -> dict:
         if not container_no and not from_date and not to_date:
-            # SP requires a date range when no container is given — default to last 30 days
+            # SP requires a date range when no container is given — default to last 1 days
             to_dt = datetime.now()
-            from_dt = to_dt - timedelta(days=30)
+            from_dt = to_dt - timedelta(days=1)
             from_date, to_date = from_dt.strftime("%Y-%m-%d %H:%M:%S"), to_dt.strftime("%Y-%m-%d %H:%M:%S")
 
         result = self.repo.get_container_history_report(from_date or None, to_date or None, container_no, plant_id)

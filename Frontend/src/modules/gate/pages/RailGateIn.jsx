@@ -309,6 +309,9 @@ function SortIcon({ col, sortCol, sortDir }) {
 }
 
 const PAGE_SIZE = 20
+const SIZE_KEYS = ['20', '40']
+const DEBUG = false
+
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
   const p = (n) => String(n).padStart(2, '0')
@@ -321,6 +324,9 @@ const yesterdayStr = () => {
   return toLocalInputValue(d)
 }
 
+const sizeOf = (r) => String(r.ContainerSize ?? '').trim()
+const procOf = (r) => String(r.Process ?? '').trim().toUpperCase()
+
 const RailGateIn = () => {
   const [fromDate, setFromDate] = useState(yesterdayStr())
   const [toDate, setToDate] = useState(todayStr())
@@ -331,8 +337,8 @@ const RailGateIn = () => {
   const [pageInput, setPageInput] = useState('1') // draft text for the "Page ___" box, committed on blur/Enter
   const [lightbox, setLightbox] = useState(null)
   const [detailIdx, setDetailIdx] = useState(null)
-  const [processFilter, setProcessFilter] = useState('all')
-  const [sizeFilter, setSizeFilter] = useState('all')
+  // Single active card filter: 'all' | '20' | '40' | 'EXPORT' | 'IMPORT' | 'EMPTY' | 'DOMESTIC'
+  const [cardFilter, setCardFilter] = useState('all')
 
   useEffect(() => { setPageInput(String(page)) }, [page])
 
@@ -346,10 +352,16 @@ const RailGateIn = () => {
 
   useEffect(() => { fetchRailIn(buildArgs()) }, []) // eslint-disable-line
 
-  const handleSearch = () => { setPage(1); fetchRailIn(buildArgs()) }
+  const handleSearch = () => {
+    setPage(1)
+    setCardFilter('all')
+    setDetailIdx(null)
+    fetchRailIn(buildArgs())
+  }
   const handleClear = () => {
     setFromDate(yesterdayStr()); setToDate(todayStr()); setContainerNo(''); setPage(1)
-    setProcessFilter('all'); setSizeFilter('all')
+    setCardFilter('all')
+    setDetailIdx(null)
     fetchRailIn({ from_date: yesterdayStr(), to_date: todayStr() })
   }
 
@@ -366,27 +378,42 @@ const RailGateIn = () => {
     })
   }, [rowsAll, sortCol, sortDir])
 
-  const size20Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '20').length, [rowsAll])
-  const size40Count = useMemo(() => rowsAll.filter(r => String(r.ContainerSize || '').trim() === '40').length, [rowsAll])
-
-  const processStats = useMemo(() => {
-    const total = rowsAll.length
-    const exportCount = rowsAll.filter(r => String(r.Process || '').toUpperCase() === 'EXPORT').length
-    const importCount = rowsAll.filter(r => String(r.Process || '').toUpperCase() === 'IMPORT').length
-    const emptyCount = rowsAll.filter(r => String(r.Process || '').toUpperCase() === 'EMPTY').length
-    const domesticCount = rowsAll.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length
-    return { total, exportCount, importCount, emptyCount, domesticCount }
-  }, [rowsAll])
+  const counts = useMemo(() => ({
+    total: rowsAll.length,
+    '20': rowsAll.filter(r => sizeOf(r) === '20').length,
+    '40': rowsAll.filter(r => sizeOf(r) === '40').length,
+    EXPORT: rowsAll.filter(r => procOf(r) === 'EXPORT').length,
+    IMPORT: rowsAll.filter(r => procOf(r) === 'IMPORT').length,
+    EMPTY: rowsAll.filter(r => procOf(r) === 'EMPTY').length,
+    DOMESTIC: rowsAll.filter(r => procOf(r) === 'DOMESTIC').length,
+  }), [rowsAll])
 
   const filtered = useMemo(() => {
     let result = sorted
-    if (sizeFilter !== 'all') result = result.filter(r => String(r.ContainerSize || '').trim() === sizeFilter)
-    if (processFilter !== 'all') result = result.filter(r => String(r.Process || '').toUpperCase() === processFilter)
+    if (cardFilter !== 'all') {
+      result = SIZE_KEYS.includes(cardFilter)
+        ? sorted.filter(r => sizeOf(r) === cardFilter)
+        : sorted.filter(r => procOf(r) === cardFilter)
+    }
+    if (DEBUG) {
+      console.log(
+        '[RailGateIn] cardFilter =', cardFilter,
+        '| sorted =', sorted.length,
+        '| filtered =', result.length,
+        '| unique Process =', [...new Set(sorted.map(procOf))],
+        '| unique Size =', [...new Set(sorted.map(sizeOf))]
+      )
+    }
     return result
-  }, [sorted, processFilter, sizeFilter])
+  }, [sorted, cardFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // page kabhi totalPages se bada na rahe
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const toggleSort = (col) => {
     setSortCol(col)
@@ -394,8 +421,12 @@ const RailGateIn = () => {
     setPage(1)
   }
 
-  const handleProcessFilter = (val) => { setProcessFilter(val); setPage(1) }
-  const handleSizeFilter = (val) => { setSizeFilter(val); setPage(1) }
+  // Ek card = ek filter. Wahi card dobara dabane par filter hat jata hai.
+  const handleCard = (val) => {
+    setCardFilter(prev => (prev === val ? 'all' : val))
+    setPage(1)
+    setDetailIdx(null)
+  }
 
   const handleExport = () => {
     const sheetData = filtered.map((row, i) => ({
@@ -460,66 +491,66 @@ const RailGateIn = () => {
           <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
             <StatCard
               label="Total"
-              value={rowsAll.length}
+              value={counts.total}
               icon={FiLayers}
               tone="slate"
-              isActive={sizeFilter === 'all' && processFilter === 'all'}
-              onClick={() => { handleSizeFilter('all'); handleProcessFilter('all') }}
-              total={rowsAll.length}
+              isActive={cardFilter === 'all'}
+              onClick={() => { setCardFilter('all'); setPage(1); setDetailIdx(null) }}
+              total={counts.total}
             />
             <StatCard
               label="20 ft"
-              value={size20Count}
+              value={counts['20']}
               icon={FiBox}
               tone="emerald"
-              isActive={sizeFilter === '20'}
-              onClick={() => handleSizeFilter('20')}
-              total={rowsAll.length}
+              isActive={cardFilter === '20'}
+              onClick={() => handleCard('20')}
+              total={counts.total}
             />
             <StatCard
               label="40 ft"
-              value={size40Count}
+              value={counts['40']}
               icon={FiBox}
               tone="amber"
-              isActive={sizeFilter === '40'}
-              onClick={() => handleSizeFilter('40')}
-              total={rowsAll.length}
+              isActive={cardFilter === '40'}
+              onClick={() => handleCard('40')}
+              total={counts.total}
             />
             <StatCard
               label="Export"
-              value={processStats.exportCount}
+              value={counts.EXPORT}
               icon={FiDownload}
               tone="amber"
-              isActive={processFilter === 'EXPORT'}
-              onClick={() => handleProcessFilter('EXPORT')}
-              total={processStats.total}
+              isActive={cardFilter === 'EXPORT'}
+              onClick={() => handleCard('EXPORT')}
+              total={counts.total}
             />
             <StatCard
               label="Import"
-              value={processStats.importCount}
+              value={counts.IMPORT}
               icon={FiDownloadIcon}
               tone="emerald"
-              isActive={processFilter === 'IMPORT'}
-              onClick={() => handleProcessFilter('IMPORT')}
-              total={processStats.total}
+              isActive={cardFilter === 'IMPORT'}
+              onClick={() => handleCard('IMPORT')}
+              total={counts.total}
             />
             <StatCard
               label="Empty"
-              value={processStats.emptyCount}
+              value={counts.EMPTY}
               icon={FiPackage}
               tone="violet"
-              isActive={processFilter === 'EMPTY'}
-              onClick={() => handleProcessFilter('EMPTY')}
-              total={processStats.total}
+              isActive={cardFilter === 'EMPTY'}
+              onClick={() => handleCard('EMPTY')}
+              total={counts.total}
             />
             <StatCard
               label="Domestic"
-              value={processStats.domesticCount}
+              value={counts.DOMESTIC}
               icon={FiTruck}
               tone="rose"
-              isActive={processFilter === 'DOMESTIC'}
-              onClick={() => handleProcessFilter('DOMESTIC')}
-              total={processStats.total}
+              isActive={cardFilter === 'DOMESTIC'}
+              onClick={() => handleCard('DOMESTIC')}
+              total={counts.total}
             />
           </StatGrid>
 
@@ -559,10 +590,17 @@ const RailGateIn = () => {
             <div className="flex gap-2">
               <FilterClearBtn onClick={handleClear} />
               <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
-              <FilterExportBtn onClick={handleExport} disabled={!sorted.length} />
+              <FilterExportBtn onClick={handleExport} disabled={!filtered.length} />
             </div>
           </FilterBar>
           </FilterCard>
+
+          {/* ── Debug strip (DEBUG = false karne par hat jayega) ── */}
+          {DEBUG && (
+            <div className="mb-2 rounded-lg bg-yellow-50 border border-yellow-300 text-yellow-900 text-xs font-mono px-3 py-2">
+              DEBUG → cardFilter: <b>{cardFilter}</b> | rowsAll: <b>{rowsAll.length}</b> | filtered: <b>{filtered.length}</b> | page: <b>{page}/{totalPages}</b> | pageRows: <b>{pageRows.length}</b>
+            </div>
+          )}
 
           {/* ── Table ── */}
           <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
@@ -574,7 +612,7 @@ const RailGateIn = () => {
                 <div>
                   <p className="font-semibold text-base">Rail Gate In Report</p>
                   <p className="text-xs text-white/60">
-                    Page {page} of {totalPages} · {sorted.length.toLocaleString()} total · {PAGE_SIZE} per page
+                    Page {page} of {totalPages} · {filtered.length.toLocaleString()} total · {PAGE_SIZE} per page
                   </p>
                 </div>
               </div>
@@ -626,7 +664,7 @@ const RailGateIn = () => {
                       const globalIdx = (page - 1) * PAGE_SIZE + idx
                       return (
                         <tr
-                          key={`${row.ContainerNo}-${row.DocumentNo}-${idx}`}
+                          key={`${row.ContainerNo}-${row.DocumentNo}-${globalIdx}`}
                           onClick={() => setDetailIdx(globalIdx)}
                           className={`border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
                         >
@@ -683,9 +721,9 @@ const RailGateIn = () => {
               <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <span className="text-xs text-slate-500">
                   Showing{' '}
-                  <strong className="text-[#0e4a78]">{sorted.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</strong>–<strong className="text-[#0e4a78]">{Math.min(page * PAGE_SIZE, sorted.length)}</strong>
+                  <strong className="text-[#0e4a78]">{filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</strong>–<strong className="text-[#0e4a78]">{Math.min(page * PAGE_SIZE, filtered.length)}</strong>
                   {' '}of{' '}
-                  <strong className="text-[#0e4a78]">{sorted.length.toLocaleString()}</strong> records
+                  <strong className="text-[#0e4a78]">{filtered.length.toLocaleString()}</strong> records
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -707,6 +745,7 @@ const RailGateIn = () => {
                       onBlur={() => {
                         const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
                         setPage(pg)
+                        setPageInput(String(pg))
                       }}
                       onKeyDown={(e) => {
                         if (e.key !== 'Enter') return
@@ -735,14 +774,14 @@ const RailGateIn = () => {
         <Footer />
       </div>
 
-      {detailIdx != null && (
+      {detailIdx != null && filtered[detailIdx] && (
         <DetailModal
-          row={sorted[detailIdx]}
+          row={filtered[detailIdx]}
           index={detailIdx}
-          total={sorted.length}
+          total={filtered.length}
           onClose={() => setDetailIdx(null)}
           onPrev={() => setDetailIdx(i => Math.max(0, i - 1))}
-          onNext={() => setDetailIdx(i => Math.min(sorted.length - 1, i + 1))}
+          onNext={() => setDetailIdx(i => Math.min(filtered.length - 1, i + 1))}
           onZoom={(u, l) => setLightbox({ url: u, label: l })}
         />
       )}

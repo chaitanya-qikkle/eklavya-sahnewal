@@ -91,7 +91,8 @@ const ContainerStatusReport = () => {
       'Process':       r.ProcessName,
       'Arrival':       r.Arrival,
       'Gate In Date':  fmt(r.GateInDate),
-      'TAT':           r.TAT,
+      'TAT Hours':     r.HRTAT,
+      'TAT Days':      r.TAT,
       'Gate Out Date': fmt(r.GateOutDate),
     })))
     const wb = XLSX.utils.book_new()
@@ -263,7 +264,7 @@ const ContainerStatusReport = () => {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white text-xs">
-                      {['#', 'Container No', 'Size', 'Type', 'Process', 'Arrival', 'Gate In Date', 'TAT', 'Gate Out Date'].map(h => (
+                      {['#', 'Container No', 'Size', 'Type', 'Process', 'Arrival', 'Gate In Date', 'TAT Hours', 'TAT Days', 'Gate Out Date'].map(h => (
                         <th key={h} className="px-3 py-3 text-left font-semibold uppercase tracking-wider whitespace-nowrap border-r border-white/10 last:border-r-0">
                           {h}
                         </th>
@@ -273,7 +274,7 @@ const ContainerStatusReport = () => {
                   <tbody className="divide-y divide-slate-100">
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-14 text-center">
+                        <td colSpan={10} className="py-14 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="text-slate-500 font-medium">No records found</p>
                           <p className="text-xs text-slate-400 mt-1">Try a different date range</p>
@@ -305,6 +306,9 @@ const ContainerStatusReport = () => {
                           </td>
                           <td className="px-3 py-2.5 text-xs text-slate-700 border-r border-slate-100">{r.Arrival || '—'}</td>
                           <td className="px-3 py-2.5 text-[11px] text-slate-700 whitespace-nowrap border-r border-slate-100">{fmt(r.GateInDate)}</td>
+                          <td className="px-3 py-2.5 text-[11px] font-mono text-slate-600 whitespace-nowrap border-r border-slate-100">
+                            {r.HRTAT || '—'}
+                          </td>
                           <td className="px-3 py-2.5 text-[11px] font-mono text-slate-600 whitespace-nowrap border-r border-slate-100">
                             {r.TAT || '—'}
                           </td>
