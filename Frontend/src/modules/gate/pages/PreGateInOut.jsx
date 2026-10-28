@@ -454,6 +454,7 @@ export default function PreGateInOut() {
   const [lightbox,    setLightbox]    = useState(null)
   const [detailIdx,   setDetailIdx]   = useState(null) // index into `rows`
   const [processFilter, setProcessFilter] = useState('all') // client-side filter
+  const [sizeFilter,    setSizeFilter]    = useState('all') // 'all' | '20' | '40' — client-side
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
@@ -518,9 +519,25 @@ export default function PreGateInOut() {
     domesticCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length,
   }
 
-  const rows = processFilter === 'all'
+  const sizeOf = (r) => {
+    const s = String(r.ContSize || '').trim()
+    return s.startsWith('20') ? '20' : s.startsWith('40') ? '40' : ''
+  }
+
+  const processRows = processFilter === 'all'
     ? allRowsSorted
     : allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === processFilter)
+
+  // 20/40 ft counts follow the active process filter (Export/Import/Empty/Domestic).
+  const sizeStats = {
+    total: processRows.length,
+    size20: processRows.filter(r => sizeOf(r) === '20').length,
+    size40: processRows.filter(r => sizeOf(r) === '40').length,
+  }
+
+  const rows = sizeFilter === 'all'
+    ? processRows
+    : processRows.filter(r => sizeOf(r) === sizeFilter)
 
   // Export — saara data pehle se load hai, isliye alag API call ki zaroorat nahi.
   const handleExport = () => {
@@ -589,7 +606,7 @@ export default function PreGateInOut() {
 
           {/* ── Stats + Filter — merged into one card ── */}
           <FilterCard>
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-9" bare>
             <StatCard
               label="Total"
               value={total}
@@ -597,7 +614,7 @@ export default function PreGateInOut() {
               tone="slate"
               isActive={gateFilter === 'ALL' && processFilter === 'all'}
               onClick={() => {
-                setGateFilter('ALL'); setProcessFilter('all')
+                setGateFilter('ALL'); setProcessFilter('all'); setSizeFilter('all')
                 fetchSurvey(buildArgs(undefined, 'ALL'))
               }}
               total={total}
@@ -655,6 +672,24 @@ export default function PreGateInOut() {
               isActive={processFilter === 'DOMESTIC'}
               onClick={() => setProcessFilter('DOMESTIC')}
               total={processStats.total}
+            />
+            <StatCard
+              label="20 ft"
+              value={sizeStats.size20}
+              icon={FiPackage}
+              tone="emerald"
+              isActive={sizeFilter === '20'}
+              onClick={() => setSizeFilter(sizeFilter === '20' ? 'all' : '20')}
+              total={sizeStats.total}
+            />
+            <StatCard
+              label="40 ft"
+              value={sizeStats.size40}
+              icon={FiPackage}
+              tone="amber"
+              isActive={sizeFilter === '40'}
+              onClick={() => setSizeFilter(sizeFilter === '40' ? 'all' : '40')}
+              total={sizeStats.total}
             />
           </StatGrid>
 
