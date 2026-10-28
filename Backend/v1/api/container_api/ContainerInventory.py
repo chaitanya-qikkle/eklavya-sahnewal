@@ -312,6 +312,69 @@ def get_container_inout_24h():
         db.close_connection()
 
 
+# Same 25 rolling hour slots as ContainerInOut_24Hours (HourStart is the join
+# key), split by process (Import/Export/Empty) x size (20/40). Inline query so
+# no extra stored procedure has to be deployed.
+_INOUT_24H_PROCESS_SQL = """
+SET NOCOUNT ON;
+DECLARE @CurHour DATETIME = DATEADD(HOUR, DATEDIFF(HOUR, 0, GETDATE()), 0);
+DECLARE @From    DATETIME = DATEADD(HOUR, -24, @CurHour);
+
+;WITH Slots AS (
+    SELECT 0 AS n UNION ALL SELECT n + 1 FROM Slots WHERE n < 24
+),
+Hrs AS (
+    SELECT DATEADD(HOUR, n, @From) AS HourStart FROM Slots
+),
+Ev AS (
+    SELECT DATEADD(HOUR, DATEDIFF(HOUR, 0, g.GateInDate), 0) AS HourStart, 'IN' AS Dir,
+           UPPER(ISNULL(p.ProcessName, '')) AS Process, LEFT(ISNULL(s.ContSize, ''), 2) AS Sz
+    FROM EKL_TRN_INVENTORY g
+    LEFT JOIN ESS_MST_PROCESS        p ON p.ProcessID  = g.ProcessID
+    LEFT JOIN ESS_MST_CONTAINER_SIZE s ON s.ContSizeID = g.SizeID
+    WHERE g.GateInDate >= @From AND g.ContNo <> ''
+    UNION ALL
+    SELECT DATEADD(HOUR, DATEDIFF(HOUR, 0, g.GateOutDate), 0), 'OUT',
+           UPPER(ISNULL(p.ProcessName, '')), LEFT(ISNULL(s.ContSize, ''), 2)
+    FROM EKL_TRN_INVENTORY g
+    LEFT JOIN ESS_MST_PROCESS        p ON p.ProcessID  = g.ProcessID
+    LEFT JOIN ESS_MST_CONTAINER_SIZE s ON s.ContSizeID = g.SizeID
+    WHERE g.GateOutDate >= @From AND g.ContNo <> ''
+)
+SELECT
+    h.HourStart,
+    ISNULL(SUM(CASE WHEN e.Dir='IN'  AND e.Process='IMPORT' AND e.Sz='20' THEN 1 END), 0) AS GateInImport20,
+    ISNULL(SUM(CASE WHEN e.Dir='IN'  AND e.Process='IMPORT' AND e.Sz='40' THEN 1 END), 0) AS GateInImport40,
+    ISNULL(SUM(CASE WHEN e.Dir='IN'  AND e.Process='EXPORT' AND e.Sz='20' THEN 1 END), 0) AS GateInExport20,
+    ISNULL(SUM(CASE WHEN e.Dir='IN'  AND e.Process='EXPORT' AND e.Sz='40' THEN 1 END), 0) AS GateInExport40,
+    ISNULL(SUM(CASE WHEN e.Dir='IN'  AND e.Process='EMPTY'  AND e.Sz='20' THEN 1 END), 0) AS GateInEmpty20,
+    ISNULL(SUM(CASE WHEN e.Dir='IN'  AND e.Process='EMPTY'  AND e.Sz='40' THEN 1 END), 0) AS GateInEmpty40,
+    ISNULL(SUM(CASE WHEN e.Dir='OUT' AND e.Process='IMPORT' AND e.Sz='20' THEN 1 END), 0) AS GateOutImport20,
+    ISNULL(SUM(CASE WHEN e.Dir='OUT' AND e.Process='IMPORT' AND e.Sz='40' THEN 1 END), 0) AS GateOutImport40,
+    ISNULL(SUM(CASE WHEN e.Dir='OUT' AND e.Process='EXPORT' AND e.Sz='20' THEN 1 END), 0) AS GateOutExport20,
+    ISNULL(SUM(CASE WHEN e.Dir='OUT' AND e.Process='EXPORT' AND e.Sz='40' THEN 1 END), 0) AS GateOutExport40,
+    ISNULL(SUM(CASE WHEN e.Dir='OUT' AND e.Process='EMPTY'  AND e.Sz='20' THEN 1 END), 0) AS GateOutEmpty20,
+    ISNULL(SUM(CASE WHEN e.Dir='OUT' AND e.Process='EMPTY'  AND e.Sz='40' THEN 1 END), 0) AS GateOutEmpty40
+FROM Hrs h
+LEFT JOIN Ev e ON e.HourStart = h.HourStart
+GROUP BY h.HourStart
+ORDER BY h.HourStart;
+"""
+
+
+@router.get("/container-inout-24h-process")
+def get_container_inout_24h_process():
+    """Hourly gate-in / gate-out split by process + size for the last 24h."""
+    db = SQLManager()
+    try:
+        response = db.execute_query(_INOUT_24H_PROCESS_SQL)
+        return response
+    except Exception as e:
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
+    finally:
+        db.close_connection()
+
+
 @router.get("/container-info")
 def get_container_info(container_no: str = ""):
     db = SQLManager()

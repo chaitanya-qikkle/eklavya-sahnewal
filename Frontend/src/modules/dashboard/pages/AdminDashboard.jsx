@@ -22,6 +22,7 @@ import {
   useLazyGetEquipmentDailyUtilizationQuery,
   useGetContainerStatusReportQuery,
   useGetContainerInOut24hQuery,
+  useGetContainerInOut24hProcessQuery,
   useGetDashboardYardInventoryQuery,
   useGetDashboardShiplineQuery,
   useGetDashboardContainerAgeingQuery,
@@ -1257,6 +1258,13 @@ const AdminDashboard = () => {
     { pollingInterval: 60000 }
   );
 
+  // Same 24h window split by process (Import/Export/Empty) × size — merged
+  // into hourlyThroughput on HourStart.
+  const { data: gateInOut24hProcApi } = useGetContainerInOut24hProcessQuery(
+    undefined,
+    { pollingInterval: 60000 }
+  );
+
   // Yard inventory by block with real capacity/utilization — GET_DASHBOARD_YARDINVENTORY
   const { data: yardInvApi, isFetching: yardInvLoading } = useGetDashboardYardInventoryQuery(
     undefined,
@@ -1511,9 +1519,27 @@ const AdminDashboard = () => {
   // (SP uses GETDATE()), independent of the dashboard's date-range filter.
   const hourlyThroughput = useMemo(() => {
     const rows = Array.isArray(gateInOut24hApi?.data) ? gateInOut24hApi.data : [];
+    const procRows = Array.isArray(gateInOut24hProcApi?.data) ? gateInOut24hProcApi.data : [];
+    const procByHour = new Map();
+    procRows.forEach((p) => {
+      const t = parseDateTime(get(p, "HourStart", "hourstart"));
+      if (t) procByHour.set(t.getTime(), p);
+    });
+    const num = (p, k) => Number(p ? get(p, k, k.toLowerCase()) || 0 : 0);
     return rows.map((r) => {
       const hourStart = get(r, "HourStart", "hourstart");
       const dt = parseDateTime(hourStart);
+      const p = dt ? procByHour.get(dt.getTime()) : null;
+      const proc = {};
+      ["Import", "Export", "Empty"].forEach((name) => {
+        const k = name.toLowerCase();
+        proc[`in${name}20`]  = num(p, `GateIn${name}20`);
+        proc[`in${name}40`]  = num(p, `GateIn${name}40`);
+        proc[`out${name}20`] = num(p, `GateOut${name}20`);
+        proc[`out${name}40`] = num(p, `GateOut${name}40`);
+        proc[`in_${k}`]  = proc[`in${name}20`]  + proc[`in${name}40`];
+        proc[`out_${k}`] = proc[`out${name}20`] + proc[`out${name}40`];
+      });
       // Axis label = just the starting clock hour ("14:00"); full range
       // ("14-08-2026 14:00 - 15:00") is used as the tooltip label instead.
       const label = dt ? String(dt.getHours()).padStart(2, "0") + ":00" : "—";
@@ -1530,6 +1556,7 @@ const AdminDashboard = () => {
         in40: Number(get(r, "GateIn40", "gatein40") || 0),
         out20: Number(get(r, "GateOut20", "gateout20") || 0),
         out40: Number(get(r, "GateOut40", "gateout40") || 0),
+        ...proc,
       };
     }).map((r) => ({
       ...r,
@@ -1537,7 +1564,21 @@ const AdminDashboard = () => {
       inTeu: r.in20 + r.in40 * 2,
       outTeu: r.out20 + r.out40 * 2,
     }));
-  }, [gateInOut24hApi]);
+  }, [gateInOut24hApi, gateInOut24hProcApi]);
+
+  // Process-wise 24h totals: { dir: { import|export|empty: {count, s20, s40, teus} } }
+  const gateProcTotals = useMemo(() => {
+    const out = { in: {}, out: {} };
+    ["Import", "Export", "Empty"].forEach((name) => {
+      const k = name.toLowerCase();
+      ["in", "out"].forEach((d) => {
+        const s20 = hourlyThroughput.reduce((s, r) => s + r[`${d}${name}20`], 0);
+        const s40 = hourlyThroughput.reduce((s, r) => s + r[`${d}${name}40`], 0);
+        out[d][k] = { count: s20 + s40, s20, s40, teus: s20 + s40 * 2 };
+      });
+    });
+    return out;
+  }, [hourlyThroughput]);
 
   // Dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING. One SP row per
   // (Process, Aging bucket) with Size20/Size40 counts; fold those into the
@@ -1971,14 +2012,20 @@ const AdminDashboard = () => {
       breakdown: [
         { name: "Gate-In", value: totalIn24h, color: T.blue, sizes: { s20: totalIn20, s40: totalIn40, teus: totalInTeu } },
         { name: "Gate-Out", value: totalOut24h, color: T.cyan, sizes: { s20: totalOut20, s40: totalOut40, teus: totalOutTeu } },
+        ...[["import", "Import", T.blue], ["export", "Export", T.pink], ["empty", "Empty", T.amber]].flatMap(([k, label, color]) => [
+          { name: `${label} In`,  value: gateProcTotals.in[k].count,  color, sizes: { s20: gateProcTotals.in[k].s20,  s40: gateProcTotals.in[k].s40,  teus: gateProcTotals.in[k].teus } },
+          { name: `${label} Out`, value: gateProcTotals.out[k].count, color, sizes: { s20: gateProcTotals.out[k].s20, s40: gateProcTotals.out[k].s40, teus: gateProcTotals.out[k].teus } },
+        ]),
       ],
       table: {
         title: "Hourly throughput",
-        cols: ["Hour", "Gate-In", "In TEUs", "Gate-Out", "Out TEUs"],
-        rows: hourlyThroughput.map((h) => [h.hourSlot, h.in, h.inTeu, h.out, h.outTeu]),
+        cols: ["Hour", "Gate-In", "In TEUs", "Gate-Out", "Out TEUs",
+          "In Import", "In Export", "In Empty", "Out Import", "Out Export", "Out Empty"],
+        rows: hourlyThroughput.map((h) => [h.hourSlot, h.in, h.inTeu, h.out, h.outTeu,
+          h.in_import, h.in_export, h.in_empty, h.out_import, h.out_export, h.out_empty]),
       },
     },
-  ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, ageingBuckets, containers, liveEquipment, hourlyThroughput, dailyUtilPct, utilizationApi]);
+  ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, ageingBuckets, containers, liveEquipment, hourlyThroughput, gateProcTotals, dailyUtilPct, utilizationApi]);
 
   // ─── Equipment table sort/filter ─────────────────────────────────────────
   const sortedEquipment = useMemo(() => {
@@ -2163,8 +2210,8 @@ const AdminDashboard = () => {
             >
               <div className="flex items-center gap-3 mb-3 flex-wrap">
                 {[
-                  { name: "IN",  color: T.cyan, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teu: totalInTeu },
-                  { name: "OUT", color: T.pink, total: totalOut24h, s20: totalOut20, s40: totalOut40, teu: totalOutTeu },
+                  { name: "IN",  color: T.cyan, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teu: totalInTeu,  proc: gateProcTotals.in },
+                  { name: "OUT", color: T.pink, total: totalOut24h, s20: totalOut20, s40: totalOut40, teu: totalOutTeu, proc: gateProcTotals.out },
                 ].map((g) => (
                   <div key={g.name} className="flex items-center gap-4 rounded-lg px-3 py-1.5 text-[10px] font-black flex-wrap"
                     style={{ background: `${g.color}0d`, border: `1px solid ${g.color}25` }}>
@@ -2188,6 +2235,13 @@ const AdminDashboard = () => {
                       <span style={{ color: T.textDim }}>TEUs</span>
                       <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.teu)}</span>
                     </span>
+                    {[["Import", "import", T.blue], ["Export", "export", T.pink], ["Empty", "empty", T.amber]].map(([label, k, c]) => (
+                      <span key={k} className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c }} />
+                        <span style={{ color: T.textDim }}>{label}</span>
+                        <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.proc[k].count)}</span>
+                      </span>
+                    ))}
                   </div>
                 ))}
               </div>
