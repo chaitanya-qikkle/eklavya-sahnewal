@@ -2692,31 +2692,6 @@ const AdminDashboard = () => {
 
           </div>
 
-          {/* Footer status bar */}
-          <div className="rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-[11px]"
-            style={{ background: "white", border: `1px solid ${T.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-            <div className="flex items-center gap-4 flex-wrap" style={{ color: T.textDim }}>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: T.emerald }} />
-                <span className="font-black" style={{ color: T.text }}>Equipment</span> · 15s
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: T.blue }} />
-                <span className="font-black" style={{ color: T.text }}>Inventory</span> · 30s
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: T.amber }} />
-                <span className="font-black" style={{ color: T.text }}>Transactions</span> · 20s
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: T.pink }} />
-                <span className="font-black" style={{ color: T.text }}>OCR</span> · 9AM→9AM
-              </span>
-            </div>
-            <div className="tabular-nums" style={{ color: T.textMute }}>
-              Last sync · <span className="font-black" style={{ color: T.text }}>{now.toLocaleTimeString()}</span>
-            </div>
-          </div>
 
         </main>
       </div>
