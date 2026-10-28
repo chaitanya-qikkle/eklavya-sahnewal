@@ -1913,10 +1913,17 @@ const AdminDashboard = () => {
       ],
       table: {
         title: "All Containers",
-        cols: ["Container No", "Process", "Size", "Location", "Gate In"],
+        cols: ["Container No", "Process", "Status", "Size", "Location", "Gate In"],
         rows: containers.map((c) => [
           get(c, "CONTAINER_NO", "container_no") || "—",
           get(c, "CONTAINER_PROCESS", "container_process") || "—",
+          (() => {
+            const s = String(get(c, "INVENTORY_STATUS", "inventory_status") || "").trim().toUpperCase();
+            if (!s) return "—";
+            if (s === "EMPTY") return "Empty";
+            if (s === "FULL" || s === "LOADED" || s === "LADEN") return "Loaded";
+            return s.charAt(0) + s.slice(1).toLowerCase();
+          })(),
           get(c, "CONTAINER_SIZE", "container_size") || "—",
           get(c, "MASTERTABLE", "LOCATION_NAME", "YARD_NAME") || "—",
           fmtDate(parseDateTime(get(c, "GATE_IN_DATE", "gate_in_date"))),
