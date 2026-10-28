@@ -21,9 +21,7 @@ import {
   useGetEquipmentTransactionLatestQuery,
   useLazyGetEquipmentDailyUtilizationQuery,
   useGetContainerStatusReportQuery,
-  useGetContainerInOut24hQuery,
-  useGetContainerInOut24hProcessQuery,
-  useGetDashboardYardInventoryQuery,
+  useGetContainerInOut24hQuery,  useGetDashboardYardInventoryQuery,
   useGetDashboardShiplineQuery,
   useGetDashboardContainerAgeingQuery,
   useGetDashboardYardInventoryProcesswiseQuery,
@@ -1258,13 +1256,6 @@ const AdminDashboard = () => {
     { pollingInterval: 60000 }
   );
 
-  // Same 24h window split by process (Import/Export/Empty) × size — merged
-  // into hourlyThroughput on HourStart.
-  const { data: gateInOut24hProcApi } = useGetContainerInOut24hProcessQuery(
-    undefined,
-    { pollingInterval: 60000 }
-  );
-
   // Yard inventory by block with real capacity/utilization — GET_DASHBOARD_YARDINVENTORY
   const { data: yardInvApi, isFetching: yardInvLoading } = useGetDashboardYardInventoryQuery(
     undefined,
@@ -1519,17 +1510,12 @@ const AdminDashboard = () => {
   // (SP uses GETDATE()), independent of the dashboard's date-range filter.
   const hourlyThroughput = useMemo(() => {
     const rows = Array.isArray(gateInOut24hApi?.data) ? gateInOut24hApi.data : [];
-    const procRows = Array.isArray(gateInOut24hProcApi?.data) ? gateInOut24hProcApi.data : [];
-    const procByHour = new Map();
-    procRows.forEach((p) => {
-      const t = parseDateTime(get(p, "HourStart", "hourstart"));
-      if (t) procByHour.set(t.getTime(), p);
-    });
-    const num = (p, k) => Number(p ? get(p, k, k.toLowerCase()) || 0 : 0);
+    const num = (p, k) => Number(get(p, k, k.toLowerCase()) || 0);
     return rows.map((r) => {
       const hourStart = get(r, "HourStart", "hourstart");
       const dt = parseDateTime(hourStart);
-      const p = dt ? procByHour.get(dt.getTime()) : null;
+      // Process-wise split (Import/Export/Empty × 20/40) comes from the same SP row.
+      const p = r;
       const proc = {};
       ["Import", "Export", "Empty"].forEach((name) => {
         const k = name.toLowerCase();
@@ -1564,7 +1550,7 @@ const AdminDashboard = () => {
       inTeu: r.in20 + r.in40 * 2,
       outTeu: r.out20 + r.out40 * 2,
     }));
-  }, [gateInOut24hApi, gateInOut24hProcApi]);
+  }, [gateInOut24hApi]);
 
   // Process-wise 24h totals: { dir: { import|export|empty: {count, s20, s40, teus} } }
   const gateProcTotals = useMemo(() => {
