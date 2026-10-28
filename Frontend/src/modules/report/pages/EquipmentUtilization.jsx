@@ -29,14 +29,15 @@ const fmtDate = (val) => {
 const COLUMNS = [
   { key: 'EqpName',          label: 'Equipment' },
   { key: 'TransactionDate',  label: 'Utilization Date', format: fmtDate },
-  { key: 'LIFTDETAIL',       label: 'Total Liftup' },
+  { key: 'LIFTDETAIL',       label: 'Total Moves' },
   { key: 'IMPORT',           label: 'Import' },
   { key: 'EXPORT',           label: 'Export' },
   { key: 'RAIL',             label: 'Rail' },
   { key: 'DOMESTIC',         label: 'Domestic' },
-  { key: 'GDL',              label: 'GDL' },
+  { key: 'Size20',           label: '20 FT' },
+  { key: 'Size40',           label: '40 FT' },
   { key: 'LOADED',           label: 'Laden' },
-  { key: 'EMT',              label: 'Empty' },
+  { key: 'EMPTY',            label: 'Empty' },
 ]
 
 const EquipmentUtilization = () => {
@@ -126,11 +127,12 @@ const EquipmentUtilization = () => {
         export:      acc.export      + (Number(r.EXPORT) || 0),
         rail:        acc.rail        + (Number(r.RAIL) || 0),
         domestic:    acc.domestic    + (Number(r.DOMESTIC) || 0),
-        gdl:         acc.gdl         + (Number(r.GDL) || 0),
+        size20:      acc.size20      + (Number(r.Size20) || 0),
+        size40:      acc.size40      + (Number(r.Size40) || 0),
         laden:       acc.laden       + (Number(r.LOADED) || 0),
-        empty:       acc.empty       + (Number(r.EMT) || 0),
+        empty:       acc.empty       + (Number(r.EMPTY) || 0),
       }),
-      { totalLiftup: 0, import: 0, export: 0, rail: 0, domestic: 0, gdl: 0, laden: 0, empty: 0 }
+      { totalLiftup: 0, import: 0, export: 0, rail: 0, domestic: 0, size20: 0, size40: 0, laden: 0, empty: 0 }
     )
   }, [rows])
 
@@ -309,15 +311,18 @@ const EquipmentUtilization = () => {
 
             {/* Summary Cards */}
             {rows.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
                 {[
-                  { label: 'Total Liftup', value: stats.totalLiftup },
-                  { label: 'Import',       value: stats.import      },
-                  { label: 'Export',       value: stats.export      },
-                  { label: 'Laden',        value: stats.laden       },
+                  { label: 'Total Moves', value: stats.totalLiftup },
+                  { label: 'Import',      value: stats.import      },
+                  { label: 'Export',      value: stats.export      },
+                  { label: 'Empty',       value: stats.empty       },
+                  { label: 'Laden',       value: stats.laden       },
+                  { label: '20 FT',       value: stats.size20      },
+                  { label: '40 FT',       value: stats.size40      },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-white rounded-lg shadow border border-slate-200 px-5 py-4">
-                    <div className="text-[10px] font-bold text-[#0e4a78] uppercase tracking-widest mb-1">{label}</div>
+                  <div key={label} className="bg-white rounded-lg shadow border border-slate-200 px-4 py-4 min-w-0">
+                    <div className="text-[10px] font-bold text-[#0e4a78] uppercase tracking-widest mb-1 truncate">{label}</div>
                     <div className="text-2xl font-black text-slate-800">{value.toLocaleString()}</div>
                   </div>
                 ))}
@@ -415,7 +420,8 @@ const EquipmentUtilization = () => {
                           <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.export.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.rail.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.domestic.toLocaleString()}</td>
-                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.gdl.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.size20.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.size40.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.laden.toLocaleString()}</td>
                           <td className="px-4 py-2.5 text-slate-800 font-bold">{stats.empty.toLocaleString()}</td>
                         </tr>

@@ -83,6 +83,7 @@ def get_daily_utilization(
             "EXEC dbo.GET_EKY_TRN_DAILY_UTILIZATION ?, ?, ?",
             (eqp, from_d, to_d),
         )
+        print("utlization_Daily ==>", response)
         return response
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}

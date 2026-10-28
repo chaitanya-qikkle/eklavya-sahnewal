@@ -73,11 +73,14 @@ const baseQuery = fetchBaseQuery({
   },
 })
 
+const PUBLIC_PATHS = ['/kiosk', '/container/inventory-mapping']
+
 const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await baseQuery(args, api, extraOptions)
   const status = result.error?.status
   const isUnauthed = status === 401 || (status === 403 && result.error?.data?.message === 'Not authenticated')
-  if (isUnauthed && !window.location.pathname.startsWith('/kiosk')) {
+  const isPublicPage = PUBLIC_PATHS.some((p) => window.location.pathname.startsWith(p))
+  if (isUnauthed && !isPublicPage) {
     sessionStorage.removeItem('authToken')
     sessionStorage.removeItem('user')
     localStorage.removeItem('authToken')
@@ -432,6 +435,13 @@ export const ymsApi = createApi({
     searchContainer: builder.query({
       query: (term) => ({
         url: `${API_ENDPOINTS.CONTAINER.SEARCH_CONTAINER}?term=${term}`,
+        method: 'GET',
+      }),
+    }),
+
+    searchContainerInventory: builder.query({
+      query: (term) => ({
+        url: `${API_ENDPOINTS.CONTAINER.SEARCH_CONTAINER_INVENTORY}?term=${term}`,
         method: 'GET',
       }),
     }),
@@ -1234,6 +1244,7 @@ export const {
   useGetDeviceDataLatestQuery,
   useGetDeviceDataLiveLocationsQuery,
   useLazySearchContainerQuery,
+  useLazySearchContainerInventoryQuery,
   useGetContainerInventoryQuery,
   useLazyGetContainerInventoryQuery,
   useGetContainerInfoQuery,

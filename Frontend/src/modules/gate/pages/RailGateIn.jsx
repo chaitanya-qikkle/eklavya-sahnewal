@@ -188,14 +188,20 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                       ? `${row.ContainerSize || '—'} ${row.ContainerType || ''}`.trim()
                       : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
+                  <DetailField icon={FiHash} label="Booking No" accent="#64748b">
+                    {row.BookingNo || <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
                   <DetailField icon={FaTrain} label="Wagon No" accent="#d97706">
                     {row.WagonNo || <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
-                  <DetailField icon={FiClock} label="Rail In Date/Time" accent="#059669">
-                    {row.RailInDateTime ? formatDate(row.RailInDateTime) : <span className="text-slate-300 font-normal">—</span>}
+                  <DetailField icon={FaTrain} label="Rake No" accent="#d97706">
+                    {row.RakeNo || <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
                 </div>
                 <div className="sm:px-5">
+                  <DetailField icon={FiClock} label="Rail In Date/Time" accent="#059669">
+                    {row.RailInDateTime ? formatDate(row.RailInDateTime) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
                   <DetailField icon={FiMapPin} label="Container Location" accent="#7c3aed">
                     {row.ContainerLocation || <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
@@ -204,9 +210,6 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                   </DetailField>
                   <DetailField icon={FiHash} label="Document No" accent="#64748b">
                     {row.DocumentNo || <span className="text-slate-300 font-normal">—</span>}
-                  </DetailField>
-                  <DetailField icon={FiHash} label="Booking No" accent="#64748b">
-                    {row.BookingNo || <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
                 </div>
                 <div className="sm:pl-5">
@@ -410,7 +413,6 @@ const RailGateIn = () => {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // page kabhi totalPages se bada na rahe
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
@@ -421,7 +423,6 @@ const RailGateIn = () => {
     setPage(1)
   }
 
-  // Ek card = ek filter. Wahi card dobara dabane par filter hat jata hai.
   const handleCard = (val) => {
     setCardFilter(prev => (prev === val ? 'all' : val))
     setPage(1)
@@ -434,12 +435,13 @@ const RailGateIn = () => {
       'Container No': row.ContainerNo || '',
       'Size': row.ContainerSize || '',
       'Type': row.ContainerType || '',
+      'Booking No': row.BookingNo || '',
       'Wagon No': row.WagonNo || '',
+      'Rake No': row.RakeNo || '',
       'Rail In Date/Time': row.RailInDateTime ? formatDate(row.RailInDateTime) : '',
       'Location': row.ContainerLocation || '',
       'Equipment': row.EquipmentName || '',
       'Document No': row.DocumentNo || '',
-      'Booking No': row.BookingNo || '',
       'Terminal': row.Terminal || '',
       'Mode': row.Mode || '',
       'Process': row.Process || '',
@@ -595,7 +597,6 @@ const RailGateIn = () => {
           </FilterBar>
           </FilterCard>
 
-          {/* ── Debug strip (DEBUG = false karne par hat jayega) ── */}
           {DEBUG && (
             <div className="mb-2 rounded-lg bg-yellow-50 border border-yellow-300 text-yellow-900 text-xs font-mono px-3 py-2">
               DEBUG → cardFilter: <b>{cardFilter}</b> | rowsAll: <b>{rowsAll.length}</b> | filtered: <b>{filtered.length}</b> | page: <b>{page}/{totalPages}</b> | pageRows: <b>{pageRows.length}</b>
@@ -643,7 +644,9 @@ const RailGateIn = () => {
                       <th className="px-2 py-2 text-left font-semibold uppercase tracking-wider border-r border-white/10 w-8">#</th>
                       <TH col="ContainerNo">Container No</TH>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Size / Type</th>
+                      <TH col="BookingNo">Booking No</TH>
                       <TH col="WagonNo">Wagon No</TH>
+                      <TH col="RakeNo">Rake No</TH>
                       <TH col="RailInDateTime">Rail In</TH>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Equipment</th>
@@ -654,7 +657,7 @@ const RailGateIn = () => {
                   <tbody className="divide-y divide-slate-100">
                     {pageRows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-16 text-center">
+                        <td colSpan={10} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range or search a container no</p>
@@ -685,8 +688,18 @@ const RailGateIn = () => {
                             ) : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
+                            {row.BookingNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-bold font-mono text-xs">{row.BookingNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
                             {row.WagonNo
                               ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-black font-mono text-xs">{row.WagonNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.RakeNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-black font-mono text-xs">{row.RakeNo}</span>
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row.RailInDateTime} /></td>

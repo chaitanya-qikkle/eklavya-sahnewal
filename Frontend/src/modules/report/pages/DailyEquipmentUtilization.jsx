@@ -3,7 +3,7 @@ import { FiSearch, FiFilter, FiCalendar, FiChevronUp, FiChevronDown } from 'reac
 import * as XLSX from 'xlsx'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
-import { useLazyGetEquipmentDailyUtilizationQuery, useLazyGetEquipmentDailyUtilizationCountQuery, useGetEquipmentQuery } from '../../../store/api/ymsApi'
+import { useLazyGetEquipmentDailyUtilizationQuery, useGetEquipmentQuery } from '../../../store/api/ymsApi'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
@@ -33,9 +33,6 @@ const DailyEquipmentUtilization = () => {
   const [fetchUtilization, { data: utilizationApi, isFetching }] =
     useLazyGetEquipmentDailyUtilizationQuery()
 
-  const [fetchCount, { data: countApi }] =
-    useLazyGetEquipmentDailyUtilizationCountQuery()
-
   const allEquipment = useMemo(() => {
     const list = Array.isArray(equipmentApi?.data) ? equipmentApi.data : []
     return list.map(item =>
@@ -49,12 +46,17 @@ const DailyEquipmentUtilization = () => {
     if (hasFetched.current || !allEquipment.length) return
     hasFetched.current = true
     fetchUtilization({ eqp_no: allEquipment.join(','), from_date: yesterday, to_date: yesterday })
-    fetchCount({ from_date: yesterday, to_date: yesterday })
-  }, [allEquipment, fetchUtilization, fetchCount, yesterday])
+  }, [allEquipment, fetchUtilization, yesterday])
 
   const g = (r, ...keys) => {
     for (const k of keys) if (r[k] !== undefined && r[k] !== null && r[k] !== '') return r[k]
     return '—'
+  }
+
+  // Numeric getter: missing/invalid values become 0 (instead of '—' -> NaN)
+  const num = (r, ...keys) => {
+    for (const k of keys) if (r[k] !== undefined && r[k] !== null && r[k] !== '') return Number(r[k]) || 0
+    return 0
   }
 
   const rawRows = useMemo(
@@ -62,36 +64,12 @@ const DailyEquipmentUtilization = () => {
     [utilizationApi]
   )
 
-  const countMap = useMemo(() => {
-    const rows = Array.isArray(countApi?.data) ? countApi.data : []
-    const map = new Map()
-    rows.forEach(c => {
-      const key = String(c.Equipment_Name ?? c.equipment_name ?? '').trim()
-      if (!key) return
-      map.set(key, {
-        laden:  Number(c.Laden_Count  ?? c.laden_count  ?? 0),
-        empty:  Number(c.Empty_Count  ?? c.empty_count  ?? 0),
-        size20: Number(c.Size20_Count ?? c.size20_count ?? 0),
-        size40: Number(c.Size40_Count ?? c.size40_count ?? 0),
-      })
-    })
-    return map
-  }, [countApi])
-
-  const countTotals = useMemo(() => {
-    const rows = Array.isArray(countApi?.data) ? countApi.data : []
-    return {
-      laden:  rows.reduce((s, c) => s + Number(c.Laden_Count  ?? c.laden_count  ?? 0), 0),
-      empty:  rows.reduce((s, c) => s + Number(c.Empty_Count  ?? c.empty_count  ?? 0), 0),
-      size20: rows.reduce((s, c) => s + Number(c.Size20_Count ?? c.size20_count ?? 0), 0),
-      size40: rows.reduce((s, c) => s + Number(c.Size40_Count ?? c.size40_count ?? 0), 0),
-    }
-  }, [countApi])
-
   const tableRows = useMemo(() => rawRows.map(r => ({
     equipmentNo:    g(r, 'EquipmentNo', 'equipmentno', 'EQUIPMENT_NO'),
     breakdownTime:  g(r, 'BreakdownTime', 'breakdowntime', 'BREAKDOWN_TIME'),
     idleTime:       g(r, 'IdleTime', 'idletime', 'IDLE_TIME'),
+    // NEW: Cooling Time (shown right after Idle Time)
+    coolingTime:    g(r, 'CoolingTime', 'coolingtime', 'COOLING_TIME'),
     workTime:       g(r, 'WorkTime', 'worktime', 'WORK_TIME'),
     totalMoves:     Number(g(r, 'TotalMoves', 'totalmoves', 'TOTAL_MOVES') || 0),
     workingHours:   Number(g(r, 'WorkingHours', 'workinghours', 'WORKING_HOURS') || 0),
@@ -100,6 +78,11 @@ const DailyEquipmentUtilization = () => {
     utilization:    Number(g(r, 'PercentageUtilization', 'percentageutilization') || 0),
     carbonMove:     Number(g(r, 'Carbon_Emi_Move', 'carbon_emi_move') || 0),
     carbonHr:       Number(g(r, 'Carbon_Emi_hr', 'carbon_emi_hr') || 0),
+    // NEW columns (last)
+    loadedCount:    num(r, 'loadedcount', 'LoadedCount', 'Loadedcount', 'LOADEDCOUNT'),
+    emptyCount:     num(r, 'Emptycount', 'EmptyCount', 'emptycount', 'EMPTYCOUNT'),
+    cnt20:          num(r, '20Cnt', '20cnt', '20CNT'),
+    cnt40:          num(r, '40cnt', '40Cnt', '40CNT'),
   })), [rawRows])
 
   const filteredData = useMemo(() => {
@@ -131,7 +114,6 @@ const DailyEquipmentUtilization = () => {
     setCurrentPage(1)
     setGlobalSearch('')
     fetchUtilization({ eqp_no: allEquipment.join(','), from_date: fromDate, to_date: toDate })
-    fetchCount({ from_date: fromDate, to_date: toDate })
   }
 
   const handleClear = () => {
@@ -140,27 +122,27 @@ const DailyEquipmentUtilization = () => {
     setGlobalSearch('')
     setCurrentPage(1)
     fetchUtilization({ eqp_no: allEquipment.join(','), from_date: yesterday, to_date: yesterday })
-    fetchCount({ from_date: yesterday, to_date: yesterday })
   }
 
   const handleExport = () => {
     const ws = XLSX.utils.json_to_sheet(filteredData.map((r, i) => ({
-      '#':                        i + 1,
-      'Equipment No':             r.equipmentNo,
-      'Breakdown Time':           r.breakdownTime,
-      'Idle Time':                r.idleTime,
-      'Work Time':                r.workTime,
-      'Total Moves':              r.totalMoves,
-      'Working Hours':            r.workingHours,
-      'Hourly Moves':             r.hourlyMoves,
-      'Expected Working Hours':   r.expectedHrs,
-      'Utilization %':            r.utilization.toFixed(2),
+      '#':                         i + 1,
+      'Equipment No':              r.equipmentNo,
+      'Breakdown Time':            r.breakdownTime,
+      'Idle Time':                 r.idleTime,
+      'Cooling Time':              r.coolingTime,
+      'Work Time':                 r.workTime,
+      'Total Moves':               r.totalMoves,
+      'Working Hours':             r.workingHours,
+      'Hourly Moves':              r.hourlyMoves,
+      'Expected Working Hours':    r.expectedHrs,
+      'Utilization %':             r.utilization.toFixed(2),
       'Carbon Emi/Move (ton CO₂)': r.carbonMove,
       'Carbon Emi/Hr (ton CO₂)':   r.carbonHr,
-      'Laden Count':              (countMap.get(r.equipmentNo) ?? {}).laden ?? '',
-      'Empty Count':              (countMap.get(r.equipmentNo) ?? {}).empty ?? '',
-      '20ft Count':               (countMap.get(r.equipmentNo) ?? {}).size20 ?? '',
-      '40ft Count':               (countMap.get(r.equipmentNo) ?? {}).size40 ?? '',
+      'Loaded Count':              r.loadedCount,
+      'Empty Count':               r.emptyCount,
+      '20ft Count':                r.cnt20,
+      '40ft Count':                r.cnt40,
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Machine Utilization')
@@ -193,19 +175,19 @@ const DailyEquipmentUtilization = () => {
     { key: 'equipmentNo',   label: 'Equipment No'           },
     { key: 'breakdownTime', label: 'Breakdown Time'         },
     { key: 'idleTime',      label: 'Idle Time'              },
+    { key: 'coolingTime',   label: 'Cooling Time'           }, // NEW
     { key: 'workTime',      label: 'Work Time'              },
     { key: 'totalMoves',    label: 'Total Moves'            },
-    // Hidden per request — Laden/Empty/20ft/40ft counts (kept for easy restore)
-    // { key: 'laden',         label: 'Laden'                  },
-    // { key: 'empty',         label: 'Empty'                  },
-    // { key: 'size20',        label: '20ft'                   },
-    // { key: 'size40',        label: '40ft'                   },
     { key: 'workingHours',  label: 'Working Hours'          },
     { key: 'hourlyMoves',   label: 'Hourly Moves'           },
     { key: 'expectedHrs',   label: 'Expected Hrs'           },
     { key: 'utilization',   label: 'Utilization %'          },
-    { key: 'carbonMove',    label: 'CO₂/Move (ton)'        },
-    { key: 'carbonHr',      label: 'CO₂/Hr (ton)'          },
+    { key: 'carbonMove',    label: 'CO₂/Move (ton)'         },
+    { key: 'carbonHr',      label: 'CO₂/Hr (ton)'           },
+    // { key: 'loadedCount',   label: 'Loaded'                 },
+    // { key: 'emptyCount',    label: 'Empty'                  },
+    // { key: 'cnt20',         label: '20ft'                   },
+    // { key: 'cnt40',         label: '40ft'                   },
   ]
 
   return (
@@ -320,7 +302,7 @@ const DailyEquipmentUtilization = () => {
               </div>
             </div>
 
-            <div className="border-t border-slate-200">
+            <div className="border-t border-slate-200 overflow-x-auto">
               <table className="w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61]">
                   <tr>
@@ -329,7 +311,7 @@ const DailyEquipmentUtilization = () => {
                       <th
                         key={col.key}
                         onClick={() => handleSort(col.key)}
-                        className="px-4 py-3 text-left font-bold text-white tracking-wider border-r border-white/20 cursor-pointer hover:bg-white/10 select-none transition-colors last:border-r-0"
+                        className="px-4 py-3 text-left font-bold text-white tracking-wider border-r border-white/20 cursor-pointer hover:bg-white/10 select-none transition-colors last:border-r-0 whitespace-nowrap"
                       >
                         {col.label} <SortIcon col={col.key} />
                       </th>
@@ -369,22 +351,10 @@ const DailyEquipmentUtilization = () => {
                           <td className="px-4 py-2.5 text-slate-800 font-semibold border-r border-slate-100">{row.equipmentNo}</td>
                           <td className="px-4 py-2.5 text-slate-700 font-mono border-r border-slate-100">{row.breakdownTime}</td>
                           <td className="px-4 py-2.5 text-slate-700 font-mono border-r border-slate-100">{row.idleTime}</td>
+                          {/* NEW: Cooling Time */}
+                          <td className="px-4 py-2.5 text-slate-700 font-mono border-r border-slate-100">{row.coolingTime}</td>
                           <td className="px-4 py-2.5 text-slate-700 font-mono border-r border-slate-100">{row.workTime}</td>
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.totalMoves}</td>
-                          {/* Hidden per request — Laden/Empty/20ft/40ft counts (kept for easy restore)
-                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
-                            <span className="text-emerald-700 font-bold tabular-nums">{countMap.get(row.equipmentNo)?.laden ?? '—'}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
-                            <span className="text-amber-600 font-bold tabular-nums">{countMap.get(row.equipmentNo)?.empty ?? '—'}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
-                            <span className="text-blue-700 font-bold tabular-nums">{countMap.get(row.equipmentNo)?.size20 ?? '—'}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
-                            <span className="text-purple-700 font-bold tabular-nums">{countMap.get(row.equipmentNo)?.size40 ?? '—'}</span>
-                          </td>
-                          */}
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.workingHours}</td>
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.hourlyMoves}</td>
                           <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100 text-right">{row.expectedHrs}</td>
@@ -406,11 +376,24 @@ const DailyEquipmentUtilization = () => {
                               {row.carbonMove.toFixed(2)}
                             </span>
                           </td>
-                          <td className="px-4 py-2.5 text-right">
+                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
                             <span className="text-emerald-700 font-semibold tabular-nums">
                               {row.carbonHr.toFixed(2)}
                             </span>
                           </td>
+                          {/* Loaded / Empty / 20ft / 40ft */}
+                          {/* <td className="px-4 py-2.5 text-right border-r border-slate-100">
+                            <span className="text-emerald-700 font-bold tabular-nums">{row.loadedCount}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
+                            <span className="text-amber-600 font-bold tabular-nums">{row.emptyCount}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right border-r border-slate-100">
+                            <span className="text-blue-700 font-bold tabular-nums">{row.cnt20}</span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <span className="text-purple-700 font-bold tabular-nums">{row.cnt40}</span>
+                          </td> */}
                         </tr>
                       )
                     })
@@ -422,24 +405,11 @@ const DailyEquipmentUtilization = () => {
                     <tr>
                       <td className="px-4 py-2.5 text-slate-500 font-bold text-xs uppercase border-r border-slate-200 text-center">Total</td>
                       <td className="px-4 py-2.5 text-slate-700 font-bold border-r border-slate-200">All Machines</td>
-                      <td colSpan={3} className="border-r border-slate-200" />
+                      {/* Breakdown, Idle, Cooling, Work = 4 columns */}
+                      <td colSpan={4} className="border-r border-slate-200" />
                       <td className="px-4 py-2.5 text-slate-800 font-bold border-r border-slate-200 text-right">
                         {filteredData.reduce((s, r) => s + r.totalMoves, 0)}
                       </td>
-                      {/* Hidden per request — Laden/Empty/20ft/40ft totals (kept for easy restore)
-                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
-                        <span className="text-emerald-700 font-bold tabular-nums">{countTotals.laden}</span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
-                        <span className="text-amber-600 font-bold tabular-nums">{countTotals.empty}</span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
-                        <span className="text-blue-700 font-bold tabular-nums">{countTotals.size20}</span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
-                        <span className="text-purple-700 font-bold tabular-nums">{countTotals.size40}</span>
-                      </td>
-                      */}
                       <td className="px-4 py-2.5 text-slate-800 font-bold border-r border-slate-200 text-right">
                         {filteredData.reduce((s, r) => s + r.workingHours, 0).toFixed(1)}
                       </td>
@@ -462,11 +432,32 @@ const DailyEquipmentUtilization = () => {
                           {filteredData.reduce((s, r) => s + r.carbonMove, 0).toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
                         <span className="text-emerald-700 font-bold tabular-nums">
                           {filteredData.reduce((s, r) => s + r.carbonHr, 0).toFixed(2)}
                         </span>
                       </td>
+                      {/* Loaded / Empty / 20ft / 40ft totals */}
+                      {/* <td className="px-4 py-2.5 text-right border-r border-slate-200">
+                        <span className="text-emerald-700 font-bold tabular-nums">
+                          {filteredData.reduce((s, r) => s + r.loadedCount, 0)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
+                        <span className="text-amber-600 font-bold tabular-nums">
+                          {filteredData.reduce((s, r) => s + r.emptyCount, 0)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right border-r border-slate-200">
+                        <span className="text-blue-700 font-bold tabular-nums">
+                          {filteredData.reduce((s, r) => s + r.cnt20, 0)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <span className="text-purple-700 font-bold tabular-nums">
+                          {filteredData.reduce((s, r) => s + r.cnt40, 0)}
+                        </span>
+                      </td> */}
                     </tr>
                   </tfoot>
                 )}

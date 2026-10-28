@@ -21,17 +21,34 @@ import { selectAuthUser } from '../../../store/slices/authSlice'
 // ─── constants ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20
 
+// 5 images: Left / Right / Top + Left Damage (Left2) / Right Damage (Right2)
 const SIDES = [
-  { key: 'left',  imgKey: 'IMG_LEFT',  name: 'Left Side',  remarkKey: 'leftRemark'  },
-  { key: 'right', imgKey: 'IMG_RIGHT', name: 'Right Side', remarkKey: 'rightRemark' },
-  { key: 'top',   imgKey: 'IMG_TOP',   name: 'Top View',   remarkKey: 'topRemark'   },
+  { key: 'left',        imgKey: 'IMG_LEFT',  name: 'Left Side',    short: 'L',  remarkKey: 'leftRemark'        },
+  { key: 'right',       imgKey: 'IMG_RIGHT', name: 'Right Side',   short: 'R',  remarkKey: 'rightRemark'       },
+  { key: 'top',         imgKey: 'IMG_TOP',   name: 'Top View',     short: 'T',  remarkKey: 'topRemark'         },
+  { key: 'leftDamage',  imgKey: 'Left2',     name: 'Left Damage',  short: 'LD', remarkKey: 'leftDamageRemark',  damage: true },
+  { key: 'rightDamage', imgKey: 'Right2',    name: 'Right Damage', short: 'RD', remarkKey: 'rightDamageRemark', damage: true },
 ]
 const STEPS = [
-  { id: 1, label: 'Left' }, { id: 2, label: 'Right' },
-  { id: 3, label: 'Top'  }, { id: 4, label: 'Report' },
+  { id: 1, label: 'Left'  }, { id: 2, label: 'Right'     },
+  { id: 3, label: 'Top'   }, { id: 4, label: 'L Damage'  },
+  { id: 5, label: 'R Damage' }, { id: 6, label: 'Report' },
 ]
+const REPORT_STEP = STEPS.length // 6
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+// Left2 / Right2 come as "stitching_outputs/MAINGATE_IN/.../damage_left.jpg"
+// → convert to the same "/v1/container/img?p=..." format the other images use
+function getImageUrl(row, key) {
+  const raw = row?.[key]
+  if (!raw) return null
+  if (key === 'Left2' || key === 'Right2') {
+    const rel = String(raw).replace(/^\/?stitching_outputs\//, '')
+    return buildAssetUrl(`/v1/container/img?p=${rel}`)
+  }
+  return buildAssetUrl(raw)
+}
+
 function fetchImageAsDataUrl(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -56,6 +73,53 @@ function fmt(dt) {
     const p = (n) => String(n).padStart(2, '0')
     return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
   } catch { return String(dt) }
+}
+
+// The DB can hold a path for a file that is not actually on the server
+// (backend then answers {"success":false,"message":"Image not found"}).
+// So "has a path" is not enough — we probe the URL once with an <Image> and
+// only enable the button when it really loads as an image. Results are cached.
+const imgProbeCache = new Map() // url -> 'ok' | 'missing'
+
+function useImageStatus(url) {
+  const [status, setStatus] = useState(() => (!url ? 'missing' : imgProbeCache.get(url) || 'loading'))
+  useEffect(() => {
+    if (!url) { setStatus('missing'); return }
+    const cached = imgProbeCache.get(url)
+    if (cached) { setStatus(cached); return }
+    setStatus('loading')
+    let cancelled = false
+    const img = new Image()
+    img.onload  = () => { imgProbeCache.set(url, 'ok');      if (!cancelled) setStatus('ok') }
+    img.onerror = () => { imgProbeCache.set(url, 'missing'); if (!cancelled) setStatus('missing') }
+    img.src = url
+    return () => { cancelled = true }
+  }, [url])
+  return status
+}
+
+function ThumbBtn({ url, short, name, damage }) {
+  const status = useImageStatus(url)
+
+  if (status !== 'ok') {
+    return (
+      <button type="button" disabled
+        title={status === 'loading' ? `Checking ${name}…` : `No ${name} image`}
+        className={`w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 opacity-50 cursor-not-allowed flex items-center justify-center text-[9px] font-bold ${status === 'loading' ? 'animate-pulse' : ''}`}>
+        {short}
+      </button>
+    )
+  }
+
+  const activeCls = damage
+    ? 'border-red-500/30 bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white'
+    : 'border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white'
+  return (
+    <a href={url} target="_blank" rel="noreferrer" title={`View ${name}`}
+      className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[9px] font-bold transition-all ${activeCls}`}>
+      {short}
+    </a>
+  )
 }
 
 // ─── sub-components ───────────────────────────────────────────────────────────
@@ -105,6 +169,7 @@ export default function ESurvey() {
   const [zoom,         setZoom]         = useState(1)
   const [form,         setForm]         = useState({
     leftRemark: '', rightRemark: '', topRemark: '',
+    leftDamageRemark: '', rightDamageRemark: '',
     containerNo: '', vehicleNo: '', containerSize: '', containerType: '',
     transactionType: '', documentNo: '', surveyBy: '',
     overallRemark: '', placeOfInspection: '', inspectionRequestedOf: '',
@@ -179,11 +244,12 @@ export default function ESurvey() {
     setForm(f => ({
       ...f, containerNo: sv.ContainerNo || '', containerSize: sv.ContSize || '',
       containerType: sv.ContType || '', documentNo: sv.DocumentNo || '',
-      leftRemark: '', rightRemark: '', topRemark: '', overallRemark: '',
+      leftRemark: '', rightRemark: '', topRemark: '',
+      leftDamageRemark: '', rightDamageRemark: '', overallRemark: '',
     }))
   }
   const cancelSurvey = () => { setActiveSurvey(null); setZoom(1) }
-  const nextStep     = () => { if (step < 4) { setStep(s => s + 1); setZoom(1) } }
+  const nextStep     = () => { if (step < REPORT_STEP) { setStep(s => s + 1); setZoom(1) } }
   const prevStep     = () => { if (step > 1) { setStep(s => s - 1); setZoom(1) } }
   const handleChange = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -194,6 +260,7 @@ export default function ESurvey() {
     const NAVY  = [14, 74, 120]
     const STEEL = [10, 59, 97]
     const GOLD  = [234, 179, 8]
+    const RED   = [185, 28, 28]
     const LIGHT = [236, 244, 251]
     const WHITE = [255, 255, 255]
 
@@ -293,68 +360,76 @@ export default function ESurvey() {
     doc.setLineWidth(0.3)
     doc.line(52, SEC1_Y + 4.5, W - 10, SEC1_Y + 4.5)
 
-    // ── 3 IMAGES ROW ──────────────────────────────────────────────────────
-    const IMG_Y  = SEC1_Y + 9
-    const IMG_H  = 52
-    const GAP    = 3
-    const IMG_W  = (W - 20 - GAP * 2) / 3
+    // ── 5 IMAGES: row 1 = L / R / T, row 2 = LD / RD ──────────────────────
+    const IMG_Y   = SEC1_Y + 9
+    const IMG_H   = 50
+    const CARD_H  = IMG_H + 14
+    const GAP     = 3
+    const ROW_GAP = 4
+    const COLS    = 3
+    const IMG_W   = (W - 20 - GAP * (COLS - 1)) / COLS
     const imgEntries = [
-      { label: 'LEFT SIDE',  icon: 'L', url: buildAssetUrl(sv.IMG_LEFT),  remark: f.leftRemark  },
-      { label: 'RIGHT SIDE', icon: 'R', url: buildAssetUrl(sv.IMG_RIGHT), remark: f.rightRemark },
-      { label: 'TOP VIEW',   icon: 'T', url: buildAssetUrl(sv.IMG_TOP),   remark: f.topRemark   },
+      { label: 'LEFT SIDE',    icon: 'L',  url: getImageUrl(sv, 'IMG_LEFT'),  remark: f.leftRemark,        damage: false },
+      { label: 'RIGHT SIDE',   icon: 'R',  url: getImageUrl(sv, 'IMG_RIGHT'), remark: f.rightRemark,       damage: false },
+      { label: 'TOP VIEW',     icon: 'T',  url: getImageUrl(sv, 'IMG_TOP'),   remark: f.topRemark,         damage: false },
+      { label: 'LEFT DAMAGE',  icon: 'LD', url: getImageUrl(sv, 'Left2'),     remark: f.leftDamageRemark,  damage: true  },
+      { label: 'RIGHT DAMAGE', icon: 'RD', url: getImageUrl(sv, 'Right2'),    remark: f.rightDamageRemark, damage: true  },
     ]
+    const rowCount = Math.ceil(imgEntries.length / COLS)
 
     for (let i = 0; i < imgEntries.length; i++) {
-      const x = 10 + i * (IMG_W + GAP)
-      const { label, icon, url, remark } = imgEntries[i]
+      const col = i % COLS
+      const row = Math.floor(i / COLS)
+      const x = 10 + col * (IMG_W + GAP)
+      const y = IMG_Y + row * (CARD_H + ROW_GAP)
+      const { label, icon, url, remark, damage } = imgEntries[i]
+      const badgeColor = damage ? RED : NAVY
 
       // card shadow simulation
       doc.setFillColor(200, 215, 230)
-      doc.roundedRect(x + 0.7, IMG_Y + 0.7, IMG_W, IMG_H + 14, 2, 2, 'F')
+      doc.roundedRect(x + 0.7, y + 0.7, IMG_W, CARD_H, 2, 2, 'F')
 
       // card bg
       doc.setFillColor(...WHITE)
-      doc.roundedRect(x, IMG_Y, IMG_W, IMG_H + 14, 2, 2, 'F')
+      doc.roundedRect(x, y, IMG_W, CARD_H, 2, 2, 'F')
 
       // image area
       doc.setFillColor(240, 245, 250)
-      doc.roundedRect(x, IMG_Y, IMG_W, IMG_H, 2, 2, 'F')
+      doc.roundedRect(x, y, IMG_W, IMG_H, 2, 2, 'F')
 
+      let drawn = false
       if (url) {
         try {
           const dataUrl = await fetchImageAsDataUrl(url)
-          doc.addImage(dataUrl, 'JPEG', x, IMG_Y, IMG_W, IMG_H, undefined, 'FAST')
-        } catch {
-          doc.setTextColor(180, 180, 180)
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          doc.text('No Image', x + IMG_W / 2, IMG_Y + IMG_H / 2, { align: 'center' })
-        }
-      } else {
+          doc.addImage(dataUrl, 'JPEG', x, y, IMG_W, IMG_H, undefined, 'FAST')
+          drawn = true
+        } catch { /* fall through to placeholder */ }
+      }
+      if (!drawn) {
         doc.setTextColor(180, 180, 180)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7)
-        doc.text('No Image', x + IMG_W / 2, IMG_Y + IMG_H / 2, { align: 'center' })
+        doc.text('No Image', x + IMG_W / 2, y + IMG_H / 2, { align: 'center' })
       }
 
       // label badge overlay
-      doc.setFillColor(...NAVY)
-      doc.roundedRect(x + 1.5, IMG_Y + 1.5, IMG_W - 3, 6, 1, 1, 'F')
+      doc.setFillColor(...badgeColor)
+      doc.roundedRect(x + 1.5, y + 1.5, IMG_W - 3, 6, 1, 1, 'F')
       doc.setTextColor(...WHITE)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(6)
-      doc.text(`${icon}  ${label}`, x + IMG_W / 2, IMG_Y + 5.5, { align: 'center' })
+      doc.text(`${icon}  ${label}`, x + IMG_W / 2, y + 5.5, { align: 'center' })
 
       // remark area
       doc.setTextColor(80, 100, 120)
       doc.setFont('helvetica', 'italic')
       doc.setFontSize(6.5)
       const lines = doc.splitTextToSize(remark || 'No remark', IMG_W - 4)
-      doc.text(lines, x + IMG_W / 2, IMG_Y + IMG_H + 5, { align: 'center' })
+      doc.text(lines, x + IMG_W / 2, y + IMG_H + 5, { align: 'center' })
     }
 
     // ── SECTION TITLE: INSPECTION DETAILS ────────────────────────────────
-    const SEC2_Y = IMG_Y + IMG_H + 18
+    const SEC2_Y = IMG_Y + rowCount * CARD_H + (rowCount - 1) * ROW_GAP + 4
     doc.setFillColor(...GOLD)
     doc.rect(10, SEC2_Y, 3, 7, 'F')
     doc.setFont('helvetica', 'bold')
@@ -452,8 +527,8 @@ export default function ESurvey() {
 
   // ── WIZARD VIEW ──────────────────────────────────────────────────────────────
   if (activeSurvey) {
-    const side   = step <= 3 ? SIDES[step - 1] : null
-    const imgUrl = side ? buildAssetUrl(activeSurvey[side.imgKey]) : null
+    const side   = step < REPORT_STEP ? SIDES[step - 1] : null
+    const imgUrl = side ? getImageUrl(activeSurvey, side.imgKey) : null
 
     return (
       <div className="h-screen flex flex-col overflow-hidden bg-cover bg-center"
@@ -489,7 +564,7 @@ export default function ESurvey() {
                         {done ? <FiCheckCircle size={12} /> : s.id}
                       </div>
                       <span className={`text-[9px] font-extrabold uppercase tracking-wider ${active ? 'text-emerald-400' : done ? 'text-emerald-500/50' : 'text-white/25'}`}>{s.label}</span>
-                      {i < STEPS.length - 1 && <div className={`w-6 h-px mx-1 ${done ? 'bg-emerald-400/50' : 'bg-white/10'}`} />}
+                      {i < STEPS.length - 1 && <div className={`w-4 h-px mx-1 ${done ? 'bg-emerald-400/50' : 'bg-white/10'}`} />}
                     </div>
                   )
                 })}
@@ -503,8 +578,8 @@ export default function ESurvey() {
             {/* ── Step body (fills remaining height) ── */}
             <div className="flex-1 min-h-0 flex flex-col">
 
-              {/* Steps 1–3: image viewer + remark bar */}
-              {step <= 3 && side && (
+              {/* Steps 1–5: image viewer + remark bar */}
+              {step < REPORT_STEP && side && (
                 <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}
                   className="flex-1 min-h-0 flex flex-col gap-2">
 
@@ -517,7 +592,9 @@ export default function ESurvey() {
                         <SurveyImg url={imgUrl} />
                       </div>
                     </div>
-                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur border border-white/20 text-white px-3 py-1.5 rounded-full text-[11px] font-bold tracking-widest uppercase pointer-events-none">{side.name}</div>
+                    <div className={`absolute top-3 left-3 backdrop-blur border text-white px-3 py-1.5 rounded-full text-[11px] font-bold tracking-widest uppercase pointer-events-none ${
+                      side.damage ? 'bg-red-600/70 border-red-300/40' : 'bg-black/60 border-white/20'
+                    }`}>{side.name}</div>
                     {imgUrl && <div className="absolute top-3 right-3 bg-black/60 backdrop-blur border border-white/10 rounded-xl px-3 py-1.5 pointer-events-none"><span className="text-white text-[10px] font-black">{Math.round(zoom * 100)}%</span></div>}
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur border border-white/10 rounded-full px-3 py-1 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
                       <span className="text-white/50 text-[9px] font-semibold">Scroll to zoom · Drag to pan</span>
@@ -539,29 +616,31 @@ export default function ESurvey() {
                         </button>
                       )}
                       <button onClick={nextStep} className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white text-sm font-extrabold shadow-lg shadow-emerald-500/25 hover:-translate-y-0.5 active:scale-95 transition-all">
-                        {step === 3 ? 'View Report' : 'Next'} <FiArrowRight size={13} />
+                        {step === REPORT_STEP - 1 ? 'View Report' : 'Next'} <FiArrowRight size={13} />
                       </button>
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* Step 4: report — 2-col layout, no scroll */}
-              {step === 4 && (
+              {/* Step 6: report — 2-col layout, no scroll */}
+              {step === REPORT_STEP && (
                 <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
                   className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <form id="survey-form" onSubmit={handleSubmit} className="flex-1 min-h-0 flex gap-2 overflow-hidden">
 
-                    {/* ── LEFT: 3 images stacked + remarks ── */}
-                    <div className="flex flex-col gap-1.5 w-[42%] shrink-0 min-h-0">
+                    {/* ── LEFT: 5 images in a 2-col grid + remarks ── */}
+                    <div className="grid grid-cols-2 grid-rows-3 gap-1.5 w-[50%] shrink-0 min-h-0">
                       {SIDES.map(s => {
-                        const url = buildAssetUrl(activeSurvey[s.imgKey])
+                        const url = getImageUrl(activeSurvey, s.imgKey)
                         return (
-                          <div key={s.key} className="flex-1 min-h-0 flex flex-col bg-slate-900/80 rounded-xl overflow-hidden ring-1 ring-white/10">
+                          <div key={s.key} className="min-h-0 flex flex-col bg-slate-900/80 rounded-xl overflow-hidden ring-1 ring-white/10">
                             {/* image */}
                             <div className="flex-1 min-h-0 relative">
                               <SurveyImg url={url} />
-                              <div className="absolute top-1.5 left-2 bg-black/60 backdrop-blur border border-white/20 text-white px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase pointer-events-none">{s.name}</div>
+                              <div className={`absolute top-1.5 left-2 backdrop-blur border text-white px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase pointer-events-none ${
+                                s.damage ? 'bg-red-600/70 border-red-300/40' : 'bg-black/60 border-white/20'
+                              }`}>{s.name}</div>
                             </div>
                             {/* remark input */}
                             <div className="shrink-0 bg-slate-800/60 px-2 py-1.5 border-t border-white/10">
@@ -583,7 +662,7 @@ export default function ESurvey() {
                         <span className="ml-auto text-blue-200 text-[11px] font-semibold">{activeSurvey.ContainerNo}</span>
                       </div>
                       {/* fields — 2-col grid, no scroll */}
-                      <div className="flex-1 min-h-0 p-3 grid grid-cols-2 gap-x-3 gap-y-2 content-start overflow-hidden">
+                      <div className="flex-1 min-h-0 p-3 grid grid-cols-2 gap-x-3 gap-y-2 content-start overflow-y-auto">
                         {[
                           { label: 'Container No',   key: 'containerNo',           required: true, span: 1 },
                           { label: 'Vehicle No',     key: 'vehicleNo',                             span: 1 },
@@ -846,11 +925,8 @@ export default function ESurvey() {
                           </td>
                           <td className="px-3 py-3 border-r border-slate-100">
                             <div className="flex items-center gap-1">
-                              {[['IMG_LEFT', 'L'], ['IMG_RIGHT', 'R'], ['IMG_TOP', 'T']].map(([k, lbl]) => (
-                                sv[k]
-                                  ? <a key={k} href={buildAssetUrl(sv[k])} target="_blank" rel="noreferrer"
-                                      className="w-7 h-7 rounded-lg border border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white flex items-center justify-center text-[9px] font-bold transition-all">{lbl}</a>
-                                  : <span key={k} className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 flex items-center justify-center text-[9px] font-bold">{lbl}</span>
+                              {SIDES.map(({ imgKey, short, name, damage }) => (
+                                <ThumbBtn key={imgKey} url={getImageUrl(sv, imgKey)} short={short} name={name} damage={damage} />
                               ))}
                             </div>
                           </td>

@@ -23,13 +23,29 @@ function prettyGateName(name) {
     .join(' ')
 }
 
-const PAGE_SIZE = 20
+// Pagination removed — ek hi request me saare records fetch hote hain.
+// Agar backend ka max page_size limit hai to is value ko uske hisaab se adjust karein.
+const ALL_PAGE_SIZE = 100000
 
 const IMAGE_SIDES = [
-  { key: 'IMG_LEFT',  label: 'L', side: 'left'  },
-  { key: 'IMG_RIGHT', label: 'R', side: 'right' },
-  { key: 'IMG_TOP',   label: 'T', side: 'top'   },
+  { key: 'IMG_LEFT',  label: 'L',  side: 'left'  },
+  { key: 'IMG_RIGHT', label: 'R',  side: 'right' },
+  { key: 'IMG_TOP',   label: 'T',  side: 'top'   },
+  { key: 'Left2',     label: 'LD', side: 'left damage',  damage: true },
+  { key: 'Right2',    label: 'RD', side: 'right damage', damage: true },
 ]
+
+// Left2 / Right2 come as "stitching_outputs/MAINGATE_IN/.../damage_left.jpg"
+// → convert to the same "/v1/container/img?p=..." format the other images use
+function getImageUrl(row, key) {
+  const raw = row?.[key]
+  if (!raw) return null
+  if (key === 'Left2' || key === 'Right2') {
+    const rel = String(raw).replace(/^\/?stitching_outputs\//, '')
+    return buildAssetUrl(`/v1/container/img?p=${rel}`)
+  }
+  return buildAssetUrl(raw)
+}
 
 function formatDateParts(raw) {
   if (!raw) return null
@@ -47,6 +63,14 @@ function formatDateParts(raw) {
 function formatDate(raw) {
   const parts = formatDateParts(raw)
   return parts ? `${parts.date} ${parts.time}` : ''
+}
+
+/* ─── <img> that swaps to a fallback when the file fails to load ─────────── */
+function SafeImg({ url, alt, className, style, fallback }) {
+  const [err, setErr] = useState(false)
+  useEffect(() => { setErr(false) }, [url])
+  if (err) return fallback
+  return <img src={url} alt={alt} className={className} style={style} onError={() => setErr(true)} />
 }
 
 /* ─── Lightbox ───────────────────────────────────────────────────────────── */
@@ -73,7 +97,18 @@ function ImageLightbox({ url, label, onClose }) {
           </button>
         </div>
         <div className="flex items-center justify-center bg-slate-50 p-4 overflow-auto" style={{ maxHeight: '85vh' }}>
-          <img src={url} alt={label} className="max-w-full object-contain rounded-lg" style={{ maxHeight: '80vh' }} />
+          <SafeImg
+            url={url}
+            alt={label}
+            className="max-w-full object-contain rounded-lg"
+            style={{ maxHeight: '80vh' }}
+            fallback={
+              <div className="py-16 flex flex-col items-center gap-2 text-slate-400">
+                <FiImage size={40} />
+                <span className="text-sm font-semibold">Image not found on server</span>
+              </div>
+            }
+          />
         </div>
       </div>
     </div>
@@ -100,30 +135,67 @@ function DateCell({ raw, highlight }) {
   )
 }
 
-/* ─── Image Cell (3 thumbnails: left/right/top) ───────────────────────── */
+/* ─── Image Cell (L / R / T + LD / RD damage buttons) ─────────────────── */
+// The DB can hold a path for a file that is not actually on the server
+// (backend then answers {"success":false,"message":"Image not found"}).
+// So "has a path" is not enough — probe the URL once with an <Image> and
+// only enable the button when it really loads. Results are cached.
+const imgProbeCache = new Map() // url -> 'ok' | 'missing'
+
+function useImageStatus(url) {
+  const [status, setStatus] = useState(() => (!url ? 'missing' : imgProbeCache.get(url) || 'loading'))
+  useEffect(() => {
+    if (!url) { setStatus('missing'); return }
+    const cached = imgProbeCache.get(url)
+    if (cached) { setStatus(cached); return }
+    setStatus('loading')
+    let cancelled = false
+    const img = new Image()
+    img.onload  = () => { imgProbeCache.set(url, 'ok');      if (!cancelled) setStatus('ok') }
+    img.onerror = () => { imgProbeCache.set(url, 'missing'); if (!cancelled) setStatus('missing') }
+    img.src = url
+    return () => { cancelled = true }
+  }, [url])
+  return status
+}
+
+function ThumbBtn({ url, label, side, damage, onOpen }) {
+  const status = useImageStatus(url)
+
+  if (status !== 'ok') {
+    return (
+      <button
+        type="button"
+        disabled
+        title={status === 'loading' ? `Checking ${side}…` : `No ${side} image`}
+        className={`w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 opacity-50 cursor-not-allowed flex items-center justify-center text-[9px] font-bold ${status === 'loading' ? 'animate-pulse' : ''}`}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  const activeCls = damage
+    ? 'border-red-500/30 bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white'
+    : 'border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white'
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(url, side)}
+      title={`View ${side}`}
+      className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[9px] font-bold transition-all ${activeCls}`}
+    >
+      {label}
+    </button>
+  )
+}
+
 function ImagesCell({ row, onOpen }) {
   return (
     <div className="flex items-center gap-1 justify-center">
-      {IMAGE_SIDES.map(({ key, label, side }) => {
-        const url = buildAssetUrl(row[key])
-        return url ? (
-          <button
-            key={key}
-            onClick={() => onOpen(url, side)}
-            title={`View ${side}`}
-            className="w-7 h-7 rounded-lg border border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white flex items-center justify-center text-[9px] font-bold transition-all"
-          >
-            {label}
-          </button>
-        ) : (
-          <span
-            key={key}
-            className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 flex items-center justify-center text-[9px] font-bold"
-          >
-            {label}
-          </span>
-        )
-      })}
+      {IMAGE_SIDES.map(({ key, label, side, damage }) => (
+        <ThumbBtn key={key} url={getImageUrl(row, key)} label={label} side={side} damage={damage} onOpen={onOpen} />
+      ))}
     </div>
   )
 }
@@ -161,7 +233,59 @@ function DetailCard({ title, icon: Icon, accent, children }) {
   )
 }
 
-/* ─── Detail Modal — details on top (container | gate/vehicle), 3 images below ── */
+/* ─── One image card inside the detail modal (probes the file first) ───── */
+function ImageSlot({ url, label, accent, onZoom }) {
+  const status = useImageStatus(url)
+  const ok = status === 'ok'
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
+      <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
+        <span className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
+            <FiImage size={12} />
+          </span>
+          <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{label}</span>
+        </span>
+        {ok && (
+          <a
+            href={url}
+            download
+            onClick={e => e.stopPropagation()}
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
+            title="Download image"
+          >
+            <FiDownloadIcon size={12} />
+          </a>
+        )}
+      </div>
+      {ok ? (
+        <button
+          onClick={() => onZoom(url, label)}
+          className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
+          style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
+        >
+          <img src={url} alt={label} className="max-w-full max-h-full object-contain p-2" />
+          <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
+            <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
+              <FiZoomIn className="text-[#0e4a78]" size={24} />
+            </span>
+          </span>
+        </button>
+      ) : (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
+          <span className={`w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center ${status === 'loading' ? 'animate-pulse' : ''}`}>
+            <FiImage size={28} />
+          </span>
+          <span className="text-xs font-semibold text-slate-400">
+            {status === 'loading' ? 'Checking…' : 'No image available'}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── Detail Modal — details on top (container | gate/vehicle), 5 images below ── */
 function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
   if (!row) return null
   const isIn = row.GateType === 'GATE_IN'
@@ -284,70 +408,31 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                   <DetailField icon={FiHome} label="Gate" accent="#d97706">
                     {row.GateName || <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
+                  <DetailField icon={FiClock} label="Survey Time" accent="#0284c7">
+                    {row.SurveyTime ? formatDate(row.SurveyTime) : <span className="text-slate-300 font-normal">—</span>}
+                  </DetailField>
                   <DetailField icon={FiLogIn} label="Gate In" accent="#059669">
                     {row.GateInDate ? formatDate(row.GateInDate) : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
                   <DetailField icon={FiLogOut} label="Gate Out" accent="#d97706">
                     {row.GateOutDate ? formatDate(row.GateOutDate) : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
-                  <DetailField icon={FiClock} label="Survey Time" accent="#059669">
-                    {row.SurveyTime ? formatDate(row.SurveyTime) : <span className="text-slate-300 font-normal">—</span>}
-                  </DetailField>
                 </DetailCard>
               </div>
             </div>
           </div>
 
-          {/* Bottom — 3 images (left/right/top), fills remaining modal height */}
+          {/* Bottom — 5 images (left/right/top + left/right damage), fills remaining modal height */}
           <div className="flex-1 min-h-0">
-            <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 h-full">
               {[
-                { url: buildAssetUrl(row.IMG_LEFT),  label: 'Left',  accent: '#0e4a78' },
-                { url: buildAssetUrl(row.IMG_RIGHT), label: 'Right', accent: '#0e4a78' },
-                { url: buildAssetUrl(row.IMG_TOP),   label: 'Top',   accent: '#0e4a78' },
+                { url: getImageUrl(row, 'IMG_LEFT'),  label: 'Left',         accent: '#0e4a78' },
+                { url: getImageUrl(row, 'IMG_RIGHT'), label: 'Right',        accent: '#0e4a78' },
+                { url: getImageUrl(row, 'IMG_TOP'),   label: 'Top',          accent: '#0e4a78' },
+                { url: getImageUrl(row, 'Left2'),     label: 'Left Damage',  accent: '#dc2626' },
+                { url: getImageUrl(row, 'Right2'),    label: 'Right Damage', accent: '#dc2626' },
               ].map(({ url, label, accent }) => (
-                <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
-                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-                    <span className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
-                        <FiImage size={12} />
-                      </span>
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{label}</span>
-                    </span>
-                    {url && (
-                      <a
-                        href={url}
-                        download
-                        onClick={e => e.stopPropagation()}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
-                        title="Download image"
-                      >
-                        <FiDownloadIcon size={12} />
-                      </a>
-                    )}
-                  </div>
-                  {url ? (
-                    <button
-                      onClick={() => onZoom(url, label)}
-                      className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
-                      style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
-                    >
-                      <img src={url} alt={label} className="max-w-full max-h-full object-contain p-2" />
-                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
-                        <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
-                          <FiZoomIn className="text-[#0e4a78]" size={24} />
-                        </span>
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
-                      <span className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <FiImage size={28} />
-                      </span>
-                      <span className="text-xs font-semibold text-slate-400">No image available</span>
-                    </div>
-                  )}
-                </div>
+                <ImageSlot key={label} url={url} label={label} accent={accent} onZoom={onZoom} />
               ))}
             </div>
           </div>
@@ -364,20 +449,19 @@ export default function PreGateInOut() {
   const [containerNo, setContainerNo] = useState('')
   const [gateFilter,  setGateFilter]  = useState('ALL')
   const [gateName,    setGateName]    = useState('')
-  const [page,        setPage]        = useState(1)
   const [sortCol,     setSortCol]     = useState('SurveyTime')
   const [sortDir,     setSortDir]     = useState('desc')
   const [lightbox,    setLightbox]    = useState(null)
   const [detailIdx,   setDetailIdx]   = useState(null) // index into `rows`
-  const [processFilter, setProcessFilter] = useState('all') // client-side, applies to the current page only
+  const [processFilter, setProcessFilter] = useState('all') // client-side filter
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
-  const [fetchExportSurvey, { isFetching: isExporting }] = useLazyGetPreGateSurveyQuery()
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
   const gateOptions = Array.isArray(gateNamesData?.data) ? gateNamesData.data : []
 
-  const buildArgs = useCallback((pg = 1, gateNameOverride, gateFilterOverride) => {
-    const args = { page: pg, page_size: PAGE_SIZE }
+  // No pagination — always request everything in a single call.
+  const buildArgs = useCallback((gateNameOverride, gateFilterOverride) => {
+    const args = { page: 1, page_size: ALL_PAGE_SIZE }
     if (fromDate)               args.from_date    = fromDate
     if (toDate)                 args.to_date      = toDate
     if (containerNo.trim())     args.container_no = containerNo.trim()
@@ -398,24 +482,50 @@ export default function PreGateInOut() {
     const defaultGate = gateOptions.find(g => prettyGateName(g).toLowerCase() === 'maingate in')
     if (defaultGate) {
       setGateName(defaultGate)
-      fetchSurvey(buildArgs(1, defaultGate))
+      fetchSurvey(buildArgs(defaultGate))
     } else {
-      fetchSurvey(buildArgs(1))
+      fetchSurvey(buildArgs())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateNamesLoaded, gateNamesFailed])
 
-  const handleSearch = () => { setPage(1); fetchSurvey(buildArgs(1)) }
+  const handleSearch = () => { fetchSurvey(buildArgs()) }
 
-  const handleExport = async () => {
-    if (!data?.total) return
-    const args = buildArgs(1)
-    args.page_size = data.total
-    const result = await fetchExportSurvey(args).unwrap().catch(() => null)
-    let allRows = Array.isArray(result?.data) ? result.data : []
-    if (processFilter !== 'all') allRows = allRows.filter(r => String(r.Process || '').toUpperCase() === processFilter)
-    if (!allRows.length) return
-    const sheetData = allRows.map((row, i) => ({
+  const handleClear = () => {
+    setFromDate(''); setToDate('')
+    setContainerNo(''); setGateFilter('ALL'); setGateName('')
+    fetchSurvey({ page: 1, page_size: ALL_PAGE_SIZE })
+  }
+
+  const toggleSort = (col) => {
+    setSortCol(col)
+    setSortDir(prev => (sortCol === col && prev === 'desc') ? 'asc' : 'desc')
+  }
+
+  const allRowsSorted = (() => {
+    const raw = Array.isArray(data?.data) ? [...data.data] : []
+    return raw.sort((a, b) => {
+      const av = String(a[sortCol] ?? ''), bv = String(b[sortCol] ?? '')
+      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+    })
+  })()
+
+  const processStats = {
+    total: allRowsSorted.length,
+    exportCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'EXPORT').length,
+    importCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'IMPORT').length,
+    emptyCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'EMPTY').length,
+    domesticCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length,
+  }
+
+  const rows = processFilter === 'all'
+    ? allRowsSorted
+    : allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === processFilter)
+
+  // Export — saara data pehle se load hai, isliye alag API call ki zaroorat nahi.
+  const handleExport = () => {
+    if (!rows.length) return
+    const sheetData = rows.map((row, i) => ({
       '#':              i + 1,
       'Container No':   row.ContainerNo   || '',
       'Size':           row.ContSize      || '',
@@ -423,9 +533,9 @@ export default function PreGateInOut() {
       'Process':        row.Process       || '',
       'Gate':           row.GateName      || '',
       'Direction':      row.GateType      || '',
+      'Survey Time':    row.SurveyTime    ? formatDate(row.SurveyTime)  : '',
       'Gate In Date':   row.GateInDate    ? formatDate(row.GateInDate)  : '',
       'Gate Out Date':  row.GateOutDate   ? formatDate(row.GateOutDate) : '',
-      'Survey Time':    row.SurveyTime    ? formatDate(row.SurveyTime)  : '',
       'Location':       row.Location      || '',
       'Vehicle No':     row.VehicleNo     || '',
       'Document No':    row.DocumentNo    || '',
@@ -437,48 +547,9 @@ export default function PreGateInOut() {
     XLSX.writeFile(wb, `PreGateSurvey_${fromDate || 'today'}_${toDate || 'today'}.xlsx`)
   }
 
-  const handleClear = () => {
-    setFromDate(''); setToDate('')
-    setContainerNo(''); setGateFilter('ALL'); setGateName(''); setPage(1)
-    fetchSurvey({ page: 1, page_size: PAGE_SIZE })
-  }
-
-  const goToPage = (pg) => {
-    const total_pages = data?.total_pages ?? 1
-    if (pg < 1 || pg > total_pages) return
-    setPage(pg)
-    fetchSurvey(buildArgs(pg))
-  }
-
-  const toggleSort = (col) => {
-    setSortCol(col)
-    setSortDir(prev => (sortCol === col && prev === 'desc') ? 'asc' : 'desc')
-  }
-
-  const pageRowsAll = (() => {
-    const raw = Array.isArray(data?.data) ? [...data.data] : []
-    return raw.sort((a, b) => {
-      const av = String(a[sortCol] ?? ''), bv = String(b[sortCol] ?? '')
-      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-    })
-  })()
-
-  const processStats = {
-    total: pageRowsAll.length,
-    exportCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'EXPORT').length,
-    importCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'IMPORT').length,
-    emptyCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'EMPTY').length,
-    domesticCount: pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length,
-  }
-
-  const rows = processFilter === 'all'
-    ? pageRowsAll
-    : pageRowsAll.filter(r => String(r.Process || '').toUpperCase() === processFilter)
-
-  const total          = data?.total          ?? 0
+  const total          = data?.total          ?? allRowsSorted.length
   const gate_in_count  = data?.gate_in_count   ?? 0
   const gate_out_count = data?.gate_out_count  ?? 0
-  const total_pages    = data?.total_pages     ?? 1
 
   const TH = ({ col, children }) => (
     <th
@@ -509,7 +580,7 @@ export default function PreGateInOut() {
           <header className="pt-6 pb-4">
             <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Gate Management</p>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
-              <FaTruck /> Pre Gate In / Out
+              <FaTruck /> Main Gate In Report
             </h1>
             <p className="text-slate-500 mt-0.5 text-sm">
               {total.toLocaleString()} total records
@@ -526,18 +597,18 @@ export default function PreGateInOut() {
               tone="slate"
               isActive={gateFilter === 'ALL' && processFilter === 'all'}
               onClick={() => {
-                setGateFilter('ALL'); setProcessFilter('all'); setPage(1)
-                fetchSurvey(buildArgs(1, undefined, 'ALL'))
+                setGateFilter('ALL'); setProcessFilter('all')
+                fetchSurvey(buildArgs(undefined, 'ALL'))
               }}
               total={total}
             />
             <StatCard
-              label="Gate In"
+              label="Gate In  (Complex Gate)"
               value={gate_in_count}
               icon={FiLogIn}
               tone="emerald"
               isActive={gateFilter === 'GATE_IN'}
-              onClick={() => { setGateFilter('GATE_IN'); setPage(1); fetchSurvey(buildArgs(1, undefined, 'GATE_IN')) }}
+              onClick={() => { setGateFilter('GATE_IN'); fetchSurvey(buildArgs(undefined, 'GATE_IN')) }}
               total={total}
             />
             <StatCard
@@ -546,7 +617,7 @@ export default function PreGateInOut() {
               icon={FiLogOut}
               tone="amber"
               isActive={gateFilter === 'GATE_OUT'}
-              onClick={() => { setGateFilter('GATE_OUT'); setPage(1); fetchSurvey(buildArgs(1, undefined, 'GATE_OUT')) }}
+              onClick={() => { setGateFilter('GATE_OUT'); fetchSurvey(buildArgs(undefined, 'GATE_OUT')) }}
               total={total}
             />
             <StatCard
@@ -636,7 +707,7 @@ export default function PreGateInOut() {
             <div className="flex gap-2">
               <FilterClearBtn onClick={handleClear} />
               <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
-              <FilterExportBtn onClick={handleExport} disabled={!data?.data?.length} loading={isExporting} />
+              <FilterExportBtn onClick={handleExport} disabled={!rows.length} loading={false} />
             </div>
           </FilterBar>
           </FilterCard>
@@ -653,7 +724,7 @@ export default function PreGateInOut() {
                 <div>
                   <p className="font-semibold text-base">Pre Gate In / Out Report</p>
                   <p className="text-xs text-white/60">
-                    Page {page} of {total_pages} · {total.toLocaleString()} total · {PAGE_SIZE} per page
+                    {rows.length.toLocaleString()} shown · {total.toLocaleString()} total
                   </p>
                 </div>
               </div>
@@ -674,7 +745,7 @@ export default function PreGateInOut() {
             {isFetching && (
               <div className="py-20 flex flex-col items-center gap-3 text-slate-500">
                 <div className="w-10 h-10 rounded-full border-4 border-[#0e4a78]/20 border-t-[#0e4a78] animate-spin" />
-                <span className="text-sm font-medium">Loading page {page}…</span>
+                <span className="text-sm font-medium">Loading records…</span>
               </div>
             )}
 
@@ -689,25 +760,26 @@ export default function PreGateInOut() {
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Size / Type</th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Process</th>
                       <TH col="GateName">Gate</TH>
-                      <TH col="GateInDate">Gate In</TH>
+                      <TH col="SurveyTime">Main Gate In Date</TH>
+                      <TH col="GateInDate">Gate In  (Complex Gate)</TH>
                       <TH col="GateOutDate">Gate Out</TH>
                       {/* <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th> */}
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Vehicle No</th>
-                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-32">Images</th>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-44">Images</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-16 text-center">
+                        <td colSpan={10} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range and click Search</p>
                         </td>
                       </tr>
                     ) : rows.map((row, idx) => {
-                      const serial = (page - 1) * PAGE_SIZE + idx + 1
+                      const serial = idx + 1
                       const isIn = row.GateType === 'GATE_IN'
 
                       return (
@@ -752,6 +824,14 @@ export default function PreGateInOut() {
                             </span>
                           </td>
 
+                          {/* Survey Time — shown before Gate In */}
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <FiClock className="text-sky-400 flex-shrink-0" size={11} />
+                              <DateCell raw={row.SurveyTime} />
+                            </div>
+                          </td>
+
                           <td className="px-3 py-2 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <FiLogIn className="text-emerald-400 flex-shrink-0" size={11} />
@@ -778,7 +858,7 @@ export default function PreGateInOut() {
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
 
-                          <td className="px-1.5 py-1.5 w-32" onClick={e => e.stopPropagation()}>
+                          <td className="px-1.5 py-1.5 w-44" onClick={e => e.stopPropagation()}>
                             <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                           </td>
                         </tr>
@@ -789,58 +869,13 @@ export default function PreGateInOut() {
               </div>
             )}
 
-            {/* ── Pagination ── */}
-            {!isFetching && total_pages > 0 && (
-              <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {/* Footer count (pagination ki jagah) */}
+            {!isFetching && !isError && (
+              <div className="px-5 py-3 bg-slate-50 border-t border-slate-200">
                 <span className="text-xs text-slate-500">
-                  Showing{' '}
-                  <strong className="text-[#0e4a78]">{(page - 1) * PAGE_SIZE + 1}</strong>–<strong className="text-[#0e4a78]">{Math.min(page * PAGE_SIZE, total)}</strong>
-                  {' '}of{' '}
+                  Showing <strong className="text-[#0e4a78]">{rows.length.toLocaleString()}</strong> of{' '}
                   <strong className="text-[#0e4a78]">{total.toLocaleString()}</strong> records
                 </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => goToPage(page - 1)}
-                    disabled={page === 1}
-                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                      page === 1
-                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                        : 'text-[#0e4a78] hover:bg-blue-50'
-                    }`}
-                  >
-                    Previous
-                  </button>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600">Page</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={total_pages}
-                      value={page}
-                      onChange={(e) => {
-                        const pg = Math.max(1, Math.min(total_pages, Number(e.target.value) || 1))
-                        goToPage(pg)
-                      }}
-                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
-                    />
-                    <span className="text-slate-600">of {total_pages}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => goToPage(page + 1)}
-                    disabled={page === total_pages}
-                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${
-                      page === total_pages
-                        ? 'text-slate-400 cursor-not-allowed bg-slate-100'
-                        : 'text-[#0e4a78] hover:bg-blue-50'
-                    }`}
-                  >
-                    Next
-                  </button>
-                </div>
               </div>
             )}
           </section>

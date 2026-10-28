@@ -173,6 +173,7 @@ export const API_ENDPOINTS = {
   CONTAINER: {
     GET_INVENTORY: buildUrl('/v1/container/container-inventory'),
     SEARCH_CONTAINER: buildUrl('/v1/container/search-container'),
+    SEARCH_CONTAINER_INVENTORY: buildUrl('/v1/container/search-container-inventory'),
     GET_CONTAINER_INFO: buildUrl('/v1/container/container-info'),
     GET_CONTAINER_LIST: buildUrl('/v1/container/container-list'),
     GET_CONTAINER_TRACKING_DATA: buildUrl('/v1/container/container-tracking-data'),

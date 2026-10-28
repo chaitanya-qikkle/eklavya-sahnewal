@@ -3,7 +3,7 @@ import { FiMapPin, FiPackage, FiGrid, FiLayers, FiCheckCircle, FiRefreshCw } fro
 import { notify } from '../../../utils/notify'
 import {
   useGetInventoryEntryBlockListQuery,
-  useLazySearchContainerQuery,
+  useLazySearchContainerInventoryQuery,
   useUpdatePhysicalLocationMutation,
   useLazyGetPhysicalInventoryLogQuery,
 } from '../../../store/api/ymsApi'
@@ -41,10 +41,10 @@ const FALLBACK_BLOCKS =  [
     },
     {
       "Block": "EXP",
-      "MinRow": "1",
+      "MinRow": "A",
       "MaxRow": "G",
-      "MinColumn": 16,
-      "MaxColumn": 21
+      "MinColumn": 1,
+      "MaxColumn": 28
     },
     {
       "Block": "EXP-EX",
@@ -72,12 +72,14 @@ const FALLBACK_BLOCKS =  [
       "MinRow": "A",
       "MaxRow": "R",
       "MinColumn": 1,
-      "MaxColumn": 32
+      "MaxColumn": 30
     },
     {
       "Block": "OWH",
-      "MinRow": "1",
-      "MaxRow": "9"
+      "MinRow": "A",
+      "MaxRow": "H",
+      "MinColumn": 1,
+      "MaxColumn": 41
     },
     {
       "Block": "RAIL",
@@ -94,6 +96,7 @@ const FALLBACK_BLOCKS =  [
       "MaxColumn": 12
     }
   ]
+
 
 
 const letterRange = (min, max) => {
@@ -115,7 +118,7 @@ const FieldLabel = ({ icon: Icon, children }) => (
 const InventoryMapping = () => {
   const { data: blockListData, isFetching: isBlockListLoading } = useGetInventoryEntryBlockListQuery()
   const [updateLocation, { isLoading: isSubmitting }] = useUpdatePhysicalLocationMutation()
-  const [searchContainer, { data: searchData, isFetching: isSearching }] = useLazySearchContainerQuery()
+  const [searchContainer, { data: searchData, isFetching: isSearching }] = useLazySearchContainerInventoryQuery()
   const [fetchLog, { data: logData, isFetching: isLogLoading }] = useLazyGetPhysicalInventoryLogQuery()
 
   const [containerNo, setContainerNo] = useState('')

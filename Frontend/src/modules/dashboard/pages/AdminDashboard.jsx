@@ -179,7 +179,7 @@ const Sparkline = ({ data, color = T.cyan, height = 36 }) => {
 };
 
 // ─── KPI Card (clickable, glass, animated, sparkline) ────────────────────────
-const KpiCard = ({ icon: Icon, label, value, suffix, sub, trend, accent, loading, decimals, history, onClick }) => {
+const KpiCard = ({ icon: Icon, label, value, displayValue, suffix, sub, trend, accent, loading, decimals, history, onClick }) => {
   const isUp = trend != null && trend >= 0;
   return (
     <button
@@ -221,7 +221,7 @@ const KpiCard = ({ icon: Icon, label, value, suffix, sub, trend, accent, loading
         </div>
         <div className="flex items-baseline gap-1.5 mb-2">
           <div className="text-3xl md:text-4xl font-black tabular-nums tracking-tight leading-none" style={{ color: T.text }}>
-            {loading ? <span className="opacity-20">···</span> : <AnimatedNumber value={value} decimals={decimals || 0} />}
+            {loading ? <span className="opacity-20">···</span> : displayValue ? displayValue : <AnimatedNumber value={value} decimals={decimals || 0} />}
           </div>
           {suffix && !loading && (
             <span className="text-base font-bold" style={{ color: accent }}>{suffix}</span>
@@ -374,6 +374,37 @@ const AgeingTip = ({ active, payload }) => {
   );
 };
 
+// ─── Gate throughput tooltip — In / Out each with 20' · 40' · TEUs ──────────
+const GateTip = ({ active, payload }) => {
+  const d = payload?.[0]?.payload;
+  if (!active || !d) return null;
+  const groups = [
+    { name: "In",  color: T.cyan, total: d.in,  s20: d.in20,  s40: d.in40,  teu: d.inTeu },
+    { name: "Out", color: T.pink, total: d.out, s20: d.out20, s40: d.out40, teu: d.outTeu },
+  ];
+  return (
+    <div className="rounded-xl px-3 py-2 text-xs"
+      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text, minWidth: 190 }}>
+      <div className="font-bold text-[11px] mb-1.5" style={{ color: T.textMute }}>{d.hourSlot || d.label}</div>
+      {groups.map((g) => (
+        <div key={g.name} className="py-1">
+          <div className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5 font-black">
+              <span className="w-2 h-2 rounded-full" style={{ background: g.color }} />{g.name}
+            </span>
+            <span className="font-black tabular-nums">{fmtNumber(g.total)}</span>
+          </div>
+          <div className="flex items-center gap-3 pl-3.5 text-[10px] tabular-nums" style={{ color: T.textMute }}>
+            <span>20': <b style={{ color: T.indigo }}>{fmtNumber(g.s20)}</b></span>
+            <span>40': <b style={{ color: T.purple }}>{fmtNumber(g.s40)}</b></span>
+            <span>TEUs: <b style={{ color: T.emerald }}>{fmtNumber(g.teu)}</b></span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ─── Radial Gauge ────────────────────────────────────────────────────────────
 const RadialGauge = ({ value, max = 100, color = T.cyan, label, size = 180, suffix = "%", subtitle }) => {
   const v = Math.max(0, Math.min(Number(value) || 0, max));
@@ -445,7 +476,7 @@ const Heatmap = ({ data, color = T.cyan }) => {
 
 // ─── Drill-down Modal ────────────────────────────────────────────────────────
 const DrillModal = ({ open, onClose, kpi }) => {
-  const [activeFilter, setActiveFilter] = useState(null); // import | export | empty | damaged
+  const [activeFilter, setActiveFilter] = useState(null); // import | export | empty | domestic | damaged
   const [search, setSearch] = useState("");
 
   // Modal khulne / KPI badalne par filter reset
@@ -478,7 +509,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
   }, [allRows, allTags, activeFilter, search]);
 
   if (!open || !kpi) return null;
-  const { label, value, suffix, accent, decimals, sub, table, breakdown } = kpi;
+  const { label,displayValue, value, suffix, accent, decimals, sub, table, breakdown, sizes  } = kpi;
   const hasTable = !!(table && table.cols && allRows.length > 0);
 
   const handleExport = () => {
@@ -496,7 +527,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fadein" onClick={onClose}>
       <div
         // Table wale popup ki height FIXED — data kitna bhi ho popup bada nahi hoga
-        className={`w-full max-w-5xl rounded-3xl flex flex-col overflow-hidden ${hasTable ? "h-[90vh]" : "max-h-[90vh]"}`}
+        className="w-full max-w-4xl rounded-3xl flex flex-col overflow-hidden max-h-[85vh]"
         style={{
           background: "linear-gradient(145deg, #ffffff, #f0f4ff)",
           border: `1px solid ${T.border}`,
@@ -505,14 +536,14 @@ const DrillModal = ({ open, onClose, kpi }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b shrink-0" style={{ borderColor: T.border }}>
+        <div className="flex items-center justify-between px-5 py-3 border-b shrink-0" style={{ borderColor: T.border }}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
               style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}30` }}>
               {kpi.icon ? <kpi.icon className="w-6 h-6" strokeWidth={2} /> : null}
             </div>
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: T.textMute }}>Deep Dive</div>
+              {/* <div className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: T.textMute }}>Deep Dive</div> */}
               <h2 className="text-xl md:text-2xl font-black" style={{ color: T.text }}>{label}</h2>
             </div>
           </div>
@@ -524,22 +555,43 @@ const DrillModal = ({ open, onClose, kpi }) => {
         </div>
 
         {/* body */}
-        <div className={`p-6 flex flex-col gap-4 flex-1 min-h-0 ${hasTable ? "overflow-hidden" : "overflow-y-auto"}`}>
+        <div className="p-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
           {/* Current */}
-          <div className="rounded-2xl p-5 shrink-0" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
-            <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: T.textMute }}>Current</div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <div className="text-5xl font-black tabular-nums" style={{ color: T.text }}>
-                <AnimatedNumber value={value} decimals={decimals || 0} />
+          <div className="rounded-xl px-4 py-2.5 shrink-0 flex items-center gap-4 flex-wrap" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
+            <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: T.textMute }}>Current</div>
+            <div className="flex items-baseline gap-1.5">
+              <div className="text-3xl font-black tabular-nums leading-none" style={{ color: T.text }}>
+                {displayValue ? displayValue : <AnimatedNumber value={value} decimals={decimals || 0} />}
               </div>
-              {suffix && <span className="text-2xl font-bold" style={{ color: accent }}>{suffix}</span>}
+              {suffix && <span className="text-lg font-bold" style={{ color: accent }}>{suffix}</span>}
             </div>
-            <div className="text-xs" style={{ color: T.textDim }}>{sub}</div>
+             {sizes && (
+                <div className="flex items-center gap-3 ml-6 sm:ml-10">
+                  <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
+                    style={{ background: `${T.cyan}12`, border: `1px solid ${T.cyan}30` }}>
+                    <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>20ft</span>
+                    <span className="text-lg font-black tabular-nums" style={{ color: T.cyan }}>{fmtNumber(sizes.s20)}</span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
+                    style={{ background: `${T.indigo}12`, border: `1px solid ${T.indigo}30` }}>
+                    <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>40ft</span>
+                    <span className="text-lg font-black tabular-nums" style={{ color: T.indigo }}>{fmtNumber(sizes.s40)}</span>
+                  </div>
+
+                  {/* NEW: TEUs */}
+                  <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
+                    style={{ background: `${T.emerald}12`, border: `1px solid ${T.emerald}30` }}>
+                    <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>TEUs</span>
+                    <span className="text-lg font-black tabular-nums" style={{ color: T.emerald }}>{fmtNumber(sizes.teus)}</span>
+                  </div>
+                </div>
+              )}
+            <div className="text-xs ml-auto" style={{ color: T.textDim }}>{sub}</div>
           </div>
 
           {/* Breakdown — clickable filter boxes */}
           {breakdown && breakdown.length > 0 && (
-            <div className="rounded-2xl p-5 shrink-0" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
+            <div className="rounded-xl p-3 shrink-0" style={{ background: "rgba(248,250,252,1)", border: `1px solid ${T.border}` }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: T.textMute }}>
                   Breakdown{hasTable && allTags ? " · click to filter" : ""}
@@ -551,7 +603,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className={`grid grid-cols-2 gap-3 ${breakdown.length >= 5 ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
                 {breakdown.map((b, i) => {
                   const clickable = hasTable && allTags && !!b.filterKey;
                   const selected = clickable && activeFilter === b.filterKey;
@@ -573,6 +625,24 @@ const DrillModal = ({ open, onClose, kpi }) => {
                         <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.textDim }}>{b.name}</span>
                       </div>
                       <div className="text-xl font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(b.value)}</div>
+
+                      {/* 20ft / 40ft / TEUs split (only for cards that provide `sizes`) */}
+                      {b.sizes && (
+                        <div className="mt-2 pt-2 border-t grid grid-cols-3 gap-1 text-center" style={{ borderColor: T.border }}>
+                          <div>
+                            <div className="text-[9px] font-bold uppercase" style={{ color: T.textMute }}>20ft</div>
+                            <div className="text-xs font-black tabular-nums" style={{ color: T.cyan }}>{fmtNumber(b.sizes.s20)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] font-bold uppercase" style={{ color: T.textMute }}>40ft</div>
+                            <div className="text-xs font-black tabular-nums" style={{ color: T.indigo }}>{fmtNumber(b.sizes.s40)}</div>
+                          </div>
+                          <div className="rounded-md" style={{ background: `${color}12` }}>
+                            <div className="text-[9px] font-bold uppercase" style={{ color: T.textMute }}>TEUs</div>
+                            <div className="text-xs font-black tabular-nums" style={{ color }}>{fmtNumber(b.sizes.teus)}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -582,7 +652,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
 
           {/* Table — andar hi scroll, popup ki size fixed */}
           {hasTable && (
-            <div className="rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0" style={{ background: "white", border: `1px solid ${T.border}` }}>
+            <div className="rounded-xl overflow-hidden flex flex-col shrink-0 h-[340px]" style={{ background: "white", border: `1px solid ${T.border}` }}>
               <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap shrink-0" style={{ borderColor: T.border }}>
                 <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: T.textMute }}>
                   {table.title || "Details"}
@@ -694,10 +764,48 @@ const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "1
   </div>
 );
 
-// ─── Equipment Daily Utilization Section ─────────────────────────────────────
+// ─── Equipment Daily Utilization Section (with Cooling Time + h/m tooltip) ───
 const _localDate = (offset = 0) => {
   const d = new Date(); d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+};
+
+// "018:04" -> 1084 minutes
+const hmToMin = (s) => {
+  const p = String(s ?? "0:00").split(":").map(Number);
+  if (p.length < 2 || p.some((n) => !Number.isFinite(n))) return 0;
+  return p[0] * 60 + p[1];
+};
+// minutes -> "3h 56m"
+const fmtHM = (min) => {
+  const m = Math.round(Number(min) || 0);
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return `${h}h ${String(r).padStart(2, "0")}m`;
+};
+
+// Tooltip is defined OUTSIDE the component so it isn't re-created on every render
+const UtilTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: "rgba(15,23,42,0.97)", border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", minWidth: 190 }}>
+      <div style={{ fontSize: 11, fontWeight: 900, color: "#e2e8f0", marginBottom: 8 }}>{label}</div>
+      {payload.map((p) => {
+        let val;
+        if (p.dataKey === "utilPct") val = `${p.value}%`;
+        else if (p.dataKey.endsWith("Hours")) {
+          // workHours -> workMin, idleHours -> idleMin, breakHours -> breakMin, coolHours -> coolMin
+          val = fmtHM(p.payload?.[p.dataKey.replace("Hours", "Min")]);
+        } else val = p.value;
+        return (
+          <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 10, marginBottom: 3 }}>
+            <span style={{ color: p.color, fontWeight: 700 }}>{p.name}</span>
+            <span style={{ color: "#cbd5e1", fontWeight: 900, fontFamily: "monospace" }}>{val}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoading, allEquipment }) => {
@@ -707,27 +815,29 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
 
   const rows = useMemo(() => Array.isArray(utilizationApi?.data) ? utilizationApi.data : [], [utilizationApi]);
 
-  const chartData = useMemo(() => rows.map(r => ({
-    name: r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "—",
-    workHours:  Number(r.WorkingHours ?? r.workinghours ?? 0),
-    idleHours:  (() => {
-      const s = String(r.IdleTime ?? r.idletime ?? "0:00");
-      const p = s.split(":").map(Number);
-      return p.length >= 2 ? +(p[0] + p[1] / 60).toFixed(2) : 0;
-    })(),
-    breakHours: (() => {
-      const s = String(r.BreakdownTime ?? r.breakdowntime ?? "0:00");
-      const p = s.split(":").map(Number);
-      return p.length >= 2 ? +(p[0] + p[1] / 60).toFixed(2) : 0;
-    })(),
-    utilPct:    Number(r.PercentageUtilization ?? r.percentageutilization ?? 0),
-    moves:      Number(r.TotalMoves ?? r.totalmoves ?? 0),
-    hourlyMoves:Number(r.HourlyMoves ?? r.hourlymoves ?? 0),
-    expected:   Number(r.ExpectedWorkingHours ?? r.expectedworkinghours ?? 18),
-  })), [rows]);
+  const chartData = useMemo(() => rows.map((r) => {
+    const workMin  = hmToMin(r.WorkTime      ?? r.worktime);
+    const idleMin  = hmToMin(r.IdleTime      ?? r.idletime);
+    const breakMin = hmToMin(r.BreakdownTime ?? r.breakdowntime);
+    const coolMin  = hmToMin(r.CoolingTime   ?? r.coolingtime);
+    return {
+      name: r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "—",
+      // minutes (used by tooltip -> "3h 56m")
+      workMin, idleMin, breakMin, coolMin,
+      // decimal hours (used for bar height)
+      workHours:  +(workMin  / 60).toFixed(2),
+      idleHours:  +(idleMin  / 60).toFixed(2),
+      breakHours: +(breakMin / 60).toFixed(2),
+      coolHours:  +(coolMin  / 60).toFixed(2),
+      utilPct:     Number(r.PercentageUtilization ?? r.percentageutilization ?? 0),
+      moves:       Number(r.TotalMoves ?? r.totalmoves ?? 0),
+      hourlyMoves: Number(r.HourlyMoves ?? r.hourlymoves ?? 0),
+      expected:    Number(r.ExpectedWorkingHours ?? r.expectedworkinghours ?? 18),
+    };
+  }), [rows]);
 
   const doFetch = useCallback((from, to, equipment) => {
-    const eqpNames = equipment.map(e => e.name).filter(Boolean).join(",");
+    const eqpNames = equipment.map((e) => e.name).filter(Boolean).join(",");
     if (!eqpNames) return;
     fetchUtilization({ eqp_no: eqpNames, from_date: from, to_date: to });
   }, [fetchUtilization]);
@@ -742,52 +852,38 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
   }, [allEquipment, doFetch]);
 
   const handleFetch = () => doFetch(selDate, selDate, allEquipment);
-    const handleExport = () => {
+
+  const n = Math.max(chartData.length, 1);
+  const avgOf = (k) => chartData.reduce((s, d) => s + d[k], 0) / n;
+
+  const handleExport = () => {
     if (!rows.length) return;
     const data = rows.map((r) => ({
-      "Equipment":      r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "",
-      "Breakdown":      r.BreakdownTime ?? r.breakdowntime ?? "",
-      "Idle Time":      r.IdleTime ?? r.idletime ?? "",
-      "Work Time":      r.WorkTime ?? r.worktime ?? "",
-      "Total Moves":    Number(r.TotalMoves ?? r.totalmoves ?? 0),
-      "Work Hours":     Number(r.WorkingHours ?? r.workinghours ?? 0),
-      "Hourly Moves":   Number(r.HourlyMoves ?? r.hourlymoves ?? 0),
-      "Expected Hrs":   Number(r.ExpectedWorkingHours ?? r.expectedworkinghours ?? 18),
-      "Utilization %":  Number(r.PercentageUtilization ?? r.percentageutilization ?? 0),
+      "Equipment":    r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "",
+      "Breakdown":    r.BreakdownTime ?? r.breakdowntime ?? "",
+      "Cooling Time": r.CoolingTime ?? r.coolingtime ?? "",
+      "Idle Time":    r.IdleTime ?? r.idletime ?? "",
+      "Work Time":    r.WorkTime ?? r.worktime ?? "",
+      "Total Moves":  Number(r.TotalMoves ?? r.totalmoves ?? 0),
+      "Work Hours":   Number(r.WorkingHours ?? r.workinghours ?? 0),
+      "Hourly Moves": Number(r.HourlyMoves ?? r.hourlymoves ?? 0),
+      "Expected Hrs": Number(r.ExpectedWorkingHours ?? r.expectedworkinghours ?? 18),
     }));
-
-    // Last me Average row
-    const n = Math.max(chartData.length, 1);
     data.push({
-      "Equipment":      "AVERAGE",
-      "Breakdown":      "",
-      "Idle Time":      "",
-      "Work Time":      "",
-      "Total Moves":    chartData.reduce((s, d) => s + d.moves, 0),
-      "Work Hours":     +(chartData.reduce((s, d) => s + d.workHours, 0) / n).toFixed(1),
-      "Hourly Moves":   +(chartData.reduce((s, d) => s + d.hourlyMoves, 0) / n).toFixed(1),
-      "Expected Hrs":   "",
-      "Utilization %":  +(chartData.reduce((s, d) => s + d.utilPct, 0) / n).toFixed(2),
+      "Equipment":    "AVERAGE",
+      "Breakdown":    "",
+      "Cooling Time": "",
+      "Idle Time":    "",
+      "Work Time":    "",
+      "Total Moves":  chartData.reduce((s, d) => s + d.moves, 0),
+      "Work Hours":   +avgOf("workHours").toFixed(1),
+      "Hourly Moves": +avgOf("hourlyMoves").toFixed(1),
+      "Expected Hrs": "",
     });
-
     exportToExcel(data, "Equipment Utilization", `EquipmentUtilization_${selDate}`);
   };
-  const maxUtil = Math.max(...chartData.map(d => d.utilPct), 100);
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div style={{ background: "rgba(15,23,42,0.97)", border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", minWidth: 180 }}>
-        <div style={{ fontSize: 11, fontWeight: 900, color: "#e2e8f0", marginBottom: 8 }}>{label}</div>
-        {payload.map((p) => (
-          <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 10, marginBottom: 3 }}>
-            <span style={{ color: p.color, fontWeight: 700 }}>{p.name}</span>
-            <span style={{ color: "#cbd5e1", fontWeight: 900, fontFamily: "monospace" }}>{p.value}{p.dataKey === "utilPct" ? "%" : p.dataKey.includes("Hours") || p.dataKey.includes("Hours") ? "h" : ""}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  const maxUtil = Math.max(...chartData.map((d) => d.utilPct), 100);
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{
@@ -804,13 +900,13 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
           </div>
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: T.text }}>Equipment Daily Utilization</div>
-            <div className="text-[10px] mt-0.5" style={{ color: T.textMute }}>Work time · idle · breakdown · moves · % utilization</div>
+            <div className="text-[10px] mt-0.5" style={{ color: T.textMute }}>Work time · idle · cooling · breakdown · moves · % utilization</div>
           </div>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
+          <input type="date" value={selDate} onChange={(e) => setSelDate(e.target.value)}
             className="px-2.5 py-1.5 rounded-lg border text-xs font-semibold focus:outline-none focus:ring-2"
             style={{ borderColor: T.border, color: T.text, background: "#f8fafc" }} />
           <button onClick={handleFetch} disabled={utilizationLoading}
@@ -819,11 +915,10 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
             {utilizationLoading ? <FiRefreshCw className="w-3 h-3 animate-spin" /> : <FiBarChart2 className="w-3 h-3" />}
             {utilizationLoading ? "Loading…" : "Fetch"}
           </button>
-          {/* Chart type toggle */}
-          
+
           {rows.length > 0 && (
             <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: T.border }}>
-              {[["table","Table"],["bar","Bar"],["composed","Mixed"]].map(([v,l]) => (
+              {[["table", "Table"], ["bar", "Bar"], ["composed", "Mixed"]].map(([v, l]) => (
                 <button key={v} onClick={() => setChartType(v)}
                   className="px-3 py-1.5 text-[10px] font-black transition-colors"
                   style={{ background: chartType === v ? T.purple : "white", color: chartType === v ? "white" : T.textMute }}>
@@ -832,7 +927,6 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
               ))}
             </div>
           )}
-          {/* Excel export */}
           <ExportBtn onClick={handleExport} disabled={!rows.length || utilizationLoading} />
         </div>
       </div>
@@ -858,10 +952,10 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
             {/* KPI summary strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
               {[
-                { label: "Avg Utilization", value: `${(chartData.reduce((s,d)=>s+d.utilPct,0)/chartData.length).toFixed(1)}%`, color: T.purple },
-                { label: "Total Moves",     value: chartData.reduce((s,d)=>s+d.moves,0).toLocaleString(), color: T.cyan },
-                { label: "Avg Work Hours",  value: `${(chartData.reduce((s,d)=>s+d.workHours,0)/chartData.length).toFixed(1)}h`, color: T.emerald },
-                { label: "Avg Hourly Moves",value: `${(chartData.reduce((s,d)=>s+d.hourlyMoves,0)/chartData.length).toFixed(1)}`, color: T.amber },
+                { label: "Avg Utilization",  value: `${avgOf("utilPct").toFixed(1)}%`, color: T.purple },
+                { label: "Total Moves",      value: chartData.reduce((s, d) => s + d.moves, 0).toLocaleString(), color: T.cyan },
+                { label: "Avg Work Time",    value: fmtHM(avgOf("workMin")), color: T.emerald },
+                { label: "Avg Hourly Moves", value: avgOf("hourlyMoves").toFixed(1), color: T.amber },
               ].map(({ label, value, color }) => (
                 <div key={label} className="rounded-xl px-4 py-3 flex flex-col gap-1"
                   style={{ background: `${color}0d`, border: `1px solid ${color}25` }}>
@@ -883,12 +977,13 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
                       tick={{ fontSize: 10, fill: T.textMute }} width={30} />
                     <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false}
                       tick={{ fontSize: 10, fill: T.purple }} width={36}
-                      tickFormatter={v => `${v}%`} domain={[0, Math.ceil(maxUtil / 10) * 10]} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
-                    <Bar yAxisId="left" dataKey="workHours"  name="Work Hrs"  fill={T.emerald} radius={[4,4,0,0]} maxBarSize={40} />
-                    <Bar yAxisId="left" dataKey="idleHours"  name="Idle Hrs"  fill={T.amber}   radius={[4,4,0,0]} maxBarSize={40} />
-                    <Bar yAxisId="left" dataKey="breakHours" name="Break Hrs" fill={T.red}     radius={[4,4,0,0]} maxBarSize={40} />
-                    <Bar yAxisId="right" dataKey="utilPct"   name="Util %"    fill={T.purple}  radius={[4,4,0,0]} maxBarSize={40} opacity={0.85} />
+                      tickFormatter={(v) => `${v}%`} domain={[0, Math.ceil(maxUtil / 10) * 10]} />
+                    <Tooltip content={<UtilTooltip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
+                    <Bar yAxisId="left" dataKey="workHours"  name="Work Time"      fill={T.emerald} radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="left" dataKey="idleHours"  name="Idle Time"      fill={T.amber}   radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="left" dataKey="coolHours"  name="Cooling Time"   fill={T.cyan}    radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="left" dataKey="breakHours" name="Breakdown Time" fill={T.red}     radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="right" dataKey="utilPct"   name="Util %"         fill={T.purple}  radius={[4,4,0,0]} maxBarSize={32} opacity={0.85} />
                   </BarChart>
                 ) : (
                   <ComposedChart data={chartData} margin={{ top: 8, right: 24, left: -8, bottom: 0 }}>
@@ -899,15 +994,16 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
                       tick={{ fontSize: 10, fill: T.textMute }} width={30} />
                     <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false}
                       tick={{ fontSize: 10, fill: T.purple }} width={36}
-                      tickFormatter={v => `${v}%`} domain={[0, Math.ceil(maxUtil / 10) * 10]} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
-                    <Bar yAxisId="left" dataKey="workHours"  name="Work Hrs"  fill={T.emerald} radius={[4,4,0,0]} maxBarSize={40} />
-                    <Bar yAxisId="left" dataKey="idleHours"  name="Idle Hrs"  fill={T.amber}   radius={[4,4,0,0]} maxBarSize={40} />
-                    <Bar yAxisId="left" dataKey="breakHours" name="Break Hrs" fill={T.red}     radius={[4,4,0,0]} maxBarSize={40} />
+                      tickFormatter={(v) => `${v}%`} domain={[0, Math.ceil(maxUtil / 10) * 10]} />
+                    <Tooltip content={<UtilTooltip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
+                    <Bar yAxisId="left" dataKey="workHours"  name="Work Time"      fill={T.emerald} radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="left" dataKey="idleHours"  name="Idle Time"      fill={T.amber}   radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="left" dataKey="coolHours"  name="Cooling Time"   fill={T.cyan}    radius={[4,4,0,0]} maxBarSize={32} />
+                    <Bar yAxisId="left" dataKey="breakHours" name="Breakdown Time" fill={T.red}     radius={[4,4,0,0]} maxBarSize={32} />
                     <Line yAxisId="right" type="monotone" dataKey="utilPct" name="Util %" stroke={T.purple}
                       strokeWidth={3} dot={{ fill: T.purple, r: 5, strokeWidth: 2, stroke: "white" }} />
-                    <Line yAxisId="left"  type="monotone" dataKey="moves"   name="Moves" stroke={T.cyan}
-                      strokeWidth={2} strokeDasharray="5 3" dot={{ fill: T.cyan, r: 4 }} />
+                    <Line yAxisId="left" type="monotone" dataKey="moves" name="Moves" stroke={T.blue}
+                      strokeWidth={2} strokeDasharray="5 3" dot={{ fill: T.blue, r: 4 }} />
                   </ComposedChart>
                 )}
               </ResponsiveContainer>
@@ -916,11 +1012,12 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
             {/* Legend */}
             <div className="flex flex-wrap gap-4 mt-4 justify-center">
               {[
-                { color: T.emerald, label: "Work Hours" },
-                { color: T.amber,   label: "Idle Hours" },
-                { color: T.red,     label: "Breakdown Hours" },
+                { color: T.emerald, label: "Work Time" },
+                { color: T.amber,   label: "Idle Time" },
+                { color: T.cyan,    label: "Cooling Time" },
+                { color: T.red,     label: "Breakdown Time" },
                 { color: T.purple,  label: "% Utilization" },
-                ...(chartType === "composed" ? [{ color: T.cyan, label: "Total Moves" }] : []),
+                ...(chartType === "composed" ? [{ color: T.blue, label: "Total Moves" }] : []),
               ].map(({ color, label }) => (
                 <span key={label} className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: T.textDim }}>
                   <span className="w-3 h-3 rounded-sm" style={{ background: color }} />{label}
@@ -937,9 +1034,9 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
               <thead style={{ background: "#f8fafc" }}>
                 <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                   {[
-                    "Equipment","Breakdown","Idle Time","Work Time",
-                    "Total Moves","Work Hours","Hourly Moves","Expected Hrs","Utilization %"
-                  ].map(h => (
+                    "Equipment", "Breakdown", "Cooling Time", "Idle Time", "Work Time",
+                    "Total Moves", "Work Hours", "Hourly Moves", "Expected Hrs",
+                  ].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left font-black uppercase tracking-wider text-[10px]"
                       style={{ color: T.textMute, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
@@ -947,28 +1044,18 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
               </thead>
               <tbody>
                 {rows.map((r, i) => {
-                  const name   = r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "—";
-                  const util   = Number(r.PercentageUtilization ?? r.percentageutilization ?? 0);
-                  const col    = util >= 80 ? T.emerald : util >= 50 ? T.amber : T.red;
+                  const name = r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "—";
                   return (
                     <tr key={i} className="hover:bg-indigo-50/40 transition-colors" style={{ borderBottom: `1px solid ${T.border}` }}>
                       <td className="px-3 py-2.5 font-black" style={{ color: T.text }}>{name}</td>
                       <td className="px-3 py-2.5 font-mono" style={{ color: T.red }}>{r.BreakdownTime ?? r.breakdowntime ?? "—"}</td>
+                      <td className="px-3 py-2.5 font-mono" style={{ color: T.cyan }}>{r.CoolingTime ?? r.coolingtime ?? "—"}</td>
                       <td className="px-3 py-2.5 font-mono" style={{ color: T.amber }}>{r.IdleTime ?? r.idletime ?? "—"}</td>
                       <td className="px-3 py-2.5 font-mono" style={{ color: T.emerald }}>{r.WorkTime ?? r.worktime ?? "—"}</td>
-                      <td className="px-3 py-2.5 font-black tabular-nums text-center" style={{ color: T.cyan }}>{r.TotalMoves ?? r.totalmoves ?? 0}</td>
+                      <td className="px-3 py-2.5 font-black tabular-nums text-center" style={{ color: T.blue }}>{r.TotalMoves ?? r.totalmoves ?? 0}</td>
                       <td className="px-3 py-2.5 tabular-nums text-center" style={{ color: T.text }}>{r.WorkingHours ?? r.workinghours ?? 0}</td>
                       <td className="px-3 py-2.5 tabular-nums text-center" style={{ color: T.text }}>{r.HourlyMoves ?? r.hourlymoves ?? 0}</td>
                       <td className="px-3 py-2.5 tabular-nums text-center" style={{ color: T.textMute }}>{r.ExpectedWorkingHours ?? r.expectedworkinghours ?? 18}</td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.07)", minWidth: 60 }}>
-                            <div className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${Math.min(util, 100)}%`, background: col }} />
-                          </div>
-                          <span className="font-black tabular-nums shrink-0 text-[11px]" style={{ color: col }}>{util.toFixed(2)}%</span>
-                        </div>
-                      </td>
                     </tr>
                   );
                 })}
@@ -976,22 +1063,18 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
               <tfoot style={{ background: "#f8fafc", borderTop: `2px solid ${T.border}` }}>
                 <tr>
                   <td className="px-3 py-2.5 font-black text-[10px] uppercase tracking-wider" style={{ color: T.textMute }}>Average</td>
-                  <td colSpan={3} />
-                  <td className="px-3 py-2.5 font-black tabular-nums text-center" style={{ color: T.cyan }}>
-                    {chartData.reduce((s,d)=>s+d.moves,0)}
+                  {/* Breakdown + Cooling + Idle + Work = 4 columns */}
+                  <td colSpan={4} />
+                  <td className="px-3 py-2.5 font-black tabular-nums text-center" style={{ color: T.blue }}>
+                    {chartData.reduce((s, d) => s + d.moves, 0)}
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-center font-black" style={{ color: T.text }}>
-                    {(chartData.reduce((s,d)=>s+d.workHours,0)/Math.max(chartData.length,1)).toFixed(1)}
+                    {avgOf("workHours").toFixed(1)}
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-center font-black" style={{ color: T.text }}>
-                    {(chartData.reduce((s,d)=>s+d.hourlyMoves,0)/Math.max(chartData.length,1)).toFixed(1)}
+                    {avgOf("hourlyMoves").toFixed(1)}
                   </td>
                   <td />
-                  <td className="px-3 py-2.5">
-                    <span className="font-black text-[11px]" style={{ color: T.purple }}>
-                      {(chartData.reduce((s,d)=>s+d.utilPct,0)/Math.max(chartData.length,1)).toFixed(2)}%
-                    </span>
-                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -1367,24 +1450,47 @@ const AdminDashboard = () => {
 
   const containerStats = useMemo(() => {
     const total = containers.length;
-    let imp = 0, exp = 0, empty = 0, other = 0;
+    let imp = 0, exp = 0, empty = 0, dom = 0, other = 0;   // dom = domestic count
     let size20 = 0, size40 = 0, size40hq = 0, sizeOther = 0;
     let damaged = 0;
+
+    // Har category ke liye size split + TEUs
+    // s20 = 20ft count, s40 = 40ft/40HQ count, teus = total TEUs
+    // (20ft = 1 TEU, 40ft/40HQ = 2 TEU, other sizes = 1 TEU — chaho to 2 kar do)
+    const mk = () => ({ s20: 0, s40: 0, teus: 0 });
+    const split = {
+      import: mk(), export: mk(), empty: mk(),
+      domestic: mk(),                       // ← Domestic ka apna size split
+      damaged: mk(),
+    };
+    const addSize = (bucket, sz) => {
+      if (sz.startsWith("20")) { bucket.s20++; bucket.teus += 1; }
+      else if (sz.startsWith("40") || sz.includes("HQ")) { bucket.s40++; bucket.teus += 2; }
+      else { bucket.teus += 1; } // other size: sirf TEUs me judta hai
+    };
+
     containers.forEach((c) => {
       const p = String(get(c, "CONTAINER_PROCESS", "container_process") || "").toLowerCase();
       if (p === "import") imp++;
       else if (p === "export") exp++;
       else if (p === "empty") empty++;
+      else if (p === "domestic") dom++;      // ← Domestic count
       else other++;
+
       const sz = String(get(c, "CONTAINER_SIZE", "container_size") || "").toUpperCase();
       if (sz.startsWith("20")) size20++;
       else if (sz.includes("HQ") || sz === "40HC") size40hq++;
       else if (sz.startsWith("40")) size40++;
       else sizeOther++;
+
       const status = String(get(c, "INVENTORY_STATUS", "inventory_status") || "").toLowerCase();
-      if (status.includes("damage")) damaged++;
+      const isDamaged = status.includes("damage");
+      if (isDamaged) damaged++;
+
+      if (split[p]) addSize(split[p], sz);
+      if (isDamaged) addSize(split.damaged, sz);
     });
-    return { total, imp, exp, empty, other, size20, size40, size40hq, sizeOther, damaged };
+    return { total, imp, exp, empty, dom, other, size20, size40, size40hq, sizeOther, damaged, split };
   }, [containers]);
 
   const yardByLocation = useMemo(() => {
@@ -1425,7 +1531,12 @@ const AdminDashboard = () => {
         out20: Number(get(r, "GateOut20", "gateout20") || 0),
         out40: Number(get(r, "GateOut40", "gateout40") || 0),
       };
-    });
+    }).map((r) => ({
+      ...r,
+      // TEUs = (20ft × 1) + (40ft × 2)
+      inTeu: r.in20 + r.in40 * 2,
+      outTeu: r.out20 + r.out40 * 2,
+    }));
   }, [gateInOut24hApi]);
 
   // Dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING. One SP row per
@@ -1704,6 +1815,12 @@ const AdminDashboard = () => {
 
   const totalIn24h = hourlyThroughput.reduce((s, r) => s + r.in, 0);
   const totalOut24h = hourlyThroughput.reduce((s, r) => s + r.out, 0);
+  const totalIn20 = hourlyThroughput.reduce((s, r) => s + r.in20, 0);
+  const totalIn40 = hourlyThroughput.reduce((s, r) => s + r.in40, 0);
+  const totalOut20 = hourlyThroughput.reduce((s, r) => s + r.out20, 0);
+  const totalOut40 = hourlyThroughput.reduce((s, r) => s + r.out40, 0);
+  const totalInTeu = totalIn20 + totalIn40 * 2;
+  const totalOutTeu = totalOut20 + totalOut40 * 2;
   const lastHrIn = hourlyThroughput[hourlyThroughput.length - 1]?.in || 0;
   const prevHrIn = hourlyThroughput[hourlyThroughput.length - 2]?.in || 0;
   const inTrend = prevHrIn > 0 ? ((lastHrIn - prevHrIn) / prevHrIn) * 100 : (lastHrIn > 0 ? 100 : null);
@@ -1779,20 +1896,24 @@ const AdminDashboard = () => {
       icon: FiPackage,
       label: "Yard Inventory",
       value: containerStats.total,
-      sub: `${containerStats.imp} import · ${containerStats.exp} export · ${containerStats.empty} empty`,
+      // sub: `${containerStats.imp} import · ${containerStats.exp} export · ${containerStats.empty} empty · ${containerStats.dom} domestic`,
+       sizes: {
+        s20: containerStats.size20,
+        s40: containerStats.size40 + containerStats.size40hq,
+        teus: containerStats.size20 + (containerStats.size40 + containerStats.size40hq) * 2
+      },
       accent: T.cyan,
       loading: liveStatusLoading,
       history: history.inventory,
       breakdown: [
-        { name: "Import",  value: containerStats.imp,     color: T.blue,  filterKey: "import" },
-        { name: "Export",  value: containerStats.exp,     color: T.pink,  filterKey: "export" },
-        { name: "Empty",   value: containerStats.empty,   color: T.amber, filterKey: "empty" },
-        { name: "Damaged", value: containerStats.damaged, color: T.red,   filterKey: "damaged" },
+        { name: "Import",   value: containerStats.imp,     color: T.blue,   filterKey: "import",   sizes: containerStats.split.import },
+        { name: "Export",   value: containerStats.exp,     color: T.pink,   filterKey: "export",   sizes: containerStats.split.export },
+        { name: "Empty",    value: containerStats.empty,   color: T.amber,  filterKey: "empty",    sizes: containerStats.split.empty },
+        { name: "Domestic", value: containerStats.dom,     color: T.teal,   filterKey: "domestic", sizes: containerStats.split.domestic },
       ],
       table: {
         title: "All Containers",
         cols: ["Container No", "Process", "Size", "Location", "Gate In"],
-        // Ab saare containers (slice(0,10) hata diya)
         rows: containers.map((c) => [
           get(c, "CONTAINER_NO", "container_no") || "—",
           get(c, "CONTAINER_PROCESS", "container_process") || "—",
@@ -1807,8 +1928,7 @@ const AdminDashboard = () => {
           if (p === "import") t.push("import");
           else if (p === "export") t.push("export");
           else if (p === "empty") t.push("empty");
-          const st = String(get(c, "INVENTORY_STATUS", "inventory_status") || "").toLowerCase();
-          if (st.includes("damage")) t.push("damaged");
+          else if (p === "domestic") t.push("domestic");
           return t;
         }),
       },
@@ -1819,7 +1939,7 @@ const AdminDashboard = () => {
       label: "Active Equipment",
       value: equipmentStats.active,
       suffix: `/${equipmentStats.total}`,
-      sub: `${equipmentStats.breakdown} breakdown · ${equipmentStats.idle} idle · ${equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown} offline`,
+      // sub: `${equipmentStats.breakdown} breakdown · ${equipmentStats.idle} idle · ${equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown} offline`,
       accent: T.emerald,
       loading: equipmentLoading,
       history: history.active,
@@ -1833,42 +1953,23 @@ const AdminDashboard = () => {
     {
       key: "gateIn",
       icon: FiTrendingUp,
-      label: "Gate-In (24h)",
+      label: "Gate In/Out (24h)",
       value: totalIn24h,
-      sub: `Out ${totalOut24h}`,
+      displayValue: `${totalIn24h}/${totalOut24h}`,
+      // sub: `In ${totalIn24h} · Out ${totalOut24h}`,
       trend: inTrend,
       accent: T.blue,
       loading: liveStatusLoading,
       history: history.gateIn,
       breakdown: [
-        { name: "Gate-In", value: totalIn24h, color: T.blue },
-        { name: "Gate-Out", value: totalOut24h, color: T.cyan },
+        { name: "Gate-In", value: totalIn24h, color: T.blue, sizes: { s20: totalIn20, s40: totalIn40, teus: totalInTeu } },
+        { name: "Gate-Out", value: totalOut24h, color: T.cyan, sizes: { s20: totalOut20, s40: totalOut40, teus: totalOutTeu } },
       ],
       table: {
         title: "Hourly throughput",
-        cols: ["Hour", "Gate-In", "Gate-Out"],
-        rows: hourlyThroughput.map((h) => [h.hourSlot, h.in, h.out]),
+        cols: ["Hour", "Gate-In", "In TEUs", "Gate-Out", "Out TEUs"],
+        rows: hourlyThroughput.map((h) => [h.hourSlot, h.in, h.inTeu, h.out, h.outTeu]),
       },
-    },
-    {
-      key: "util",
-      icon: FiZap,
-      label: "Utilization",
-      value: dailyUtilPct ?? equipmentStats.utilization,
-      suffix: "%",
-      sub: dailyUtilPct != null
-        ? `Yesterday's avg across ${Array.isArray(utilizationApi?.data) ? utilizationApi.data.length : 0} machines`
-        : `${equipmentStats.active} active · ${equipmentStats.idle} idle · ${equipmentStats.breakdown} breakdown`,
-      accent: T.purple,
-      loading: equipmentLoading || utilizationLoading,
-      decimals: 1,
-      history: history.util,
-      breakdown: [
-        { name: "Active (tx in range)", value: equipmentStats.active, color: T.emerald },
-        { name: "Idle", value: equipmentStats.idle, color: T.amber },
-        { name: "Breakdown", value: equipmentStats.breakdown, color: T.red },
-        { name: "Total", value: equipmentStats.total, color: T.blue },
-      ],
     },
   ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, ageingBuckets, containers, liveEquipment, hourlyThroughput, dailyUtilPct, utilizationApi]);
 
@@ -1999,13 +2100,14 @@ const AdminDashboard = () => {
           </div>
 
           {/* KPI Row — clickable cards with sparklines */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {kpis.map((k) => (
               <KpiCard
                 key={k.key}
                 icon={k.icon}
                 label={k.label}
                 value={k.value}
+                displayValue={k.displayValue}
                 suffix={k.suffix}
                 sub={k.sub}
                 trend={k.trend}
@@ -2042,8 +2144,8 @@ const AdminDashboard = () => {
                   <ExportBtn
                     onClick={() => exportToExcel(
                       hourlyThroughput.map((r) => ({
-                        Hour: r.hourSlot, In: r.in, "In 20'": r.in20, "In 40'": r.in40,
-                        Out: r.out, "Out 20'": r.out20, "Out 40'": r.out40,
+                        Hour: r.hourSlot, In: r.in, "In 20'": r.in20, "In 40'": r.in40, "In TEUs": r.inTeu,
+                        Out: r.out, "Out 20'": r.out20, "Out 40'": r.out40, "Out TEUs": r.outTeu,
                       })),
                       "Gate Throughput", "GateThroughput24h",
                     )}
@@ -2052,31 +2154,35 @@ const AdminDashboard = () => {
                 </div>
               }
             >
-              <div className="flex items-center gap-6 mb-3 text-[10px] font-black flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.cyan }} />
-                  <span style={{ color: T.textDim }}>IN</span>
-                  <span className="font-black tabular-nums" style={{ color: T.text }}>{totalIn24h}</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.pink }} />
-                  <span style={{ color: T.textDim }}>OUT</span>
-                  <span className="font-black tabular-nums" style={{ color: T.text }}>{totalOut24h}</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.indigo }} />
-                  <span style={{ color: T.textDim }}>20'</span>
-                  <span className="font-black tabular-nums" style={{ color: T.text }}>
-                    {fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in20 + r.out20, 0))}
-                  </span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.purple }} />
-                  <span style={{ color: T.textDim }}>40'</span>
-                  <span className="font-black tabular-nums" style={{ color: T.text }}>
-                    {fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in40 + r.out40, 0))}
-                  </span>
-                </span>
+              <div className="flex items-center gap-3 mb-3 flex-wrap">
+                {[
+                  { name: "IN",  color: T.cyan, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teu: totalInTeu },
+                  { name: "OUT", color: T.pink, total: totalOut24h, s20: totalOut20, s40: totalOut40, teu: totalOutTeu },
+                ].map((g) => (
+                  <div key={g.name} className="flex items-center gap-4 rounded-lg px-3 py-1.5 text-[10px] font-black flex-wrap"
+                    style={{ background: `${g.color}0d`, border: `1px solid ${g.color}25` }}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: g.color }} />
+                      <span style={{ color: T.textDim }}>{g.name}</span>
+                      <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.total)}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.indigo }} />
+                      <span style={{ color: T.textDim }}>20'</span>
+                      <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.s20)}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.purple }} />
+                      <span style={{ color: T.textDim }}>40'</span>
+                      <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.s40)}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: T.emerald }} />
+                      <span style={{ color: T.textDim }}>TEUs</span>
+                      <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.teu)}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
               <div className="flex-1 min-h-0">
                 {chartView === "table" ? (
@@ -2089,21 +2195,27 @@ const AdminDashboard = () => {
                         render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
                       { label: "In 40'", key: "in40", align: "right",
                         render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
+                      { label: "In TEUs", key: "inTeu", align: "right",
+                        render: (v) => <b style={{ color: T.emerald }}>{fmtNumber(v)}</b> },
                       { label: "Gate-Out", key: "out", align: "right",
                         render: (v) => <span style={{ color: T.pink }}>{fmtNumber(v)}</span> },
                       { label: "Out 20'", key: "out20", align: "right",
                         render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
                       { label: "Out 40'", key: "out40", align: "right",
                         render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
+                      { label: "Out TEUs", key: "outTeu", align: "right",
+                        render: (v) => <b style={{ color: T.emerald }}>{fmtNumber(v)}</b> },
                     ]}
                     rows={hourlyThroughput}
                     footerRow={[
                       "Total", fmtNumber(totalIn24h),
-                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in20, 0)),
-                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.in40, 0)),
+                      fmtNumber(totalIn20),
+                      fmtNumber(totalIn40),
+                      fmtNumber(totalInTeu),
                       fmtNumber(totalOut24h),
-                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.out20, 0)),
-                      fmtNumber(hourlyThroughput.reduce((s, r) => s + r.out40, 0)),
+                      fmtNumber(totalOut20),
+                      fmtNumber(totalOut40),
+                      fmtNumber(totalOutTeu),
                     ]}
                   />
                 ) : (
@@ -2123,7 +2235,7 @@ const AdminDashboard = () => {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                       <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
-                      <Tooltip content={<Tip />} />
+                      <Tooltip content={<GateTip />} />
                       <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                       <Area type="monotone" dataKey="in" name="In" stroke={T.cyan} strokeWidth={2.5} fill="url(#thIn)" />
                       <Area type="monotone" dataKey="out" name="Out" stroke={T.pink} strokeWidth={2.5} fill="url(#thOut)" />
@@ -2135,7 +2247,7 @@ const AdminDashboard = () => {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                       <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
-                      <Tooltip content={<Tip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
+                      <Tooltip content={<GateTip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
                       <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                       <Bar dataKey="in20" name="In 20'" stackId="in" fill={T.cyan} radius={[0, 0, 0, 0]} />
                       <Bar dataKey="in40" name="In 40'" stackId="in" fill={T.indigo} radius={[4, 4, 0, 0]} />
@@ -2147,7 +2259,7 @@ const AdminDashboard = () => {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
                       <YAxis domain={[0, 'auto']} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} width={32} />
-                      <Tooltip content={<Tip />} />
+                      <Tooltip content={<GateTip />} />
                       <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                       <Line type="monotone" dataKey="in" name="In" stroke={T.cyan} strokeWidth={3} dot={{ fill: T.cyan, r: 3 }} />
                       <Line type="monotone" dataKey="out" name="Out" stroke={T.pink} strokeWidth={3} dot={{ fill: T.pink, r: 3 }} />
@@ -2505,7 +2617,7 @@ const AdminDashboard = () => {
           {/* Shipping Line + Size Distribution */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             <Panel title="Shipping Line Wise Inventory" subtitle="Container count by line · 20ft vs 40ft" icon={FiBarChart2}
-              accent={T.indigo} className="xl:col-span-12 h-[340px]"
+              accent={T.indigo} className="xl:col-span-12 h-[420px]"
               right={
                 <div className="flex items-center gap-2">
                   <ViewSwitch value={shippingView} onChange={setShippingView}
@@ -2545,7 +2657,17 @@ const AdminDashboard = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={shippingLineData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }} />
+                      <XAxis
+                        dataKey="name"
+                        interval={0}
+                        angle={-60}
+                        textAnchor="end"
+                        height={80}
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }}
+                        tickFormatter={(v) => (v.length > 12 ? v.slice(0, 12) + "…" : v)}
+                      />
                       <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} />
                       <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }}
                         tickFormatter={(v) => `${v}%`} />

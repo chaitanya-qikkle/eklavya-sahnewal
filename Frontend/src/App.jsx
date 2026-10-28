@@ -5,7 +5,6 @@ import SignIn from './modules/auth/pages/SignIn'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import YardLiveStatus3D from './modules/yard3d/pages/YardLiveStatus3D'
 import Kiosk from './modules/kiosk/pages/Kiosk'
-
 const _LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-slate-100">
     <div className="h-12 w-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" aria-label="Loading" />
@@ -26,6 +25,8 @@ const lazyPage = (loader) =>
         return { default: _RedirectToHome }
       })
   )
+const InventoryMapping = lazyPage(() => import('./modules/container/pages/InventoryMapping'))
+
 
 const routeDefinitions = [
   { path: '/dashboard/admin', Component: lazyPage(() => import('./modules/dashboard/pages/AdminDashboard')) },
@@ -58,7 +59,7 @@ const routeDefinitions = [
   { path: '/dashboard/yard-builder', Component: lazyPage(() => import('./modules/yard3d/pages/YardBuilderPage')) },
 
   { path: '/container/assign-inventory-block', Component: lazyPage(() => import('./modules/container/pages/AssignInventoryBlock')) },
-  { path: '/container/inventory-mapping', Component: lazyPage(() => import('./modules/container/pages/InventoryMapping')) },
+  // { path: '/container/inventory-mapping', Component: lazyPage(() => import('./modules/container/pages/InventoryMapping')) },
   { path: '/container/history-status', Component: lazyPage(() => import('./modules/container/pages/ContainerHistoryStatus')) },
   { path: '/container/lifecycle', Component: lazyPage(() => import('./modules/container/pages/ContainerLifecycle')) },
   { path: '/container/e-survey', Component: lazyPage(() => import('./modules/container/pages/ESurvey')) },
@@ -130,6 +131,7 @@ const App = () => (
         <Route path="/" element={<SignIn />} />
         <Route path="/sign-in" element={<SignIn />} />
         <Route path="/kiosk" element={<Kiosk />} />
+        <Route path="/container/inventory-mapping" element={<InventoryMapping />} />
         {routeDefinitions.map(({ path, Component }) => (
           <Route
             key={path}
