@@ -2667,13 +2667,14 @@ const AdminDashboard = () => {
                       <XAxis
                         dataKey="name"
                         interval={0}
-                        angle={-60}
+                        angle={-45}
                         textAnchor="end"
-                        height={80}
+                        height={90}
+                        tickMargin={6}
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fontSize: 10, fill: T.textMute, fontWeight: 700 }}
-                        tickFormatter={(v) => (v.length > 12 ? v.slice(0, 12) + "…" : v)}
+                        tick={{ fontSize: 10, fill: T.textMute, fontWeight: 500 }}
+                        tickFormatter={(v) => (v.length > 14 ? v.slice(0, 14) + "…" : v)}
                       />
                       <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} />
                       <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }}
