@@ -508,6 +508,22 @@ const LiveStatus = () => {
     applyClientSlice(1, newSize, activeFilterRef.current);
   };
 
+  // 20/40 ft cards follow the active process filter (Import/Export/Empty/Domestic).
+  // Process cards keep showing overall counts so they stay usable as filter buttons.
+  const sizeStats = (() => {
+    if (filter === "all" || filter === "20ft" || filter === "40ft") {
+      return { size20: totalStats.size20Count, size40: totalStats.size40Count, total: totalStats.total };
+    }
+    const rows = allRowsRef.current.filter(
+      (r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(filter).toLowerCase()
+    );
+    return {
+      size20: rows.filter(isSize20).length,
+      size40: rows.filter(isSize40).length,
+      total: rows.length,
+    };
+  })();
+
   return (
     <div
       className="w-full h-screen flex flex-col relative overflow-hidden bg-cover bg-center"
@@ -610,21 +626,21 @@ const LiveStatus = () => {
               />
               <StatCard
                 label="20 ft"
-                value={totalStats.size20Count}
+                value={sizeStats.size20}
                 icon={FiPackage}
                 tone="emerald"
                 isActive={filter === "20ft"}
                 onClick={() => handleStatCardClick("20ft")}
-                total={totalStats.total}
+                total={sizeStats.total}
               />
               <StatCard
                 label="40 ft"
-                value={totalStats.size40Count}
+                value={sizeStats.size40}
                 icon={FiPackage}
                 tone="amber"
                 isActive={filter === "40ft"}
                 onClick={() => handleStatCardClick("40ft")}
-                total={totalStats.total}
+                total={sizeStats.total}
               />
             </StatGrid>
 
