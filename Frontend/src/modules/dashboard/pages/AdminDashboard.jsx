@@ -602,7 +602,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
                   </button>
                 )}
               </div>
-              <div className={`grid grid-cols-2 gap-3 ${breakdown.length >= 5 ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
+              <div className={`grid grid-cols-2 gap-3 ${breakdown.length >= 5 && breakdown.length !== 8 ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
                 {breakdown.map((b, i) => {
                   const clickable = hasTable && allTags && !!b.filterKey;
                   const selected = clickable && activeFilter === b.filterKey;
