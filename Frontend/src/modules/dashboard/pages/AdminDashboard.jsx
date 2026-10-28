@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import * as XLSX from "xlsx";
 import {
   FiActivity, FiBox, FiClock, FiRefreshCw, FiTrendingUp, FiMapPin, FiZap,
-  FiBarChart2, FiPackage, FiCpu, FiPercent, FiArrowUpRight, FiArrowDownRight,
+  FiBarChart2, FiPackage, FiCpu, FiPercent,
   FiWifi, FiWifiOff, FiX, FiMaximize2, FiGrid, FiList, FiSearch, FiFilter,
   FiChevronUp, FiChevronDown, FiPieChart, FiTrendingDown, FiLayers, FiDownload,
 } from "react-icons/fi";
@@ -179,7 +179,6 @@ const Sparkline = ({ data, color = T.cyan, height = 36 }) => {
 
 // ─── KPI Card (clickable, glass, animated, sparkline) ────────────────────────
 const KpiCard = ({ icon: Icon, label, value, displayValue, suffix, sub, trend, accent, loading, decimals, history, onClick }) => {
-  const isUp = trend != null && trend >= 0;
   return (
     <button
       onClick={onClick}
@@ -206,12 +205,6 @@ const KpiCard = ({ icon: Icon, label, value, displayValue, suffix, sub, trend, a
             <Icon className="w-5 h-5" strokeWidth={2.2} />
           </div>
           <div className="flex items-center gap-1">
-            {trend != null && !loading && (
-              <div className={`flex items-center gap-0.5 text-[10px] font-black px-2 py-1 rounded-full border ${isUp ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-rose-700 bg-rose-50 border-rose-200"}`}>
-                {isUp ? <FiArrowUpRight className="w-3 h-3" /> : <FiArrowDownRight className="w-3 h-3" />}
-                {Math.abs(trend).toFixed(1)}%
-              </div>
-            )}
             <FiMaximize2 className="w-3 h-3 text-slate-300 group-hover:text-slate-500 transition-colors" />
           </div>
         </div>
@@ -526,7 +519,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fadein" onClick={onClose}>
       <div
         // Table wale popup ki height FIXED — data kitna bhi ho popup bada nahi hoga
-        className="w-full max-w-4xl rounded-3xl flex flex-col overflow-hidden max-h-[85vh]"
+        className="w-full max-w-7xl rounded-3xl flex flex-col overflow-hidden max-h-[85vh]"
         style={{
           background: "linear-gradient(145deg, #ffffff, #f0f4ff)",
           border: `1px solid ${T.border}`,
