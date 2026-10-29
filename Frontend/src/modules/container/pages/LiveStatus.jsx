@@ -40,12 +40,59 @@ const parseDateTime = (value) => {
 
 const getRecordId = (record) => `${record.CONTAINER_NO}-${record.INVENTORY_ID || Math.random()}`;
 
+// ─────────────────────────────────────────────────────────────
+// Date helpers
+// ─────────────────────────────────────────────────────────────
+
+// Parses "dd-mm-yyyy HH:mm:ss", "dd/mm/yyyy HH:mm", "yyyy-mm-dd HH:mm:ss",
+// ISO "yyyy-mm-ddTHH:mm:ss", or a Date object -> Excel serial number.
+// Returns null if the value can't be parsed.
+const toExcelSerial = (val) => {
+  if (val === null || val === undefined || val === "") return null;
+
+  let y, m, d, h = 0, mi = 0, s = 0;
+
+  if (val instanceof Date) {
+    if (isNaN(val)) return null;
+    y = val.getFullYear(); m = val.getMonth() + 1; d = val.getDate();
+    h = val.getHours(); mi = val.getMinutes(); s = val.getSeconds();
+  } else {
+    const str = String(val).trim();
+
+    // dd-mm-yyyy or dd/mm/yyyy [HH:mm[:ss]]
+    let match = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (match) {
+      d = +match[1]; m = +match[2]; y = +match[3];
+      h = +(match[4] || 0); mi = +(match[5] || 0); s = +(match[6] || 0);
+    } else {
+      // yyyy-mm-dd [HH:mm[:ss]] or ISO with T
+      match = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if (!match) return null;
+      y = +match[1]; m = +match[2]; d = +match[3];
+      h = +(match[4] || 0); mi = +(match[5] || 0); s = +(match[6] || 0);
+    }
+  }
+
+  // Using Date.UTC with the local fields avoids any timezone shift in Excel.
+  const serial = Date.UTC(y, m - 1, d, h, mi, s) / 86400000 + 25569;
+  return isNaN(serial) ? null : serial;
+};
+
+const toNumberOrBlank = (v) => {
+  if (v === null || v === undefined || v === "") return "";
+  const n = Number(v);
+  return isNaN(n) ? v : n;
+};
+
+const EXCEL_DATE_FORMAT = "dd/mm/yyyy hh:mm";
+
+// Display format for the on-screen table (dd/mm/yyyy HH:mm)
 const fmtDate = (val) => {
-  if (!val) return "-";
-  const d = new Date(String(val).replace(" ", "T"));
-  if (isNaN(d)) return String(val);
+  const serial = toExcelSerial(val);
+  if (serial === null) return val ? String(val) : "-";
+  const d = new Date(Math.round((serial - 25569) * 86400000));
   const p = (n) => String(n).padStart(2, "0");
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 };
 
 const LiveStatus = () => {
@@ -400,32 +447,68 @@ const LiveStatus = () => {
     if (!error) notify.success("Refreshed", "Data refreshed successfully!");
   };
 
+  // Export to Excel — date columns are written as REAL Excel dates
+  // (numeric serial + number format), not text strings.
   const handleExport = () => {
     const all = allRowsRef.current;
     const source = filter === "all"
       ? all
-      : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === filter.toLowerCase());
+      : filter === "20ft"
+        ? all.filter(isSize20)
+        : filter === "40ft"
+          ? all.filter(isSize40)
+          : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === filter.toLowerCase());
+
     if (source.length === 0) {
       notify.warning("No Data", "No records to export");
       return;
     }
-    const exportData = source.map((record) => ({
-      "Container No":     record.CONTAINER_NO,
-      "Container Size":   record.CONTAINER_SIZE,
-      "Container Type":   record.CONTAINER_TYPE,
-      "Transaction Type": record.CONTAINER_PROCESS,
-      "Container Status": record.INVENTORY_STATUS,
-      "Mode":             record.MODE,
-      "Shipping Line":    record.SHIPPING_LINE,
-      "Location":         record.MASTERTABLE || record.LOCATION_NAME || "",
-      "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
-      "Gate In Date":     fmtDate(record.GATE_IN_DATE),
-      "Transaction Date": fmtDate(record.TOSS_IN_DATE || record.LAST_MOVED_DATE || ""),
-      "Day TAT":          record.TIME_IN_YARD,
-      "Hr TAT":           record.TIME_IN_YARD_HR,
-      "Equipment Name":   record.OFFLOAD_EQP,
+
+    const DATE_HEADERS = ["Gate In Date", "Transaction Date"];
+
+    const exportData = source.map((record) => {
+      const gateIn = toExcelSerial(record.GATE_IN_DATE);
+      const txnDate = toExcelSerial(record.TOSS_IN_DATE || record.LAST_MOVED_DATE || "");
+      return {
+        "Container No":     record.CONTAINER_NO,
+        "Container Size":   record.CONTAINER_SIZE,
+        "Container Type":   record.CONTAINER_TYPE,
+        "Transaction Type": record.CONTAINER_PROCESS,
+        "Container Status": record.INVENTORY_STATUS,
+        "Mode":             record.MODE,
+        "Shipping Line":    record.SHIPPING_LINE,
+        "Location":         record.MASTERTABLE || record.LOCATION_NAME || "",
+        "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
+        "Gate In Date":     gateIn ?? "",      // real Excel date (number)
+        "Transaction Date": txnDate ?? "",     // real Excel date (number)
+        "Day TAT":          toNumberOrBlank(record.TIME_IN_YARD),
+        "Hr TAT":           toNumberOrBlank(record.TIME_IN_YARD_HR),
+        "Equipment Name":   record.OFFLOAD_EQP,
+      };
+    });
+
+    const headers = Object.keys(exportData[0]);
+    const worksheet = XLSX.utils.json_to_sheet(exportData, { header: headers });
+
+    // Apply the date number format to the date columns
+    const range = XLSX.utils.decode_range(worksheet["!ref"]);
+    DATE_HEADERS.forEach((hdr) => {
+      const colIdx = headers.indexOf(hdr);
+      if (colIdx === -1) return;
+      for (let r = range.s.r + 1; r <= range.e.r; r++) {
+        const cell = worksheet[XLSX.utils.encode_cell({ r, c: colIdx })];
+        if (cell && typeof cell.v === "number") {
+          cell.t = "n";
+          cell.z = EXCEL_DATE_FORMAT;
+        }
+      }
+    });
+
+    // Column widths so dates don't show as ####
+    worksheet["!cols"] = headers.map((h) => ({
+      wch: DATE_HEADERS.includes(h) ? 18 : Math.max(12, h.length + 2),
     }));
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Container Inventory");
     const timestamp = new Date().toISOString().split("T")[0];

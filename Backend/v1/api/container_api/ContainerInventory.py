@@ -296,20 +296,101 @@ def get_dashboard_yard_inventory_processwise(plant_id: int = Query(1)):
     finally:
         db.close_connection()
 
+def _hourly_sql():
+    """Procedure ke Result Set 2 jaisi hi query, taaki numbers wahi aayein."""
+    S20 = "D.ContainerSize IN ('20','20HQ')"
+    S40 = "D.ContainerSize IN ('40','40HQ')"
+
+    def block(base, prefix, cond):
+        return [
+            f"COUNT(DISTINCT CASE WHEN {cond} THEN D.ContNo END) AS [{base}]",
+            f"COUNT(DISTINCT CASE WHEN {cond} AND {S20} THEN D.ContNo END) AS [{prefix} 20FT]",
+            f"COUNT(DISTINCT CASE WHEN {cond} AND {S40} THEN D.ContNo END) AS [{prefix} 40FT]",
+            f"SUM(CASE WHEN {cond} AND {S20} THEN 1 WHEN {cond} AND {S40} THEN 2 ELSE 0 END) AS [{prefix} TEUS]",
+        ]
+
+    cols = []
+    cols += block("GATE-IN",  "IN",  "D.Movement = 'IN'")
+    cols += block("GATE-OUT", "OUT", "D.Movement = 'OUT'")
+    for cat in ("IMPORT", "EXPORT", "EMPTY"):
+        for mv in ("IN", "OUT"):
+            name = f"{mv} {cat}"
+            cols += block(name, name, f"D.Movement = '{mv}' AND D.Category = '{cat}'")
+
+    select_cols = ",\n        ".join(cols)
+
+    # CHAR(58) = ':'  (kuch drivers ':00' ko bind-parameter samajh lete hain)
+    return f"""
+SET NOCOUNT ON;
+DECLARE @ToDate   DATETIME = GETDATE();
+DECLARE @FromDate DATETIME = DATEADD(HOUR, -24, @ToDate);
+
+;WITH Hours AS
+(
+    SELECT DATEADD(HOUR, DATEDIFF(HOUR, 0, @FromDate), 0) AS HourStart
+    UNION ALL
+    SELECT DATEADD(HOUR, 1, HourStart)
+    FROM Hours
+    WHERE DATEADD(HOUR, 1, HourStart) <= DATEADD(HOUR, DATEDIFF(HOUR, 0, @ToDate), 0)
+),
+HourlyData AS
+(
+    SELECT DATEADD(HOUR, DATEDIFF(HOUR, 0, GateInDate), 0) AS HourStart, 'IN' AS Movement,
+           ContNo, ContainerSize, [Process], ContainerStatus
+    FROM dbo.EKL_TRN_INVENTORY
+    WHERE GateInDate >= @FromDate AND GateInDate <= @ToDate
+    UNION ALL
+    SELECT DATEADD(HOUR, DATEDIFF(HOUR, 0, GateOutDate), 0), 'OUT',
+           ContNo, ContainerSize, [Process], ContainerStatus
+    FROM dbo.EKL_TRN_INVENTORY
+    WHERE GateOutDate >= @FromDate AND GateOutDate <= @ToDate
+),
+Classified AS
+(
+    SELECT *,
+        CASE
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(ContainerStatus, '')))) = 'EMPTY'  THEN 'EMPTY'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL([Process], '')))) = 'IMPORT'       THEN 'IMPORT'
+            WHEN UPPER(LTRIM(RTRIM(ISNULL([Process], '')))) = 'EXPORT'       THEN 'EXPORT'
+            ELSE 'OTHER'
+        END AS Category
+    FROM HourlyData
+)
+SELECT
+    ROW_NUMBER() OVER (ORDER BY H.HourStart) AS [#],
+    FORMAT(H.HourStart, 'dd-MM-yyyy HH') + CHAR(58) + '00 - '
+        + FORMAT(DATEADD(HOUR, 1, H.HourStart), 'HH') + CHAR(58) + '00' AS [HOUR],
+    {select_cols}
+FROM Hours H
+LEFT JOIN Classified D ON D.HourStart = H.HourStart
+GROUP BY H.HourStart
+ORDER BY H.HourStart
+OPTION (MAXRECURSION 25);
+"""
 
 @router.get("/container-inout-24h")
 def get_container_inout_24h():
-    """Hourly gate-in / gate-out throughput for the last 24h — ContainerInOut_24Hours.
-
-    """
+    """Total (data) + hourly rows (hourly) for the last 24h."""
     db = SQLManager()
+    db2 = SQLManager()
     try:
+        # 1) total / summary — procedure se
         response = db.execute_query("EXEC dbo.ContainerInOut_24Hours")
+
+        # 2) neeche ka hourly data
+        hourly = db2.execute_query(_hourly_sql())
+        if isinstance(hourly, dict) and hourly.get("status") == "success":
+            response["hourly"] = hourly.get("data", [])
+        else:
+            response["hourly"] = []
+            response["hourly_error"] = (hourly or {}).get("message", "hourly query failed")
+
         return response
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
     finally:
         db.close_connection()
+        db2.close_connection()
 
 
 @router.get("/container-info")

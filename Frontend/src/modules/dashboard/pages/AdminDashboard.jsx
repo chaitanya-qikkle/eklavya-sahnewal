@@ -178,7 +178,7 @@ const Sparkline = ({ data, color = T.cyan, height = 36 }) => {
 };
 
 // ─── KPI Card (clickable, glass, animated, sparkline) ────────────────────────
-const KpiCard = ({ icon: Icon, label, value, displayValue, suffix, sub, trend, accent, loading, decimals, history, onClick }) => {
+const KpiCard = ({ icon: Icon, label, value, displayValue, suffix, sub, trend, accent, loading, decimals, history, sizeRows, onClick }) => {
   return (
     <button
       onClick={onClick}
@@ -668,7 +668,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
                 </div>
               </div>
               <div className="flex-1 min-h-0 overflow-auto">
-                <table className="w-full text-xs">
+                <table className="w-full min-w-max text-xs">
                   <thead className="sticky top-0 z-10" style={{ background: "#f8fafc" }}>
                     <tr>
                       <th className="px-4 py-2 text-left font-black uppercase tracking-wider text-[10px]" style={{ color: T.textMute }}>#</th>
@@ -711,7 +711,7 @@ const Stat = ({ label, value, decimals, color }) => (
 // ─── DataTable (reusable, dark, scrollable) ─────────────────────────────────
 const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "100%" }) => (
   <div className="flex-1 overflow-auto rounded-lg" style={{ background: "white", maxHeight, border: `1px solid ${T.border}` }}>
-    <table className="w-full text-xs">
+    <table className="w-full min-w-max text-xs">
       <thead className="sticky top-0 z-10" style={{ background: "#f8fafc", backdropFilter: "blur(8px)" }}>
         <tr style={{ borderBottom: `1px solid ${T.border}` }}>
           {cols.map((c, i) => (
@@ -1498,66 +1498,62 @@ const AdminDashboard = () => {
       .sort((a, b) => b.count - a.count);
   }, [containers]);
 
-  // Last-24h gate in/out throughput — ContainerInOut_24Hours SP, already
-  // hourly-bucketed and zero-filled server-side. Fixed rolling 24h window
-  // (SP uses GETDATE()), independent of the dashboard's date-range filter.
+  // ── Gate In/Out (24h): total = res.data[0], hourly = res.hourly ────────────
+  // API: /container-inout-24h  ->  { data: [summaryRow], hourly: [25 hourly rows] }
+  const teuOf = (s20, s40) => s20 + s40 * 2;   // 20ft = 1 TEU, 40ft = 2 TEU
+
+  const gateSummary = useMemo(() => {
+    const raw = gateInOut24hApi?.data;
+    const row = (Array.isArray(raw) ? raw[0] : raw) || {};
+    const n = (k) => Number(row[k] || 0);
+    const grp = (name) => {
+      const s20 = n(`${name}20FT`), s40 = n(`${name}40FT`);
+      return { count: n(name), s20, s40, teus: teuOf(s20, s40) };
+    };
+    return {
+      in: grp("GateIn"), out: grp("GateOut"),
+      proc: {
+        in:  { import: grp("ImportIn"),  export: grp("ExportIn"),  empty: grp("EmptyIn") },
+        out: { import: grp("ImportOut"), export: grp("ExportOut"), empty: grp("EmptyOut") },
+      },
+    };
+  }, [gateInOut24hApi]);
+
   const hourlyThroughput = useMemo(() => {
-    const rows = Array.isArray(gateInOut24hApi?.data) ? gateInOut24hApi.data : [];
-    const num = (p, k) => Number(get(p, k, k.toLowerCase()) || 0);
+    const rows = Array.isArray(gateInOut24hApi?.hourly) ? gateInOut24hApi.hourly : [];
+    const n = (r, k) => Number(r[k] || 0);
     return rows.map((r) => {
-      const hourStart = get(r, "HourStart", "hourstart");
-      const dt = parseDateTime(hourStart);
-      // Process-wise split (Import/Export/Empty × 20/40) comes from the same SP row.
-      const p = r;
+      const hourSlot = String(r["HOUR"] || "");
+      const label = hourSlot ? (hourSlot.split(" ")[1] || hourSlot) : "—";   // "11:00"
       const proc = {};
-      ["Import", "Export", "Empty"].forEach((name) => {
-        const k = name.toLowerCase();
-        proc[`in${name}20`]  = num(p, `GateIn${name}20`);
-        proc[`in${name}40`]  = num(p, `GateIn${name}40`);
-        proc[`out${name}20`] = num(p, `GateOut${name}20`);
-        proc[`out${name}40`] = num(p, `GateOut${name}40`);
-        proc[`in_${k}`]  = proc[`in${name}20`]  + proc[`in${name}40`];
-        proc[`out_${k}`] = proc[`out${name}20`] + proc[`out${name}40`];
+      ["IMPORT", "EXPORT", "EMPTY"].forEach((P) => {
+        const k = P.toLowerCase();
+        ["IN", "OUT"].forEach((D) => { proc[`${D.toLowerCase()}_${k}`] = n(r, `${D} ${P}`); });
       });
-      // Axis label = just the starting clock hour ("14:00"); full range
-      // ("14-08-2026 14:00 - 15:00") is used as the tooltip label instead.
-      const label = dt ? String(dt.getHours()).padStart(2, "0") + ":00" : "—";
-      const hourSlot = get(r, "HourSlot", "hourslot") || label;
-      const inCount = Number(get(r, "TotalGateIn", "totalgatein") || 0);
-      const outCount = Number(get(r, "TotalGateOut", "totalgateout") || 0);
+      const in20 = n(r, "IN 20FT"),   in40 = n(r, "IN 40FT");
+      const out20 = n(r, "OUT 20FT"), out40 = n(r, "OUT 40FT");
+      const detail = {};
+      ["IMPORT", "EXPORT", "EMPTY"].forEach((P) => {
+        const k = P.toLowerCase();
+        ["IN", "OUT"].forEach((D) => {
+          const d = D.toLowerCase();
+          detail[`${d}_${k}`] = n(r, `${D} ${P}`);
+          detail[`${d}_${k}20`] = n(r, `${D} ${P} 20FT`);
+          detail[`${d}_${k}40`] = n(r, `${D} ${P} 40FT`);
+          detail[`${d}_${k}Teu`] = n(r, `${D} ${P} TEUS`);
+        });
+      });
       return {
-        key: hourStart || label,
-        label,
-        hourSlot,
-        in: inCount,
-        out: outCount,
-        in20: Number(get(r, "GateIn20", "gatein20") || 0),
-        in40: Number(get(r, "GateIn40", "gatein40") || 0),
-        out20: Number(get(r, "GateOut20", "gateout20") || 0),
-        out40: Number(get(r, "GateOut40", "gateout40") || 0),
-        ...proc,
+        key: hourSlot || label, label, hourSlot,
+        in: n(r, "GATE-IN"), in20, in40, inTeu: n(r, "IN TEUS"),
+        out: n(r, "GATE-OUT"), out20, out40, outTeu: n(r, "OUT TEUS"),
+        ...proc, ...detail,
       };
-    }).map((r) => ({
-      ...r,
-      // TEUs = (20ft × 1) + (40ft × 2)
-      inTeu: r.in20 + r.in40 * 2,
-      outTeu: r.out20 + r.out40 * 2,
-    }));
+    });
   }, [gateInOut24hApi]);
 
   // Process-wise 24h totals: { dir: { import|export|empty: {count, s20, s40, teus} } }
-  const gateProcTotals = useMemo(() => {
-    const out = { in: {}, out: {} };
-    ["Import", "Export", "Empty"].forEach((name) => {
-      const k = name.toLowerCase();
-      ["in", "out"].forEach((d) => {
-        const s20 = hourlyThroughput.reduce((s, r) => s + r[`${d}${name}20`], 0);
-        const s40 = hourlyThroughput.reduce((s, r) => s + r[`${d}${name}40`], 0);
-        out[d][k] = { count: s20 + s40, s20, s40, teus: s20 + s40 * 2 };
-      });
-    });
-    return out;
-  }, [hourlyThroughput]);
+  const gateProcTotals = gateSummary.proc;
 
   // Dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING. One SP row per
   // (Process, Aging bucket) with Size20/Size40 counts; fold those into the
@@ -1833,14 +1829,14 @@ const AdminDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestEqpTxApi, filterRange, allowedEqpNames]);
 
-  const totalIn24h = hourlyThroughput.reduce((s, r) => s + r.in, 0);
-  const totalOut24h = hourlyThroughput.reduce((s, r) => s + r.out, 0);
-  const totalIn20 = hourlyThroughput.reduce((s, r) => s + r.in20, 0);
-  const totalIn40 = hourlyThroughput.reduce((s, r) => s + r.in40, 0);
-  const totalOut20 = hourlyThroughput.reduce((s, r) => s + r.out20, 0);
-  const totalOut40 = hourlyThroughput.reduce((s, r) => s + r.out40, 0);
-  const totalInTeu = totalIn20 + totalIn40 * 2;
-  const totalOutTeu = totalOut20 + totalOut40 * 2;
+  const totalIn24h = gateSummary.in.count;
+  const totalOut24h = gateSummary.out.count;
+  const totalIn20 = gateSummary.in.s20;
+  const totalIn40 = gateSummary.in.s40;
+  const totalOut20 = gateSummary.out.s20;
+  const totalOut40 = gateSummary.out.s40;
+  const totalInTeu = gateSummary.in.teus;
+  const totalOutTeu = gateSummary.out.teus;
   const lastHrIn = hourlyThroughput[hourlyThroughput.length - 1]?.in || 0;
   const prevHrIn = hourlyThroughput[hourlyThroughput.length - 2]?.in || 0;
   const inTrend = prevHrIn > 0 ? ((lastHrIn - prevHrIn) / prevHrIn) * 100 : (lastHrIn > 0 ? 100 : null);
@@ -1988,6 +1984,10 @@ const AdminDashboard = () => {
       accent: T.blue,
       loading: liveStatusLoading,
       history: history.gateIn,
+      sizeRows: [
+        { name: "IN",  color: T.blue, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teus: totalInTeu },
+        { name: "OUT", color: T.cyan, total: totalOut24h, s20: totalOut20, s40: totalOut40, teus: totalOutTeu },
+      ],
       breakdown: [
         { name: "Gate-In", value: totalIn24h, color: T.blue, sizes: { s20: totalIn20, s40: totalIn40, teus: totalInTeu } },
         { name: "Gate-Out", value: totalOut24h, color: T.cyan, sizes: { s20: totalOut20, s40: totalOut40, teus: totalOutTeu } },
@@ -1998,10 +1998,26 @@ const AdminDashboard = () => {
       ],
       table: {
         title: "Hourly throughput",
-        cols: ["Hour", "Gate-In", "In TEUs", "Gate-Out", "Out TEUs",
-          "In Import", "In Export", "In Empty", "Out Import", "Out Export", "Out Empty"],
-        rows: hourlyThroughput.map((h) => [h.hourSlot, h.in, h.inTeu, h.out, h.outTeu,
-          h.in_import, h.in_export, h.in_empty, h.out_import, h.out_export, h.out_empty]),
+        cols: [
+          "Hour", "Gate-In", "In 20FT", "In 40FT", "In TEUS",
+          "Gate-Out", "Out 20FT", "Out 40FT", "Out TEUS",
+          "In Import", "In Import 20FT", "In Import 40FT", "In Import TEUS",
+          "Out Import", "Out Import 20FT", "Out Import 40FT", "Out Import TEUS",
+          "In Export", "In Export 20FT", "In Export 40FT", "In Export TEUS",
+          "Out Export", "Out Export 20FT", "Out Export 40FT", "Out Export TEUS",
+          "In Empty", "In Empty 20FT", "In Empty 40FT", "In Empty TEUS",
+          "Out Empty", "Out Empty 20FT", "Out Empty 40FT", "Out Empty TEUS",
+        ],
+        rows: hourlyThroughput.map((h) => [
+          h.hourSlot, h.in, h.in20, h.in40, h.inTeu,
+          h.out, h.out20, h.out40, h.outTeu,
+          h.in_import, h.in_import20, h.in_import40, h.in_importTeu,
+          h.out_import, h.out_import20, h.out_import40, h.out_importTeu,
+          h.in_export, h.in_export20, h.in_export40, h.in_exportTeu,
+          h.out_export, h.out_export20, h.out_export40, h.out_exportTeu,
+          h.in_empty, h.in_empty20, h.in_empty40, h.in_emptyTeu,
+          h.out_empty, h.out_empty20, h.out_empty40, h.out_emptyTeu,
+        ]),
       },
     },
   ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, ageingBuckets, containers, liveEquipment, hourlyThroughput, gateProcTotals, dailyUtilPct, utilizationApi]);
@@ -2148,6 +2164,7 @@ const AdminDashboard = () => {
                 loading={k.loading}
                 decimals={k.decimals}
                 history={k.history}
+                sizeRows={k.sizeRows}
                 onClick={() => setDrill(k)}
               />
             ))}
@@ -2177,8 +2194,15 @@ const AdminDashboard = () => {
                   <ExportBtn
                     onClick={() => exportToExcel(
                       hourlyThroughput.map((r) => ({
-                        Hour: r.hourSlot, In: r.in, "In 20'": r.in20, "In 40'": r.in40, "In TEUs": r.inTeu,
-                        Out: r.out, "Out 20'": r.out20, "Out 40'": r.out40, "Out TEUs": r.outTeu,
+                        HOUR: r.hourSlot,
+                        "GATE-IN": r.in, "IN 20FT": r.in20, "IN 40FT": r.in40, "IN TEUS": r.inTeu,
+                        "GATE-OUT": r.out, "OUT 20FT": r.out20, "OUT 40FT": r.out40, "OUT TEUS": r.outTeu,
+                        "IN IMPORT": r.in_import, "IN IMPORT 20FT": r.in_import20, "IN IMPORT 40FT": r.in_import40, "IN IMPORT TEUS": r.in_importTeu,
+                        "OUT IMPORT": r.out_import, "OUT IMPORT 20FT": r.out_import20, "OUT IMPORT 40FT": r.out_import40, "OUT IMPORT TEUS": r.out_importTeu,
+                        "IN EXPORT": r.in_export, "IN EXPORT 20FT": r.in_export20, "IN EXPORT 40FT": r.in_export40, "IN EXPORT TEUS": r.in_exportTeu,
+                        "OUT EXPORT": r.out_export, "OUT EXPORT 20FT": r.out_export20, "OUT EXPORT 40FT": r.out_export40, "OUT EXPORT TEUS": r.out_exportTeu,
+                        "IN EMPTY": r.in_empty, "IN EMPTY 20FT": r.in_empty20, "IN EMPTY 40FT": r.in_empty40, "IN EMPTY TEUS": r.in_emptyTeu,
+                        "OUT EMPTY": r.out_empty, "OUT EMPTY 20FT": r.out_empty20, "OUT EMPTY 40FT": r.out_empty40, "OUT EMPTY TEUS": r.out_emptyTeu,
                       })),
                       "Gate Throughput", "GateThroughput24h",
                     )}
@@ -2229,33 +2253,49 @@ const AdminDashboard = () => {
                   <DataTable
                     cols={[
                       { label: "Hour", key: "hourSlot", bold: true },
-                      { label: "Gate-In", key: "in", align: "right",
-                        render: (v) => <span style={{ color: T.cyan }}>{fmtNumber(v)}</span> },
-                      { label: "In 20'", key: "in20", align: "right",
-                        render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
-                      { label: "In 40'", key: "in40", align: "right",
-                        render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
-                      { label: "In TEUs", key: "inTeu", align: "right",
-                        render: (v) => <b style={{ color: T.emerald }}>{fmtNumber(v)}</b> },
-                      { label: "Gate-Out", key: "out", align: "right",
-                        render: (v) => <span style={{ color: T.pink }}>{fmtNumber(v)}</span> },
-                      { label: "Out 20'", key: "out20", align: "right",
-                        render: (v) => <span style={{ color: T.indigo }}>{fmtNumber(v)}</span> },
-                      { label: "Out 40'", key: "out40", align: "right",
-                        render: (v) => <span style={{ color: T.purple }}>{fmtNumber(v)}</span> },
-                      { label: "Out TEUs", key: "outTeu", align: "right",
-                        render: (v) => <b style={{ color: T.emerald }}>{fmtNumber(v)}</b> },
+                      { label: "Gate-In", key: "in", align: "right" },
+                      { label: "In 20FT", key: "in20", align: "right" },
+                      { label: "In 40FT", key: "in40", align: "right" },
+                      { label: "In TEUS", key: "inTeu", align: "right" },
+                      { label: "Gate-Out", key: "out", align: "right" },
+                      { label: "Out 20FT", key: "out20", align: "right" },
+                      { label: "Out 40FT", key: "out40", align: "right" },
+                      { label: "Out TEUS", key: "outTeu", align: "right" },
+                      { label: "In Import", key: "in_import", align: "right" },
+                      { label: "In Import 20FT", key: "in_import20", align: "right" },
+                      { label: "In Import 40FT", key: "in_import40", align: "right" },
+                      { label: "In Import TEUS", key: "in_importTeu", align: "right" },
+                      { label: "Out Import", key: "out_import", align: "right" },
+                      { label: "Out Import 20FT", key: "out_import20", align: "right" },
+                      { label: "Out Import 40FT", key: "out_import40", align: "right" },
+                      { label: "Out Import TEUS", key: "out_importTeu", align: "right" },
+                      { label: "In Export", key: "in_export", align: "right" },
+                      { label: "In Export 20FT", key: "in_export20", align: "right" },
+                      { label: "In Export 40FT", key: "in_export40", align: "right" },
+                      { label: "In Export TEUS", key: "in_exportTeu", align: "right" },
+                      { label: "Out Export", key: "out_export", align: "right" },
+                      { label: "Out Export 20FT", key: "out_export20", align: "right" },
+                      { label: "Out Export 40FT", key: "out_export40", align: "right" },
+                      { label: "Out Export TEUS", key: "out_exportTeu", align: "right" },
+                      { label: "In Empty", key: "in_empty", align: "right" },
+                      { label: "In Empty 20FT", key: "in_empty20", align: "right" },
+                      { label: "In Empty 40FT", key: "in_empty40", align: "right" },
+                      { label: "In Empty TEUS", key: "in_emptyTeu", align: "right" },
+                      { label: "Out Empty", key: "out_empty", align: "right" },
+                      { label: "Out Empty 20FT", key: "out_empty20", align: "right" },
+                      { label: "Out Empty 40FT", key: "out_empty40", align: "right" },
+                      { label: "Out Empty TEUS", key: "out_emptyTeu", align: "right" },
                     ]}
                     rows={hourlyThroughput}
                     footerRow={[
-                      "Total", fmtNumber(totalIn24h),
-                      fmtNumber(totalIn20),
-                      fmtNumber(totalIn40),
-                      fmtNumber(totalInTeu),
-                      fmtNumber(totalOut24h),
-                      fmtNumber(totalOut20),
-                      fmtNumber(totalOut40),
-                      fmtNumber(totalOutTeu),
+                      "Total", fmtNumber(totalIn24h), fmtNumber(totalIn20), fmtNumber(totalIn40), fmtNumber(totalInTeu),
+                      fmtNumber(totalOut24h), fmtNumber(totalOut20), fmtNumber(totalOut40), fmtNumber(totalOutTeu),
+                      fmtNumber(gateProcTotals.in.import.count), fmtNumber(gateProcTotals.in.import.s20), fmtNumber(gateProcTotals.in.import.s40), fmtNumber(gateProcTotals.in.import.teus),
+                      fmtNumber(gateProcTotals.out.import.count), fmtNumber(gateProcTotals.out.import.s20), fmtNumber(gateProcTotals.out.import.s40), fmtNumber(gateProcTotals.out.import.teus),
+                      fmtNumber(gateProcTotals.in.export.count), fmtNumber(gateProcTotals.in.export.s20), fmtNumber(gateProcTotals.in.export.s40), fmtNumber(gateProcTotals.in.export.teus),
+                      fmtNumber(gateProcTotals.out.export.count), fmtNumber(gateProcTotals.out.export.s20), fmtNumber(gateProcTotals.out.export.s40), fmtNumber(gateProcTotals.out.export.teus),
+                      fmtNumber(gateProcTotals.in.empty.count), fmtNumber(gateProcTotals.in.empty.s20), fmtNumber(gateProcTotals.in.empty.s40), fmtNumber(gateProcTotals.in.empty.teus),
+                      fmtNumber(gateProcTotals.out.empty.count), fmtNumber(gateProcTotals.out.empty.s20), fmtNumber(gateProcTotals.out.empty.s40), fmtNumber(gateProcTotals.out.empty.teus),
                     ]}
                   />
                 ) : (

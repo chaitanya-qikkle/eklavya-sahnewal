@@ -27,6 +27,7 @@ const _parseLL = (raw) => {
     return Math.abs(a) < Math.abs(b) ? { lat: a, lng: b } : { lat: b, lng: a };
   }).filter(Boolean);
 };
+
 const _parseWKT = (raw) => {
   if (!raw || typeof raw !== "string") return [];
   const m = /POLYGON\s*\(\(([^)]+)\)/i.exec(raw.trim());
@@ -39,6 +40,7 @@ const _parseWKT = (raw) => {
     return Math.abs(a) < Math.abs(b) ? { lat: a, lng: b } : { lat: b, lng: a };
   }).filter(Boolean);
 };
+
 const _pip = (point, poly) => {
   if (!poly || poly.length < 3) return false;
   const { lat: py, lng: px } = point;
@@ -148,7 +150,7 @@ const ContainerLifecycle = () => {
     const map = new Map();
     rows.forEach((item) => {
       const deviceId = String(item?.Device_ID ?? item?.device_id ?? item?.DEVICE_ID ?? '').trim();
-      const eqpName  = String(item?.Equipment_Name ?? item?.equipment_name ?? item?.EQUIPMENT_NAME ?? '').trim();
+      const eqpName = String(item?.Equipment_Name ?? item?.equipment_name ?? item?.EQUIPMENT_NAME ?? '').trim();
       if (deviceId && eqpName) map.set(deviceId, eqpName);
     });
     return map;
@@ -317,7 +319,7 @@ const ContainerLifecycle = () => {
 
           {/* ═══ SEARCH BAR ═══ */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0c3d5f] via-[#0e4a78] to-[#164e7a] p-6 shadow-2xl mb-6">
-            <div className="absolute inset-0 opacity-[0.04]" style={{backgroundImage:'url("data:image/svg+xml,%3Csvg width=\'40\' height=\'40\' viewBox=\'0 0 40 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M20 20.5V18H0v-2h20v-2l2 3.5-2 3zm0-7V11H0V9h20V7l2 3.5-2 3z\' fill=\'%23fff\' fill-opacity=\'.3\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")'}} />
+            <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'40\' height=\'40\' viewBox=\'0 0 40 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M20 20.5V18H0v-2h20v-2l2 3.5-2 3zm0-7V11H0V9h20V7l2 3.5-2 3z\' fill=\'%23fff\' fill-opacity=\'.3\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")' }} />
             <div className="relative flex flex-col md:flex-row md:items-end gap-5">
               <div className="flex-1">
                 <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-3 mb-3">
@@ -325,13 +327,24 @@ const ContainerLifecycle = () => {
                   Container Lifecycle Tracker
                 </h1>
                 <div className="flex rounded-xl overflow-hidden bg-white/10 backdrop-blur-sm border border-white/20 focus-within:border-emerald-400/60 focus-within:ring-2 focus-within:ring-emerald-400/20 transition-all">
-                  <input value={searchInput} onChange={(e) => setSearchInput(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    placeholder="Enter Container No (e.g. ESDU4088136)" className="flex-1 px-5 py-3.5 bg-transparent text-white text-sm font-bold placeholder:text-white/30 focus:outline-none" />
-                  <button type="button" onClick={handleReset} className="px-4 text-white/40 hover:text-white transition-colors border-l border-white/10"><FiRefreshCw /></button>
+                  <input
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    placeholder="Enter Container No (e.g. ESDU4088136)"
+                    className="flex-1 px-5 py-3.5 bg-transparent text-white text-sm font-bold placeholder:text-white/30 focus:outline-none"
+                  />
+                  <button type="button" onClick={handleReset} className="px-4 text-white/40 hover:text-white transition-colors border-l border-white/10">
+                    <FiRefreshCw />
+                  </button>
                 </div>
               </div>
-              <button type="button" onClick={handleSearch} disabled={!searchInput.trim()}
-                className={`px-8 py-3.5 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center gap-2 ${searchInput.trim() ? "bg-emerald-500 text-white hover:bg-emerald-400 hover:shadow-emerald-500/30 hover:-translate-y-0.5" : "bg-white/10 text-white/30 cursor-not-allowed"}`}>
+              <button
+                type="button"
+                onClick={handleSearch}
+                disabled={!searchInput.trim()}
+                className={`px-8 py-3.5 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center gap-2 ${searchInput.trim() ? "bg-emerald-500 text-white hover:bg-emerald-400 hover:shadow-emerald-500/30 hover:-translate-y-0.5" : "bg-white/10 text-white/30 cursor-not-allowed"}`}
+              >
                 <FiSearch /> Track
               </button>
             </div>
@@ -352,37 +365,6 @@ const ContainerLifecycle = () => {
                 </div>
               ) : (
                 <>
-                  {/* ═══ HERO BANNER ═══ */}
-                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0a1628] via-[#0e2a45] to-[#0c3d5f] p-6 shadow-2xl mb-6">
-                    <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/[0.06] rounded-full blur-3xl" />
-                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/[0.06] rounded-full blur-3xl" />
-                    <div className="relative">
-                      {/* Top row */}
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                            <FiBox className="w-7 h-7 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.25em]">Container</p>
-                            <h2 className="text-2xl md:text-3xl font-black text-white tracking-widest">{searchQuery}</h2>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-4 py-2">
-                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Active in Yard</span>
-                        </div>
-                      </div>
-                      {/* Stats */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <StatCard icon={FiActivity} label="Total Moves" value={summary.totalMoves} color="#3b82f6" />
-                        <StatCard icon={FiTruck} label="Equipments" value={summary.machinesCount} color="#8b5cf6" />
-                        <StatCard icon={FiClock} label="Gate In" value={summary.gateInDate} color="#10b981" sub />
-                        <StatCard icon={FiCheckCircle} label="Latest Move" value={summary.latestMoveDate} color="#f59e0b" sub />
-                      </div>
-                    </div>
-                  </div>
-
                   {/* ═══ CONTAINER INFO TABLE ═══ */}
                   <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm mb-6 bg-white">
                     <div className="overflow-x-auto">
@@ -395,28 +377,76 @@ const ContainerLifecycle = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="bg-white hover:bg-slate-50 transition-colors">
-                            <td className="px-5 py-3 font-black text-slate-900">{lifecycleMaster?.ContainerNo ?? containerInfo?.containerNo ?? searchQuery}</td>
-                            <td className="px-5 py-3">
-                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 text-xs font-bold">
-                                {lifecycleMaster?.ContainerSize ?? containerInfo?.size ?? "-"}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-lg border border-purple-200 text-xs font-bold">
-                                {lifecycleMaster?.ContainerType ?? containerInfo?.type ?? "-"}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3">
-                              <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs font-bold">
-                                {lifecycleMaster?.Process ?? containerInfo?.status ?? "-"}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3 font-bold text-slate-700 whitespace-nowrap">{fmt(lifecycleMaster?.GateInDate) ?? gateInOut?.GateInDate ?? containerInfo?.gateInDate ?? "-"}</td>
-                            <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">{fmt(lifecycleMaster?.GateOutDate) ?? gateInOut?.GateOutDate ?? containerInfo?.gateOutDate ?? "-"}</td>
-                            <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">{lifecycleMaster?.TAT ?? "-"}</td>
-                            <td className="px-5 py-3 text-slate-600">{offloadTimeline[offloadTimeline.length - 1]?.Area ?? containerInfo?.lastLocation ?? "-"}</td>
-                          </tr>
+                          {lifecycleDetails.length > 0 ? (
+                            lifecycleDetails.map((row, idx) => (
+                              <tr
+                                key={row.MasterId ?? idx}
+                                className="bg-white hover:bg-slate-50 transition-colors"
+                              >
+                                <td className="px-5 py-3 font-black text-slate-900">
+                                  {row.ContainerNo ?? containerInfo?.containerNo ?? searchQuery}
+                                </td>
+                                <td className="px-5 py-3">
+                                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 text-xs font-bold">
+                                    {row.ContainerSize ?? containerInfo?.size ?? "-"}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3">
+                                  <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-lg border border-purple-200 text-xs font-bold">
+                                    {row.ContainerType ?? containerInfo?.type ?? "-"}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3">
+                                  <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs font-bold">
+                                    {row.Process ?? containerInfo?.status ?? "-"}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                  {fmt(row.GateInDate)}
+                                </td>
+                                <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
+                                  {fmt(row.GateOutDate)}
+                                </td>
+                                <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
+                                  {row.TAT ?? "-"}
+                                </td>
+                                <td className="px-5 py-3 text-slate-600">
+                                  {offloadTimeline[offloadTimeline.length - 1]?.Area ?? containerInfo?.lastLocation ?? "-"}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr className="bg-white hover:bg-slate-50 transition-colors">
+                              <td className="px-5 py-3 font-black text-slate-900">{containerInfo?.containerNo ?? searchQuery}</td>
+                              <td className="px-5 py-3">
+                                <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 text-xs font-bold">
+                                  {containerInfo?.size ?? "-"}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-lg border border-purple-200 text-xs font-bold">
+                                  {containerInfo?.type ?? "-"}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs font-bold">
+                                  {containerInfo?.status ?? "-"}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                {gateInOut?.GateInDate ? fmt(gateInOut.GateInDate) : containerInfo?.gateInDate ?? "-"}
+                              </td>
+                              <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
+                                {gateInOut?.GateOutDate ? fmt(gateInOut.GateOutDate) : containerInfo?.gateOutDate ?? "-"}
+                              </td>
+                              <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
+                                {containerInfo?.offloadDate ?? "-"}
+                              </td>
+                              <td className="px-5 py-3 text-slate-600">
+                                {containerInfo?.lastLocation ?? "-"}
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -480,12 +510,14 @@ const ContainerLifecycle = () => {
                                     const hasGps = isFinite(lat) && isFinite(lng);
                                     const offIdx = offloadTimeline.indexOf(row);
                                     return (
-                                      <tr key={idx}
+                                      <tr
+                                        key={idx}
                                         onClick={() => {
                                           setSelectedOffloadIdx(offIdx);
                                           if (hasGps) { setMapCenter({ lat, lng }); setMapZoom(19); setActiveMarker(`offload-${offIdx}`); }
                                         }}
-                                        className={`border-b border-emerald-100/60 last:border-0 transition-colors ${hasGps ? "cursor-pointer" : ""} ${selectedOffloadIdx === offIdx ? "bg-emerald-100/80" : "hover:bg-emerald-50/80"}`}>
+                                        className={`border-b border-emerald-100/60 last:border-0 transition-colors ${hasGps ? "cursor-pointer" : ""} ${selectedOffloadIdx === offIdx ? "bg-emerald-100/80" : "hover:bg-emerald-50/80"}`}
+                                      >
                                         <td className="py-2 px-2 font-bold text-slate-600">{idx + 1}</td>
                                         <td className="py-2 px-2 font-bold text-blue-700">{row.EquipmentName || "-"}</td>
                                         <td className="py-2 px-2 text-slate-700 whitespace-nowrap">{fmt(row.TransDate)}</td>
@@ -571,10 +603,10 @@ const ContainerLifecycle = () => {
                               const iconUrl = isOffload
                                 ? "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
                                 : isSelected
-                                ? "https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
-                                : isLatest
-                                ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
-                                : "https://maps.google.com/mapfiles/ms/icons/green-dot.png";
+                                  ? "https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+                                  : isLatest
+                                    ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
+                                    : "https://maps.google.com/mapfiles/ms/icons/green-dot.png";
                               return (
                                 <MarkerF key={markerId} position={{ lat: adjLat, lng: adjLng }}
                                   icon={{ url: iconUrl }}
