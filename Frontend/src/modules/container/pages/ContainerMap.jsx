@@ -347,7 +347,7 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
     <div className="h-full flex rounded-2xl overflow-hidden bg-white">
 
       {/* ── LEFT PANEL ─────────────────────────────────────────────────────── */}
-      <aside className="w-[340px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col">
+      <aside className="w-[420px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-[#0e4a78] to-[#072c4a] text-white px-4 py-3 flex items-center justify-between">
           <div>
@@ -390,6 +390,7 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
                     <th className="pl-3 pr-1 py-2 text-left font-semibold uppercase tracking-wide w-8">#</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Container</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide w-14">Size</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Location</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Position</th>
                   </tr>
                 </thead>
@@ -416,6 +417,9 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
                           </div>
                         </td>
                         <td className="px-3 py-2.5 text-slate-600">{c.CONTAINER_SIZE ? `${c.CONTAINER_SIZE}ft` : "—"}</td>
+                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap text-[11px]">
+                          {c.MASTERTABLE || c.LOCATION_NAME || slot?.name || "—"}
+                        </td>
                         <td className="px-3 py-2.5">
                           {hasGps
                             ? <Badge color="emerald" icon={<FiCrosshair />}>GPS</Badge>
