@@ -69,10 +69,22 @@ const fmt = (dtStr) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
+// Pehli non-empty raw date ko format karta hai (fmt kabhi null return nahi karta, isliye ?? kaam nahi karta tha)
+const pickDate = (...vals) => {
+  for (const v of vals) {
+    if (v != null && v !== "" && v !== "-") return fmt(v);
+  }
+  return "-";
+};
+
+const toDate = (s) => new Date(String(s).replace(" ", "T"));
+
 const gf = (row, ...keys) => {
   for (const k of keys) if (row && Object.prototype.hasOwnProperty.call(row, k) && row[k] != null) return row[k];
   return null;
 };
+
+const isUnlock = (m) => String(gf(m, "PacketId", "packetid", "PACKET_ID", "packet_id", "PacketID")) === "8";
 
 // ── Stat Card ──
 const StatCard = ({ icon: Icon, label, value, color, sub }) => (
@@ -134,13 +146,16 @@ const ContainerLifecycle = () => {
   const [activeMarker, setActiveMarker] = useState(null);
   const [selectedMoveIdx, setSelectedMoveIdx] = useState(null);
   const [selectedOffloadIdx, setSelectedOffloadIdx] = useState(null);
+  // Selected lifecycle row (default = 0 = pehli row)
+  const [selectedMasterIdx, setSelectedMasterIdx] = useState(0);
   const mapRef = useRef(null);
 
   const [fetchDeviceData, { data: apiData, isLoading: isFetching }] = useLazyGetDeviceDataQuery();
   const [fetchContainerInfo, { data: infoApiData, isLoading: isInfoFetching }] = useLazyGetContainerInfoQuery();
   const [fetchLifecycleDetails, { data: lifecycleData }] = useLazyGetLifecycleDetailsQuery();
-  const [fetchOffloadTimeline, { data: offloadTimelineData }] = useLazyGetLifecycleOffloadTimelineQuery();
-  const [fetchGateInOut, { data: gateInOutData }] = useLazyGetLifecycleGateInOutQuery();
+  // currentData = sirf current argument ka data (row badalne par purana data nahi dikhta)
+  const [fetchOffloadTimeline, { currentData: offloadTimelineData }] = useLazyGetLifecycleOffloadTimelineQuery();
+  const [fetchGateInOut, { currentData: gateInOutData }] = useLazyGetLifecycleGateInOutQuery();
   const { data: slotsData } = useGetLocationSlotsQuery();
   const { data: equipmentApi } = useGetEquipmentQuery();
 
@@ -200,7 +215,7 @@ const ContainerLifecycle = () => {
     };
   }, [infoApiData]);
 
-  // Device data movements (machine transactions)
+  // Device data movements (machine transactions) — saari rows (container no se)
   const movements = useMemo(() => {
     const raw = Array.isArray(apiData?.data) ? apiData.data : Array.isArray(apiData) ? apiData : [];
     const parsed = raw.map((row) => {
@@ -217,22 +232,20 @@ const ContainerLifecycle = () => {
     return parsed;
   }, [apiData, findSlotName]);
 
-  // First movement = Offload (first machine transaction after gate-in)
-  const offloadMove = movements.length > 0 ? movements[0] : null;
-
-  // Lifecycle details from SP
+  // Lifecycle details from SP (Import / Export etc. — multiple rows)
   const lifecycleDetails = useMemo(() => {
     const data = lifecycleData?.data || [];
     return Array.isArray(data) ? data : [];
   }, [lifecycleData]);
 
-  const lifecycleMaster = lifecycleDetails[0] || null;
+  // Selected row (default pehli row). Index out-of-range ho to pehli row par fallback.
+  const lifecycleMaster = lifecycleDetails[selectedMasterIdx] || lifecycleDetails[0] || null;
 
-  // When lifecycle master_id is available, fetch offload timeline + gate in/out
+  // Selected row ka MasterId badalte hi offload timeline + gate in/out dobara fetch
   useEffect(() => {
     if (!lifecycleMaster?.MasterId || !searchQuery) return;
-    fetchOffloadTimeline(lifecycleMaster.MasterId);
-    fetchGateInOut({ master_id: lifecycleMaster.MasterId, container_no: searchQuery });
+    fetchOffloadTimeline(lifecycleMaster.MasterId, true);
+    fetchGateInOut({ master_id: lifecycleMaster.MasterId, container_no: searchQuery }, true);
   }, [lifecycleMaster?.MasterId, searchQuery, fetchOffloadTimeline, fetchGateInOut]);
 
   const offloadTimeline = useMemo(() => {
@@ -245,33 +258,48 @@ const ContainerLifecycle = () => {
     return Array.isArray(data) ? data[0] || null : null;
   }, [gateInOutData]);
 
+  // Selected row ki Gate In → Gate Out (ya abhi tak) date range se device movements filter
+  const filteredMovements = useMemo(() => {
+    if (!lifecycleMaster?.GateInDate) return movements;
+    const from = toDate(lifecycleMaster.GateInDate);
+    if (isNaN(from.getTime())) return movements;
+    let to = lifecycleMaster.GateOutDate ? toDate(lifecycleMaster.GateOutDate) : new Date();
+    if (isNaN(to.getTime())) to = new Date();
+    return movements.filter((m) => {
+      const t = toDate(m.dateTimeRaw);
+      return !isNaN(t.getTime()) && t >= from && t <= to;
+    });
+  }, [movements, lifecycleMaster]);
+
+  // Unlock path (PacketId 8) — selected row ke hisaab se
   useEffect(() => {
-    const unlockMoves = movements.filter((m) => String(gf(m, "PacketId", "packetid", "PACKET_ID", "packet_id", "PacketID")) === "8");
+    const unlockMoves = filteredMovements.filter(isUnlock);
     if (unlockMoves.length > 0) {
       const path = unlockMoves.filter((m) => m.lat != null && m.lng != null).map((m) => ({ lat: m.lat, lng: m.lng }));
       setContainerPath(path);
       if (path.length > 0) { setMapCenter(path[path.length - 1]); setMapZoom(18); }
     } else { setContainerPath([]); }
-  }, [movements]);
+  }, [filteredMovements]);
 
-  // Center map on offload timeline points when they load (if no unlock moves already set center)
+  // Offload timeline load ho to map us par center (jab unlock path na ho)
   useEffect(() => {
     if (!offloadTimeline.length) return;
     const pts = offloadTimeline
       .map(r => ({ lat: parseFloat(r.GpsLocLat), lng: parseFloat(r.GpsLocLon) }))
       .filter(p => isFinite(p.lat) && isFinite(p.lng));
     if (!pts.length) return;
-    // Only auto-center if movements haven't already set a path
     if (containerPath.length === 0) {
       setMapCenter(pts[pts.length - 1]);
       setMapZoom(17);
     }
-  }, [offloadTimeline]);
+  }, [offloadTimeline, containerPath.length]);
 
   const handleSearch = () => {
     const q = searchInput.trim().toUpperCase();
     if (!q) return;
     setSearchQuery(q); setHasSearched(true); setSelectedMoveIdx(null);
+    setSelectedOffloadIdx(null);
+    setSelectedMasterIdx(0); // naya search → default pehli row
     fetchDeviceData({ container_no: q, top: 500 });
     fetchContainerInfo(q);
     fetchLifecycleDetails(q);
@@ -281,35 +309,40 @@ const ContainerLifecycle = () => {
   const handleReset = () => {
     setSearchInput(""); setSearchQuery(""); setHasSearched(false);
     setContainerPath([]); setMapCenter({ ...defaultCenter }); setMapZoom(16);
-    setActiveMarker(null); setSelectedMoveIdx(null);
+    setActiveMarker(null); setSelectedMoveIdx(null); setSelectedOffloadIdx(null);
+    setSelectedMasterIdx(0);
   };
 
-  const handleRowClick = (idx) => {
-    const move = movements[idx];
-    setSelectedMoveIdx(idx);
-    if (move.lat != null && move.lng != null) {
-      setMapCenter({ lat: move.lat, lng: move.lng }); setMapZoom(19); setActiveMarker(idx);
-    }
+  // Table row click → us row ki detail sab jagah (timeline + map)
+  const handleMasterRowClick = (idx) => {
+    if (idx === selectedMasterIdx) return;
+    setSelectedMasterIdx(idx);
+    setSelectedMoveIdx(null);
+    setSelectedOffloadIdx(null);
+    setActiveMarker(null);
+    setContainerPath([]);
+    setMapZoom(17);
   };
 
   const summary = useMemo(() => {
     if (!movements.length && !containerInfo && !lifecycleMaster) return null;
-    const unlockMoves = movements.filter(
-      (m) => String(gf(m, "PacketId", "packetid", "PACKET_ID", "packet_id", "PacketID")) === "8"
-    );
+    const unlockMoves = filteredMovements.filter(isUnlock);
     const machines = new Set(
       unlockMoves.map((m) => gf(m, "KALMAR_NO", "MACHINE", "DEVICE_IMEI")).filter(Boolean)
     );
-    const lastMove = unlockMoves.length > 0 ? unlockMoves[unlockMoves.length - 1] : movements[movements.length - 1];
+    const lastMove = unlockMoves.length > 0 ? unlockMoves[unlockMoves.length - 1] : filteredMovements[filteredMovements.length - 1];
     return {
       totalMoves: unlockMoves.length || offloadTimeline.length,
       machinesCount: machines.size || new Set(offloadTimeline.map(r => r.EquipmentName).filter(Boolean)).size,
-      gateInDate: fmt(lifecycleMaster?.GateInDate) ?? fmt(gateInOut?.GateInDate) ?? containerInfo?.gateInDate ?? (movements[0]?.dateTime ?? "-"),
-      latestMoveDate: fmt(lifecycleMaster?.LastShiftDate) ?? lastMove?.dateTime ?? "-",
+      gateInDate: pickDate(lifecycleMaster?.GateInDate, gateInOut?.GateInDate, containerInfo?.gateInDate, movements[0]?.dateTimeRaw),
+      latestMoveDate: pickDate(lifecycleMaster?.LastShiftDate, lastMove?.dateTimeRaw),
     };
-  }, [movements, containerInfo, lifecycleMaster, gateInOut, offloadTimeline]);
+  }, [movements, filteredMovements, containerInfo, lifecycleMaster, gateInOut, offloadTimeline]);
 
   const isLoading = isFetching || isInfoFetching;
+
+  // Selected row ke liye common display values
+  const gateInDisplay = pickDate(lifecycleMaster?.GateInDate, gateInOut?.GateInDate, containerInfo?.gateInDate);
 
   return (
     <div className="w-full min-h-screen bg-slate-50">
@@ -378,43 +411,57 @@ const ContainerLifecycle = () => {
                         </thead>
                         <tbody>
                           {lifecycleDetails.length > 0 ? (
-                            lifecycleDetails.map((row, idx) => (
-                              <tr
-                                key={row.MasterId ?? idx}
-                                className="bg-white hover:bg-slate-50 transition-colors"
-                              >
-                                <td className="px-5 py-3 font-black text-slate-900">
-                                  {row.ContainerNo ?? containerInfo?.containerNo ?? searchQuery}
-                                </td>
-                                <td className="px-5 py-3">
-                                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 text-xs font-bold">
-                                    {row.ContainerSize ?? containerInfo?.size ?? "-"}
-                                  </span>
-                                </td>
-                                <td className="px-5 py-3">
-                                  <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-lg border border-purple-200 text-xs font-bold">
-                                    {row.ContainerType ?? containerInfo?.type ?? "-"}
-                                  </span>
-                                </td>
-                                <td className="px-5 py-3">
-                                  <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs font-bold">
-                                    {row.Process ?? containerInfo?.status ?? "-"}
-                                  </span>
-                                </td>
-                                <td className="px-5 py-3 font-bold text-slate-700 whitespace-nowrap">
-                                  {fmt(row.GateInDate)}
-                                </td>
-                                <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
-                                  {fmt(row.GateOutDate)}
-                                </td>
-                                <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
-                                  {row.TAT ?? "-"}
-                                </td>
-                                <td className="px-5 py-3 text-slate-600">
-                                  {offloadTimeline[offloadTimeline.length - 1]?.Area ?? containerInfo?.lastLocation ?? "-"}
-                                </td>
-                              </tr>
-                            ))
+                            lifecycleDetails.map((row, idx) => {
+                              const isSelected = lifecycleMaster
+                                ? (lifecycleMaster.MasterId != null
+                                    ? row.MasterId === lifecycleMaster.MasterId
+                                    : idx === selectedMasterIdx)
+                                : false;
+                              return (
+                                <tr
+                                  key={row.MasterId ?? idx}
+                                  onClick={() => handleMasterRowClick(idx)}
+                                  className={`cursor-pointer transition-colors border-b border-slate-100 last:border-0 ${
+                                    isSelected
+                                      ? "bg-blue-50 shadow-[inset_4px_0_0_#3b82f6]"
+                                      : "bg-white hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <td className="px-5 py-3 font-black text-slate-900">
+                                    {row.ContainerNo ?? containerInfo?.containerNo ?? searchQuery}
+                                  </td>
+                                  <td className="px-5 py-3">
+                                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 text-xs font-bold">
+                                      {row.ContainerSize ?? containerInfo?.size ?? "-"}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3">
+                                    <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-lg border border-purple-200 text-xs font-bold">
+                                      {row.ContainerType ?? containerInfo?.type ?? "-"}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3">
+                                    <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs font-bold">
+                                      {row.Process ?? containerInfo?.status ?? "-"}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                    {fmt(row.GateInDate)}
+                                  </td>
+                                  <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
+                                    {fmt(row.GateOutDate)}
+                                  </td>
+                                  <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
+                                    {row.TAT ?? "-"}
+                                  </td>
+                                  <td className="px-5 py-3 text-slate-600">
+                                    {isSelected
+                                      ? (offloadTimeline[offloadTimeline.length - 1]?.Area ?? row.LastLocation ?? containerInfo?.lastLocation ?? "-")
+                                      : (row.LastLocation ?? row.Area ?? "-")}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           ) : (
                             <tr className="bg-white hover:bg-slate-50 transition-colors">
                               <td className="px-5 py-3 font-black text-slate-900">{containerInfo?.containerNo ?? searchQuery}</td>
@@ -434,10 +481,10 @@ const ContainerLifecycle = () => {
                                 </span>
                               </td>
                               <td className="px-5 py-3 font-bold text-slate-700 whitespace-nowrap">
-                                {gateInOut?.GateInDate ? fmt(gateInOut.GateInDate) : containerInfo?.gateInDate ?? "-"}
+                                {pickDate(gateInOut?.GateInDate, containerInfo?.gateInDate)}
                               </td>
                               <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
-                                {gateInOut?.GateOutDate ? fmt(gateInOut.GateOutDate) : containerInfo?.gateOutDate ?? "-"}
+                                {pickDate(gateInOut?.GateOutDate, containerInfo?.gateOutDate)}
                               </td>
                               <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
                                 {containerInfo?.offloadDate ?? "-"}
@@ -450,6 +497,11 @@ const ContainerLifecycle = () => {
                         </tbody>
                       </table>
                     </div>
+                    {lifecycleDetails.length > 1 && (
+                      <div className="px-5 py-2 bg-slate-50 border-t border-slate-200 text-[11px] font-semibold text-slate-400">
+                        Row par click karke uski timeline aur map dekhein
+                      </div>
+                    )}
                   </div>
 
                   {/* ═══ TIMELINE + MAP GRID ═══ */}
@@ -463,28 +515,29 @@ const ContainerLifecycle = () => {
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-800 text-base">TimeLine</h3>
-                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">Movement lifecycle events</p>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">
+                            Movement lifecycle events{lifecycleMaster?.Process ? ` • ${lifecycleMaster.Process}` : ""}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-5">
+                      {/* key = MasterId → row badalne par timeline fresh render hoti hai */}
+                      <div key={lifecycleMaster?.MasterId ?? selectedMasterIdx} className="flex-1 overflow-y-auto p-5">
 
-                        {/* Gate In — from GET_GATEINOUT_TIMELINE SP or fallback to inventory */}
-                        <TimelineEvent icon={FiTruck} title="Gate In Details" color="#3b82f6" borderColor="#93c5fd" bgColor="bg-blue-50/50" badge={fmt(gateInOut?.GateInDate) ?? containerInfo?.gateInDate ?? "-"}>
-                          <InfoRow label="Gate In Date" value={fmt(gateInOut?.GateInDate) ?? containerInfo?.gateInDate ?? "-"} />
-                          <InfoRow label="Container No" value={gateInOut?.ContNo ?? lifecycleMaster?.ContainerNo ?? containerInfo?.containerNo ?? searchQuery} />
+                        {/* Gate In — selected row */}
+                        <TimelineEvent icon={FiTruck} title="Gate In Details" color="#3b82f6" borderColor="#93c5fd" bgColor="bg-blue-50/50" badge={gateInDisplay}>
+                          <InfoRow label="Gate In Date" value={gateInDisplay} />
+                          <InfoRow label="Container No" value={lifecycleMaster?.ContainerNo ?? gateInOut?.ContNo ?? containerInfo?.containerNo ?? searchQuery} />
                           <InfoRow label="Size" value={lifecycleMaster?.ContainerSize ?? containerInfo?.size ?? "-"} />
                           <InfoRow label="Type" value={lifecycleMaster?.ContainerType ?? containerInfo?.type ?? "-"} />
                           <InfoRow label="Process" value={lifecycleMaster?.Process ?? containerInfo?.status ?? "-"} />
                         </TimelineEvent>
 
-                        {/* Offload — first row of GET_OFFLOAD_TIMELINEDETAILS (oldest = initial offload) */}
+                        {/* Offload — first row of offload timeline (oldest = initial offload) */}
                         {(() => {
                           const row = offloadTimeline[0];
                           if (!row) return null;
-                          const lat = parseFloat(row.GpsLocLat), lng = parseFloat(row.GpsLocLon);
-                          const hasGps = isFinite(lat) && isFinite(lng);
                           return (
-                            <TimelineEvent icon={FiPackage} title="Offload Details" color="#f59e0b" borderColor="#fcd34d" bgColor="bg-amber-50/50" badge={fmt(row.TransDate)}>
+                            <TimelineEvent icon={FiPackage} title="Offload Details" color="#f59e0b" borderColor="#fcd34d" bgColor="bg-amber-50/50" badge={fmt(row.TransDate)} isLast={offloadTimeline.length <= 1}>
                               <InfoRow label="Offload Date" value={fmt(row.TransDate)} />
                               <InfoRow label="Equipment" value={row.EquipmentName || "-"} />
                               <InfoRow label="Area" value={row.Area || "-"} />
@@ -492,7 +545,7 @@ const ContainerLifecycle = () => {
                           );
                         })()}
 
-                        {/* Shifting — rows after first in offload timeline (index 1+) = post-offload shifts */}
+                        {/* Shifting — index 1+ = post-offload shifts */}
                         {offloadTimeline.length > 1 && (
                           <TimelineEvent icon={FiRefreshCw} title="Shifting Details" color="#10b981" borderColor="#6ee7b7" bgColor="bg-emerald-50/40" isLast>
                             <div className="overflow-x-auto -mx-1">
@@ -546,7 +599,10 @@ const ContainerLifecycle = () => {
                           </div>
                         </div>
                         {(selectedMoveIdx !== null || selectedOffloadIdx !== null) && (
-                          <button onClick={() => { setSelectedMoveIdx(null); setSelectedOffloadIdx(null); setActiveMarker(null); if (containerPath.length) { setMapCenter(containerPath[containerPath.length - 1]); setMapZoom(18); } }}
+                          <button onClick={() => {
+                            setSelectedMoveIdx(null); setSelectedOffloadIdx(null); setActiveMarker(null);
+                            if (containerPath.length) { setMapCenter(containerPath[containerPath.length - 1]); setMapZoom(18); }
+                          }}
                             className="px-3 py-1.5 rounded-full bg-white/15 text-white text-xs font-bold border border-white/20 hover:bg-white/25 transition-colors">
                             Show All
                           </button>
@@ -563,12 +619,12 @@ const ContainerLifecycle = () => {
                             {containerPath.length > 0 && (
                               <PolylineF path={containerPath} options={{ strokeColor: "#10b981", strokeOpacity: 0.9, strokeWeight: 4 }} />
                             )}
-                            {movements
-                              .filter((m) => String(gf(m, "PacketId", "packetid", "PACKET_ID", "packet_id", "PacketID")) === "8")
+                            {filteredMovements
+                              .filter(isUnlock)
                               .map((move, i, arr) => {
                                 if (!move.lat || !move.lng) return null;
                                 const isLast = i === arr.length - 1;
-                                const origIdx = movements.indexOf(move);
+                                const origIdx = filteredMovements.indexOf(move);
                                 const url = isLast ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png" : "https://maps.google.com/mapfiles/ms/icons/blue-dot.png";
                                 return (
                                   <MarkerF key={origIdx} position={{ lat: move.lat, lng: move.lng }} icon={{ url }} onClick={() => { setActiveMarker(origIdx); setSelectedMoveIdx(origIdx); setSelectedOffloadIdx(null); }}>
@@ -629,7 +685,7 @@ const ContainerLifecycle = () => {
                           </GoogleMap>
                         )}
                       </div>
-                      {(movements.length > 0 || offloadTimeline.length > 0) && (
+                      {(filteredMovements.length > 0 || offloadTimeline.length > 0) && (
                         <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-center gap-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                           {offloadTimeline.length > 0 && (
                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" /> Offload</span>
@@ -640,7 +696,7 @@ const ContainerLifecycle = () => {
                           {offloadTimeline.length > 1 && (
                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Latest</span>
                           )}
-                          {movements.some(m => String(gf(m, "PacketId", "packetid", "PACKET_ID", "packet_id", "PacketID")) === "8") && (
+                          {filteredMovements.some(isUnlock) && (
                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" /> Unlock</span>
                           )}
                         </div>

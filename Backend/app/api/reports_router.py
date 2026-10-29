@@ -20,20 +20,21 @@ def _service() -> ReportsService:
 
 
 # ── Gate in/out report ────────────────────────────────────────────────────────
-
 @router.get("/reports")
 def get_gate_report(
     container_no: Optional[str] = Query(None),
     from_date:    Optional[str] = Query(None),
     to_date:      Optional[str] = Query(None),
+    gate_type:    Optional[str] = Query("All", alias="type"),   # ← NEW
     current_user: dict = Depends(get_current_user),
 ):
     svc = _service()
     try:
-        return svc.get_gate_report(container_no, from_date, to_date, current_user.get("plant_id", 1))
+        return svc.get_gate_report(
+            container_no, from_date, to_date, gate_type, current_user.get("plant_id", 1)
+        )
     finally:
         svc.repo.db.close()
-
 
 # ── Device lock report ────────────────────────────────────────────────────────
 

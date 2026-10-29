@@ -8,7 +8,6 @@ import { API_ENDPOINTS } from '../../../config/api'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
-// "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
 const toLocalInputValue = (d) => {
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
@@ -41,8 +40,22 @@ const StatusBadge = ({ val }) => {
   return <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{val}</span>
 }
 
+const TYPE_OPTIONS = [
+  { value: 'All',     label: 'All' },
+  { value: 'GateIn',  label: 'Gate In' },
+  { value: 'GateOut', label: 'Gate Out' },
+]
+
+const EMPTY_COL_FILTERS = {
+  ContainerNo: '', ContainerSize: '', ContainerType: '',
+  Process: '', Mode: '', DocumentNo: '', ContainerStatus: '',
+  GateInDate: '', GateOutDate: '', GateName: '',
+  ContainerLocationName: '', TrailerNo: '',
+}
+
 const GateInOutReport = () => {
   const [searchContainer, setSearchContainer] = useState('')
+  const [gateType,        setGateType]        = useState('All')          // ← NEW
   const [dateFrom,        setDateFrom]        = useState(yesterdayLocalDT())
   const [dateTo,          setDateTo]          = useState(todayLocalDT())
   const [records,         setRecords]         = useState([])
@@ -50,12 +63,7 @@ const GateInOutReport = () => {
   const [error,           setError]           = useState(null)
   const [fetched,         setFetched]         = useState(false)
   const [sortConfig,      setSortConfig]      = useState({ key: null, dir: null })
-  const [colFilters,      setColFilters]      = useState({
-    ContainerNo: '', ContainerSize: '', ContainerType: '',
-    Process: '', Mode: '', DocumentNo: '', ContainerStatus: '',
-    GateInDate: '', GateOutDate: '', GateName: '',
-    ContainerLocationName: '', TrailerNo: '',
-  })
+  const [colFilters,      setColFilters]      = useState(EMPTY_COL_FILTERS)
 
   useEffect(() => { fetchData() }, [])
 
@@ -67,6 +75,7 @@ const GateInOutReport = () => {
       if (searchContainer.trim()) params.set('container_no', searchContainer.trim())
       if (dateFrom) params.set('from_date', dateFrom)
       if (dateTo)   params.set('to_date',   dateTo)
+      params.set('type', gateType)                                         // ← NEW
 
       const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken') || ''
       const res = await fetch(`${API_ENDPOINTS.REPORTS.GATE_IN_OUT}?${params.toString()}`, {
@@ -77,7 +86,7 @@ const GateInOutReport = () => {
       })
       const json = await res.json()
       if (!res.ok || json.status !== 'success') {
-        setError(json.message || `Server error (${res.status})`)
+        setError(json.message || json.detail || `Server error (${res.status})`)
         setRecords([])
       } else {
         setRecords(json.data || [])
@@ -93,40 +102,41 @@ const GateInOutReport = () => {
 
   const handleClear = () => {
     setSearchContainer('')
+    setGateType('All')                                                     // ← NEW
     setDateFrom(yesterdayLocalDT())
     setDateTo(todayLocalDT())
     setRecords([])
     setFetched(false)
     setError(null)
-    setColFilters({ ContainerNo: '', ContainerSize: '', ContainerType: '', Process: '', Mode: '', DocumentNo: '', ContainerStatus: '', GateInDate: '', GateOutDate: '', GateName: '', ContainerLocationName: '', TrailerNo: '' })
+    setColFilters(EMPTY_COL_FILTERS)
     setSortConfig({ key: null, dir: null })
   }
 
   const handleExport = () => {
     if (!filteredRecords.length) return
     const rows = filteredRecords.map((r, i) => ({
-      '#':                    i + 1,
-      'Container No':         r.ContainerNo             || '',
-      'Size':                 r.ContainerSize           || '',
-      'Type':                 r.ContainerType           || '',
-      'Process':              r.Process                 || '',
-      'Document No':          r.DocumentNo              || '',
-      'Booking No':           r.BookingNo               || '',
-      'Shipping Line':        r.ShippingLine            || '',
-      'Mode':                 r.Mode                    || '',
-      'Status':               r.ContainerStatus         || '',
-      'Gate Name':            r.GateName                || '',
-      'Location':             r.ContainerLocationName   || '',
-      'Trailer No':           r.TrailerNo               || '',
-      'Gate In Date':         formatDate(r.GateInDate),
-      'Gate Out Date':        formatDate(r.GateOutDate),
-      'In Hours':               r.INTAT                   || '',
-      'TAT Days':              r.OUTTAT                  || '',
+      '#':               i + 1,
+      'Container No':    r.ContainerNo           || '',
+      'Size':            r.ContainerSize         || '',
+      'Type':            r.ContainerType         || '',
+      'Process':         r.Process               || '',
+      'Document No':     r.DocumentNo            || '',
+      'Booking No':      r.BookingNo             || '',
+      'Shipping Line':   r.ShippingLine          || '',
+      'Mode':            r.Mode                  || '',
+      'Status':          r.ContainerStatus       || '',
+      'Gate Name':       r.GateName              || '',
+      'Location':        r.ContainerLocationName || '',
+      'Trailer No':      r.TrailerNo             || '',
+      'Gate In Date':    formatDate(r.GateInDate),
+      'Gate Out Date':   formatDate(r.GateOutDate),
+      'TAT Hours':       r.INTAT                 || '',
+      'TAT Days':        r.OUTTAT                || '',
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Gate In Out Report')
-    writeXlsx(wb, `GateInOutReport_${dateFrom}_${dateTo}.xlsx`)
+    writeXlsx(wb, `GateInOutReport_${gateType}_${dateFrom}_${dateTo}.xlsx`)
   }
 
   const setColFilter = (key, val) =>
@@ -141,12 +151,14 @@ const GateInOutReport = () => {
   }
 
   const processStats = useMemo(() => {
-    const total = records.length
-    const exportCount = records.filter(r => String(r.Process || '').toUpperCase() === 'EXPORT').length
-    const importCount = records.filter(r => String(r.Process || '').toUpperCase() === 'IMPORT').length
-    const emptyCount = records.filter(r => String(r.Process || '').toUpperCase() === 'EMPTY').length
-    const domesticCount = records.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length
-    return { total, exportCount, importCount, emptyCount, domesticCount }
+    const count = (p) => records.filter(r => String(r.Process || '').toUpperCase() === p).length
+    return {
+      total: records.length,
+      exportCount: count('EXPORT'),
+      importCount: count('IMPORT'),
+      emptyCount: count('EMPTY'),
+      domesticCount: count('DOMESTIC'),
+    }
   }, [records])
 
   const filteredRecords = useMemo(() => {
@@ -180,18 +192,18 @@ const GateInOutReport = () => {
   }, [records, colFilters, sortConfig])
 
   const COLS = [
-    { key: 'ContainerNo',           label: 'Container No',  ph: 'Container…'  },
-    { key: 'ContainerSize',         label: 'Size',          ph: 'Size…'        },
-    { key: 'ContainerType',         label: 'Type',          ph: 'Type…'        },
-    { key: 'Process',               label: 'Process',       ph: 'Process…'     },
-    { key: 'Mode',                  label: 'Mode',          ph: 'Mode…'        },
-    { key: 'BookingNo',             label: 'Booking No',    ph: 'Booking…'     },
-    { key: 'ContainerLocationName', label: 'Location',      ph: 'Location…'    },
-    { key: 'TrailerNo',             label: 'Trailer No',    ph: 'Trailer…'     },
-    { key: 'GateInDate',            label: 'Gate In Date',  ph: 'dd/mm/yyyy…'  },
-    { key: 'GateOutDate',           label: 'Gate Out Date', ph: 'dd/mm/yyyy…'  },
-    { key: 'INTAT',                 label: 'TAT Hours',        ph: 'TAT…'         },
-    { key: 'OUTTAT',                label: 'TAT Days',       ph: 'TAT…'         },
+    { key: 'ContainerNo',           label: 'Container No' },
+    { key: 'ContainerSize',         label: 'Size' },
+    { key: 'ContainerType',         label: 'Type' },
+    { key: 'Process',               label: 'Process' },
+    { key: 'Mode',                  label: 'Mode' },
+    { key: 'BookingNo',             label: 'Booking No' },
+    { key: 'ContainerLocationName', label: 'Location' },
+    { key: 'TrailerNo',             label: 'Trailer No' },
+    { key: 'GateInDate',            label: 'Gate In Date' },
+    { key: 'GateOutDate',           label: 'Gate Out Date' },
+    { key: 'INTAT',                 label: 'TAT Hours' },
+    { key: 'OUTTAT',                label: 'TAT Days' },
   ]
 
   const SortIcon = ({ colKey }) => (
@@ -200,6 +212,8 @@ const GateInOutReport = () => {
       <FiChevronDown className={`w-3 h-3 -mt-1 ${sortConfig.key === colKey && sortConfig.dir === 'desc' ? 'text-white' : 'text-white/30'}`} />
     </span>
   )
+
+  const inputCls = "border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
 
   return (
     <div
@@ -213,64 +227,26 @@ const GateInOutReport = () => {
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 space-y-5">
 
-          {/* ── Header ── */}
           <header className="px-1">
             <h2 className="text-lg font-bold tracking-wide text-[#0e4a78] uppercase flex items-center gap-2">
               <FiFilter /> Gate In / Out Report
             </h2>
           </header>
 
-          {/* ── Stats + Filter — merged into one card ── */}
           <FilterCard>
           <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
-            <StatCard
-              label="Total Entries"
-              value={processStats.total}
-              icon={FiPackage}
-              tone="slate"
-              isActive={!colFilters.Process}
-              onClick={() => setColFilter('Process', '')}
-              total={processStats.total}
-            />
-            <StatCard
-              label="Export"
-              value={processStats.exportCount}
-              icon={FiUpload}
-              tone="amber"
-              isActive={colFilters.Process.toUpperCase() === 'EXPORT'}
-              onClick={() => setColFilter('Process', 'EXPORT')}
-              total={processStats.total}
-            />
-            <StatCard
-              label="Import"
-              value={processStats.importCount}
-              icon={FiDownload}
-              tone="emerald"
-              isActive={colFilters.Process.toUpperCase() === 'IMPORT'}
-              onClick={() => setColFilter('Process', 'IMPORT')}
-              total={processStats.total}
-            />
-            <StatCard
-              label="Empty"
-              value={processStats.emptyCount}
-              icon={FiPackage}
-              tone="violet"
-              isActive={colFilters.Process.toUpperCase() === 'EMPTY'}
-              onClick={() => setColFilter('Process', 'EMPTY')}
-              total={processStats.total}
-            />
-            <StatCard
-              label="Domestic"
-              value={processStats.domesticCount}
-              icon={FiHome}
-              tone="rose"
-              isActive={colFilters.Process.toUpperCase() === 'DOMESTIC'}
-              onClick={() => setColFilter('Process', 'DOMESTIC')}
-              total={processStats.total}
-            />
+            <StatCard label="Total Entries" value={processStats.total} icon={FiPackage} tone="slate"
+              isActive={!colFilters.Process} onClick={() => setColFilter('Process', '')} total={processStats.total} />
+            <StatCard label="Export" value={processStats.exportCount} icon={FiUpload} tone="amber"
+              isActive={colFilters.Process.toUpperCase() === 'EXPORT'} onClick={() => setColFilter('Process', 'EXPORT')} total={processStats.total} />
+            <StatCard label="Import" value={processStats.importCount} icon={FiDownload} tone="emerald"
+              isActive={colFilters.Process.toUpperCase() === 'IMPORT'} onClick={() => setColFilter('Process', 'IMPORT')} total={processStats.total} />
+            <StatCard label="Empty" value={processStats.emptyCount} icon={FiPackage} tone="violet"
+              isActive={colFilters.Process.toUpperCase() === 'EMPTY'} onClick={() => setColFilter('Process', 'EMPTY')} total={processStats.total} />
+            <StatCard label="Domestic" value={processStats.domesticCount} icon={FiHome} tone="rose"
+              isActive={colFilters.Process.toUpperCase() === 'DOMESTIC'} onClick={() => setColFilter('Process', 'DOMESTIC')} total={processStats.total} />
           </StatGrid>
 
-          {/* ── Filter Bar ── */}
           <FilterBar bare>
             <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[160px]">
               <input
@@ -279,18 +255,29 @@ const GateInOutReport = () => {
                 value={searchContainer}
                 onChange={e => setSearchContainer(e.target.value.toUpperCase())}
                 onKeyDown={e => e.key === 'Enter' && fetchData()}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
+                className={inputCls}
               />
             </FilterField>
 
+            {/* ── NEW: Type dropdown (From Date se pehle) ── */}
+            <FilterField label="Type" icon={FiFilter}>
+              <select
+                value={gateType}
+                onChange={e => setGateType(e.target.value)}
+                className={`${inputCls} min-w-[130px]`}
+              >
+                {TYPE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </FilterField>
+
             <FilterField label="From Date" icon={FiCalendar}>
-              <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
+              <input type="datetime-local" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={inputCls} />
             </FilterField>
 
             <FilterField label="To Date" icon={FiCalendar}>
-              <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]" />
+              <input type="datetime-local" value={dateTo} onChange={e => setDateTo(e.target.value)} className={inputCls} />
             </FilterField>
 
             <div className="flex gap-2">
@@ -300,7 +287,6 @@ const GateInOutReport = () => {
           </FilterBar>
           </FilterCard>
 
-          {/* ── Table ── */}
           <section className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
             <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-5 py-3 flex items-center justify-between">
               <h2 className="text-white font-bold text-base tracking-wide uppercase">

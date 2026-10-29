@@ -62,11 +62,37 @@ class ReportsService:
     def __init__(self, repo: ReportsRepository):
         self.repo = repo
 
+    # def get_gate_report(
+    #     self,
+    #     container_no: Optional[str],
+    #     from_date: Optional[str],
+    #     to_date: Optional[str],
+    #     plant_id: int,
+    # ) -> dict:
+    #     if from_date:
+    #         try:
+    #             datetime.strptime(from_date, "%Y-%m-%d")
+    #         except ValueError:
+    #             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid from_date. Use YYYY-MM-DD")
+    #     if to_date:
+    #         try:
+    #             datetime.strptime(to_date, "%Y-%m-%d")
+    #         except ValueError:
+    #             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid to_date. Use YYYY-MM-DD")
+
+    #     result = self.repo.get_gate_report(from_date or "", to_date or "", container_no or "", plant_id)
+    #     if result.get("status") != "success":
+    #         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message"))
+
+    #     data = result.get("data", [])
+    #     return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
     def get_gate_report(
         self,
         container_no: Optional[str],
         from_date: Optional[str],
         to_date: Optional[str],
+        gate_type: Optional[str],      # ← NEW
         plant_id: int,
     ) -> dict:
         if from_date:
@@ -80,12 +106,17 @@ class ReportsService:
             except ValueError:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid to_date. Use YYYY-MM-DD")
 
-        result = self.repo.get_gate_report(from_date or "", to_date or "", container_no or "", plant_id)
+        # ← NEW
+        gate_type = (gate_type or "All").strip()
+        if gate_type not in ("All", "GateIn", "GateOut"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid type. Use All, GateIn or GateOut")
+
+        result = self.repo.get_gate_report(from_date or "", to_date or "", container_no or "", gate_type, plant_id)
         if result.get("status") != "success":
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message"))
 
         data = result.get("data", [])
-        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+        return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}        
 
     def get_device_lock_report(
         self,
@@ -109,6 +140,7 @@ class ReportsService:
 
         data = result.get("data") or []
         return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
 
     def get_device_raw_data(
         self,

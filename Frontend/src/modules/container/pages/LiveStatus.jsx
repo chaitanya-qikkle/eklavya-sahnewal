@@ -22,6 +22,8 @@ const columns = [
   { key: "location", label: "Location", sortable: true },
   { key: "yardName", label: "Yard", sortable: true },
   { key: "GATE_IN_DATE", label: "Gate In", sortable: true },
+  { key: "StuffingDate", label: "Stuffing Date", sortable: true },     // ← NEW
+  { key: "DestuffingDate", label: "Destuffing Date", sortable: true }, // ← NEW
   { key: "TOSS_IN_DATE", label: "Transaction Date", sortable: true },
   { key: "TIME_IN_YARD", label: "Day TAT", sortable: true },
   { key: "TIME_IN_YARD_HR", label: "Hr TAT", sortable: true },
@@ -365,7 +367,8 @@ const LiveStatus = () => {
       result.sort((a, b) => {
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
-        if (String(sortConfig.key).includes("DATE")) {
+        // ← CHANGED: case-insensitive so StuffingDate / DestuffingDate sort as dates too
+        if (String(sortConfig.key).toUpperCase().includes("DATE")) {
           return sortConfig.direction === "asc"
             ? parseDateTime(aValue) - parseDateTime(bValue)
             : parseDateTime(bValue) - parseDateTime(aValue);
@@ -464,10 +467,13 @@ const LiveStatus = () => {
       return;
     }
 
-    const DATE_HEADERS = ["Gate In Date", "Transaction Date"];
+    // ← CHANGED: Stuffing / Destuffing added
+    const DATE_HEADERS = ["Gate In Date", "Stuffing Date", "Destuffing Date", "Transaction Date"];
 
     const exportData = source.map((record) => {
       const gateIn = toExcelSerial(record.GATE_IN_DATE);
+      const stuffing = toExcelSerial(record.StuffingDate);        // ← NEW
+      const destuffing = toExcelSerial(record.DestuffingDate);    // ← NEW
       const txnDate = toExcelSerial(record.TOSS_IN_DATE || record.LAST_MOVED_DATE || "");
       return {
         "Container No":     record.CONTAINER_NO,
@@ -480,6 +486,8 @@ const LiveStatus = () => {
         "Location":         record.MASTERTABLE || record.LOCATION_NAME || "",
         "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
         "Gate In Date":     gateIn ?? "",      // real Excel date (number)
+        "Stuffing Date":    stuffing ?? "",    // ← NEW
+        "Destuffing Date":  destuffing ?? "",  // ← NEW
         "Transaction Date": txnDate ?? "",     // real Excel date (number)
         "Day TAT":          toNumberOrBlank(record.TIME_IN_YARD),
         "Hr TAT":           toNumberOrBlank(record.TIME_IN_YARD_HR),
@@ -949,7 +957,7 @@ const LiveStatus = () => {
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">
                               <span className="font-mono font-semibold text-slate-900 tracking-tight">{record.CONTAINER_NO}</span>
                             </td>
-                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">{record.CONTAINER_SIZE} ft</td>
+                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">{record.CONTAINER_SIZE}</td>
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">{record.CONTAINER_TYPE || "-"}</td>
                             <td className="px-4 py-2.5 border-r border-slate-200">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${processBadge}`}>
@@ -990,6 +998,14 @@ const LiveStatus = () => {
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200">{record.yardName || "-"}</td>
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
                               {fmtDate(record.GATE_IN_DATE)}
+                            </td>
+                            {/* ← NEW: Stuffing Date */}
+                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                              {fmtDate(record.StuffingDate)}
+                            </td>
+                            {/* ← NEW: Destuffing Date */}
+                            <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                              {fmtDate(record.DestuffingDate)}
                             </td>
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">{fmtDate(record.transactionDate)}</td>
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">{record.TIME_IN_YARD || "-"}</td>

@@ -76,6 +76,8 @@ def _fetch_container_live_status(plant_id: int, search_for: str):
                 "RELEASE_STATUS":    r.get("ReleaseStatus"),
                 "MASTERTABLE":       r.get("ContainerLocation"),
                 "BLOCK_NAME":        r.get("ContainerLocation"),
+                "StuffingDate":      r.get("StuffingDate"),
+                "DestuffingDate" :    r.get("DestuffingDate")
             }
             for r in rows
         ]

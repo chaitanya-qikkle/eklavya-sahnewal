@@ -13,11 +13,13 @@ class ReportsRepository(BaseRepository):
         from_date: str,
         to_date: str,
         container_no: str,
+        gate_type: str,      # ← NEW
         plant_id: int,
     ) -> dict:
         return self._exec(
-            "EXEC [dbo].[GET_GATEIN_REPORT] @fromDate = ?, @toDate = ?, @ContainerNo = ?, @PlantId = ?",
-            (from_date, to_date, container_no, plant_id),
+            "EXEC [dbo].[GET_GATEIN_REPORT] "
+            "@fromDate = ?, @toDate = ?, @ContainerNo = ?, @Type = ?, @PlantId = ?",
+            (from_date, to_date, container_no, gate_type, plant_id),
         )
 
     def get_device_lock_report(

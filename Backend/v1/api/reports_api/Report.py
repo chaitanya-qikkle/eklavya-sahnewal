@@ -110,11 +110,59 @@ def _apply_camera_filenames(rows: list) -> None:
         row["CameraImage3"] = f"{device_id}_{ts}_cam3_1.jpg"
 
 
+# @router.get("/reports")
+# def get_gate_report(
+#     container_no: Optional[str] = Query(None),
+#     from_date: Optional[str] = Query(None),
+#     to_date: Optional[str] = Query(None),
+#     current_user: dict = Depends(get_current_user),
+# ):
+#     db = SQLManager()
+#     try:
+#         container_no_param = (container_no or '').strip().upper()
+
+#         from_dt = _to_proc_datetime(from_date)
+#         if from_date and from_dt is None:
+#             raise HTTPException(status_code=400, detail="Invalid from_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
+#         to_dt = _to_proc_datetime(to_date)
+#         if to_date and to_dt is None:
+#             raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
+
+#         plant_id = current_user.get("plant_id", 1)
+
+#         result = db.execute_query(
+#             "EXEC dbo.GET_GATEIN_REPORT @fromDate = ?, @toDate = ?, @ContainerNo = ?, @PlantId = ?",
+#             (from_dt, to_dt, container_no_param, plant_id),
+#             fetch_all=True,
+#         )
+
+#         if result.get("status") != "success":
+#             raise HTTPException(status_code=500, detail=result.get("message", "Database error"))
+
+#         data = result.get("data") or []
+#         if isinstance(data, list) and data and isinstance(data[0], list):
+#             data = data[0]
+
+#         logger.info(f"Gate report success: {len(data)} records")
+#         return {"status": "success", "message": f"Found {len(data)} record(s).", "total_records": len(data), "data": data}
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Gate report error: {e}")
+#         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+#     finally:
+#         try:
+#             db.close_connection()
+#         except Exception:
+#             pass
+
 @router.get("/reports")
 def get_gate_report(
     container_no: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
+    gate_type: Optional[str] = Query("All", alias="type"),   # ← NEW
     current_user: dict = Depends(get_current_user),
 ):
     db = SQLManager()
@@ -128,11 +176,16 @@ def get_gate_report(
         if to_date and to_dt is None:
             raise HTTPException(status_code=400, detail="Invalid to_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 
+        # ← NEW
+        gate_type_param = (gate_type or "All").strip()
+        if gate_type_param not in ("All", "GateIn", "GateOut"):
+            raise HTTPException(status_code=400, detail="Invalid type. Use All, GateIn or GateOut")
+
         plant_id = current_user.get("plant_id", 1)
 
         result = db.execute_query(
-            "EXEC dbo.GET_GATEIN_REPORT @fromDate = ?, @toDate = ?, @ContainerNo = ?, @PlantId = ?",
-            (from_dt, to_dt, container_no_param, plant_id),
+            "EXEC dbo.GET_GATEIN_REPORT @fromDate = ?, @toDate = ?, @ContainerNo = ?, @Type = ?, @PlantId = ?",   # ← @Type added
+            (from_dt, to_dt, container_no_param, gate_type_param, plant_id),                                        # ← gate_type_param added
             fetch_all=True,
         )
 
@@ -156,7 +209,6 @@ def get_gate_report(
             db.close_connection()
         except Exception:
             pass
-
 
 @router.get("/offload-report")
 def get_offload_report(
