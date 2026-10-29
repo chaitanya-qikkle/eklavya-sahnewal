@@ -387,6 +387,7 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-slate-100 text-slate-500 z-10">
                   <tr>
+                    <th className="pl-3 pr-1 py-2 text-left font-semibold uppercase tracking-wide w-8">#</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Container</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide w-14">Size</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Position</th>
@@ -402,6 +403,11 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
                         className={`border-b border-slate-100 cursor-pointer transition
                           ${sel ? "bg-blue-50" : "hover:bg-slate-50"}`}
                         onClick={() => (hasGps || slot?.center) && focusContainer(c)}>
+                        <td className="pl-3 pr-1 py-2.5">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#0e4a78] text-white text-[10px] font-bold">
+                            {i + 1}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full flex-shrink-0"
@@ -647,18 +653,35 @@ const ContainerMap = ({ containerNo, onClose, autoFocusContainer }) => {
             let pos = (isFinite(lat) && isFinite(lng)) ? { lat, lng } : containerSlot(c)?.center;
             if (!pos) return null;
             return (
-              <MarkerF key={`marker-${c.CONTAINER_NO}-${i}`}
-                position={pos} title={c.CONTAINER_NO} zIndex={1000}
-                icon={{
-                  path: window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-                  scale: 7,
-                  fillColor: getProcessColor(c.CONTAINER_PROCESS),
-                  fillOpacity: 1,
-                  strokeColor: "#fff",
-                  strokeWeight: 2,
-                }}
-                onClick={() => setSelectedMarker(c)}
-              />
+              <React.Fragment key={`marker-${c.CONTAINER_NO}-${i}`}>
+                <MarkerF
+                  position={pos} title={c.CONTAINER_NO} zIndex={1000}
+                  icon={{
+                    path: window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                    scale: 7,
+                    fillColor: getProcessColor(c.CONTAINER_PROCESS),
+                    fillOpacity: 1,
+                    strokeColor: "#fff",
+                    strokeWeight: 2,
+                  }}
+                  onClick={() => setSelectedMarker(c)}
+                />
+                {/* Serial number — same number as in the left container list */}
+                <OverlayView position={pos} mapPaneName={OverlayView.FLOAT_PANE}>
+                  <div style={{
+                    position: "absolute",
+                    transform: "translate(-50%, -190%)",
+                    minWidth: 18, height: 18, padding: "0 4px",
+                    borderRadius: 9,
+                    background: "#0e4a78", color: "#fff",
+                    border: "2px solid #fff",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
+                    fontSize: 10, fontWeight: 800, lineHeight: "14px",
+                    textAlign: "center",
+                    pointerEvents: "none", userSelect: "none",
+                  }}>{i + 1}</div>
+                </OverlayView>
+              </React.Fragment>
             );
           })}
 
