@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiRefreshCw, FiCalendar, FiX, FiTool } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetBreakdownsFilteredQuery } from '../../../store/api/ymsApi'
@@ -79,7 +80,7 @@ const BreakdownReport = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'BreakdownReport')
-    XLSX.writeFile(wb, `BreakdownReport_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `BreakdownReport_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (

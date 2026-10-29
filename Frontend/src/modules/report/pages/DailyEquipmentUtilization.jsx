@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { FiSearch, FiFilter, FiCalendar, FiChevronUp, FiChevronDown } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetEquipmentDailyUtilizationQuery, useGetEquipmentQuery } from '../../../store/api/ymsApi'
@@ -146,7 +147,7 @@ const DailyEquipmentUtilization = () => {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Machine Utilization')
-    XLSX.writeFile(wb, `Machine-Utilization-${fromDate.replace(/:/g, '')}-to-${toDate.replace(/:/g, '')}.xlsx`)
+    writeXlsx(wb, `Machine-Utilization-${fromDate.replace(/:/g, '')}-to-${toDate.replace(/:/g, '')}.xlsx`)
   }
 
   const summary = useMemo(() => {

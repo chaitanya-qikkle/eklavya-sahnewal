@@ -3,6 +3,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiRefreshCw, FiSearch, FiX, FiAlertTriangle } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useLazyGetMismatchHandlingQuery } from '../../../store/api/ymsApi'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
@@ -45,7 +46,7 @@ const MismatchHandling = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'MismatchHandling')
-    XLSX.writeFile(wb, `MismatchHandling_${today}.xlsx`)
+    writeXlsx(wb, `MismatchHandling_${today}.xlsx`)
   }
 
   return (

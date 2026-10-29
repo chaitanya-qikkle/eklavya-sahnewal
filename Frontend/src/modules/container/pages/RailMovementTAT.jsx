@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiChevronUp, FiChevronDown, FiCalendar, FiRefreshCw } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
@@ -112,7 +113,7 @@ const RailMovementTAT = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Rail Movement TAT")
-    XLSX.writeFile(workbook, "rail-movement-tat.xlsx")
+    writeXlsx(workbook, "rail-movement-tat.xlsx")
   }
 
   return (

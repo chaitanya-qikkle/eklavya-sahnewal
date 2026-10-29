@@ -4,6 +4,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiRefreshCw, FiSearch, FiX, FiChevronDown, FiTruck, FiPackage, FiUpload, FiDownload, FiHome, FiHash } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useLazyGetRailJourneyByDocumentQuery, useGetDocumentNumbersQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterClearBtn, FilterLabel, FilterExportBtn } from '../../../components/ui/FilterBar'
@@ -122,7 +123,7 @@ const PreRailInReport = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'AllRailJourneyDetail')
-    XLSX.writeFile(wb, `AllRailJourneyDetail_${new Date().toISOString().split('T')[0]}.xlsx`)
+    writeXlsx(wb, `AllRailJourneyDetail_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   return (

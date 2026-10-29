@@ -5,6 +5,7 @@ import { FiCalendar, FiSearch, FiFilter, FiX } from 'react-icons/fi'
 import { TbRefresh } from 'react-icons/tb'
 import { MdDevices } from 'react-icons/md'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import {
   useGetEquipmentQuery,
   useGetDeviceRawDataKalmarListQuery,
@@ -151,7 +152,7 @@ const DeviceRawData = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'DeviceRawData')
-    XLSX.writeFile(wb, `DeviceRawData_${new Date().toISOString().split('T')[0]}.xlsx`)
+    writeXlsx(wb, `DeviceRawData_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   const filtered = useMemo(() => {

@@ -4,6 +4,7 @@ import Footer from '../../../components/layout/Footer'
 import { FiX, FiSearch, FiRefreshCw, FiUploadCloud, FiDownload } from 'react-icons/fi'
 import { MdGpsFixed } from 'react-icons/md'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import {
   useLazyGetContainerTrackingDataQuery,
   useGetContainerListQuery,
@@ -124,14 +125,14 @@ const ContainerTracking = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'ContainerTracking')
-    XLSX.writeFile(wb, `ContainerTracking_${new Date().toISOString().split('T')[0]}.xlsx`)
+    writeXlsx(wb, `ContainerTracking_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   const handleDownloadFormat = () => {
     const ws = XLSX.utils.aoa_to_sheet([['Container No']])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Format')
-    XLSX.writeFile(wb, 'ContainerTracking_UploadFormat.xlsx')
+    writeXlsx(wb, 'ContainerTracking_UploadFormat.xlsx')
   }
 
   const readFile = (file) => {

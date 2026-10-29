@@ -3,6 +3,7 @@ import { FiDownload, FiTrash2, FiPlusCircle, FiUploadCloud, FiX, FiRefreshCw } f
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import {
   useGetRailPlanListQuery,
   useLazyGetRailPlanDetailQuery,
@@ -46,7 +47,7 @@ const RailPlanUpload = () => {
     const ws = XLSX.utils.aoa_to_sheet([['Container No', 'Container Size', 'To Location']])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Format')
-    XLSX.writeFile(wb, 'RailPlan_UploadFormat.xlsx')
+    writeXlsx(wb, 'RailPlan_UploadFormat.xlsx')
   }
 
   const readFile = (file) => {

@@ -7,6 +7,7 @@ import {
   FiChevronLeft, FiChevronRight, FiHome,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { FaTruck } from 'react-icons/fa'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
@@ -561,7 +562,7 @@ export default function PreGateInOut() {
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Pre Gate Survey')
-    XLSX.writeFile(wb, `PreGateSurvey_${fromDate || 'today'}_${toDate || 'today'}.xlsx`)
+    writeXlsx(wb, `PreGateSurvey_${fromDate || 'today'}_${toDate || 'today'}.xlsx`)
   }
 
   const total          = data?.total          ?? allRowsSorted.length

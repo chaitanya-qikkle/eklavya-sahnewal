@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
@@ -92,7 +93,7 @@ const Onrack = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "OnRack Containers")
-    XLSX.writeFile(workbook, "onrack-containers.xlsx")
+    writeXlsx(workbook, "onrack-containers.xlsx")
   }
 
   return (

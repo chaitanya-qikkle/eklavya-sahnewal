@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { writeXlsx } from "../../../utils/excelDates";
 import {
   FiActivity, FiBox, FiClock, FiRefreshCw, FiTrendingUp, FiMapPin, FiZap,
   FiBarChart2, FiPackage, FiCpu, FiPercent,
@@ -274,7 +275,7 @@ const exportToExcel = (rows, sheetName, fileName) => {
   const p = (n) => String(n).padStart(2, "0");
   const d = new Date();
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
-  XLSX.writeFile(wb, `${fileName}_${stamp}.xlsx`);
+  writeXlsx(wb, `${fileName}_${stamp}.xlsx`);
 };
 
 const ExportBtn = ({ onClick, disabled }) => (

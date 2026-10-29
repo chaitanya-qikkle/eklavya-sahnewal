@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiCalendar, FiPackage, FiDownload, FiUpload, FiBox } from 'react-icons/fi'
 import { FaFilePdf } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Navbar from '../../../components/layout/Navbar'
@@ -185,7 +186,7 @@ const ContainerHistoryStatus = () => {
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Container History')
-    XLSX.writeFile(workbook, 'container-history.xlsx')
+    writeXlsx(workbook, 'container-history.xlsx')
   }
 
   return (

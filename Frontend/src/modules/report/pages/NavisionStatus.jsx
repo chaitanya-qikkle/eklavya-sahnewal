@@ -3,6 +3,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiSearch, FiRefreshCw, FiX, FiFilter } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useLazyGetNavisionStatusQuery } from '../../../store/api/ymsApi'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
@@ -66,7 +67,7 @@ const NavisionStatus = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'NavisionStatus')
-    XLSX.writeFile(wb, `NavisionStatus_${new Date().toISOString().split('T')[0]}.xlsx`)
+    writeXlsx(wb, `NavisionStatus_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   return (

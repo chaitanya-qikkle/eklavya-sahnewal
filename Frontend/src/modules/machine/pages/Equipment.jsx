@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
+import { writeXlsx } from "../../../utils/excelDates";
 import { FiSearch, FiTrash2, FiEdit3, FiRefreshCw, FiCheckCircle, FiXCircle, FiPlus, FiList, FiSettings, FiSmartphone, FiMonitor, FiBarChart2 } from "react-icons/fi";
 import Navbar from "../../../components/layout/Navbar";
 import {
@@ -297,7 +298,7 @@ export default function Equipment() {
     const worksheet = XLSX.utils.json_to_sheet(filteredRecords);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Equipment");
-    XLSX.writeFile(workbook, "equipment-master.xlsx");
+    writeXlsx(workbook, "equipment-master.xlsx");
   };
 
   return (

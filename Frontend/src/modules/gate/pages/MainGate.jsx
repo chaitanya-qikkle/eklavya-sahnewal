@@ -6,6 +6,7 @@ import {
   FiChevronLeft, FiChevronRight, FiHome, FiFilter,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { FaDoorOpen } from 'react-icons/fa'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
@@ -424,7 +425,7 @@ const MainGate = () => {
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Main Gate Detection')
-    XLSX.writeFile(wb, `MainGateDetection_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `MainGateDetection_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   const handleClear = () => { setSearch(''); setGateFilter(''); setPage(1); setProcessFilter('all'); setSizeFilter('all') }

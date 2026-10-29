@@ -3,6 +3,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiSearch, FiRefreshCw, FiX, FiClipboard, FiCheckCircle, FiClock, FiList } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useGetTaskAllocationSummaryQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid } from '../../../components/ui/StatCard'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
@@ -48,7 +49,7 @@ const TaskAllocationSummary = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'TaskAllocationSummary')
-    XLSX.writeFile(wb, `TaskAllocationSummary_${new Date().toISOString().split('T')[0]}.xlsx`)
+    writeXlsx(wb, `TaskAllocationSummary_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   return (

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { FiSearch, FiRefreshCw, FiX, FiLayers, FiChevronUp, FiChevronDown, FiTrendingUp, FiPackage, FiAward } from 'react-icons/fi'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetCountWithMovesQuery } from '../../../store/api/ymsApi'
@@ -111,7 +112,7 @@ const CountWithMoves = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'CountWithMoves')
-    XLSX.writeFile(wb, `CountWithMoves_${new Date().toISOString().split('T')[0]}.xlsx`)
+    writeXlsx(wb, `CountWithMoves_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   const SortIcon = ({ colKey }) => (

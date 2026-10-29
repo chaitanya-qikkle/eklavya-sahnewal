@@ -3,6 +3,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiBarChart2, FiChevronUp, FiChevronDown, FiDownload } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useLazyGetMonthWiseInventoryQuery } from '../../../store/api/ymsApi'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
@@ -110,7 +111,7 @@ const TerminalWiseContainerHandled = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'TerminalWiseContainerHandled')
-    XLSX.writeFile(wb, `TerminalWiseContainerHandled_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `TerminalWiseContainerHandled_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   const handleRowExport = (row) => {
@@ -123,7 +124,7 @@ const TerminalWiseContainerHandled = () => {
     const ws = XLSX.utils.json_to_sheet([out])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Row')
-    XLSX.writeFile(wb, `TerminalWiseContainerHandled_${row.ReportDate}.xlsx`)
+    writeXlsx(wb, `TerminalWiseContainerHandled_${row.ReportDate}.xlsx`)
   }
 
   const periodLabel = reportType === 'DAY' ? 'Date' : reportType === 'YEAR' ? 'Year' : 'Month'

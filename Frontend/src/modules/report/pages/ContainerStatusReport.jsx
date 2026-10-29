@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import {
   FiSearch, FiRefreshCw, FiAlertTriangle, FiCalendar,
   FiPackage, FiLogIn, FiLogOut, FiClock,
@@ -97,7 +98,7 @@ const ContainerStatusReport = () => {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'ContainerStatus')
-    XLSX.writeFile(wb, `ContainerStatusReport_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `ContainerStatusReport_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (

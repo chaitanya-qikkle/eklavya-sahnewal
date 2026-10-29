@@ -3,6 +3,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiTruck, FiPackage, FiUpload, FiDownload, FiHome } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useLazyGetRailInReportQuery } from '../../../store/api/ymsApi'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterClearBtn, FilterSearchBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
@@ -214,7 +215,7 @@ const RailInReport = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'RailInReport')
-    XLSX.writeFile(wb, `RailInReport_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `RailInReport_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (

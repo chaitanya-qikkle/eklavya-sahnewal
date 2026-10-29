@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fi'
 import { FaTruck } from 'react-icons/fa'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import Navbar from '../../../components/layout/Navbar'
@@ -184,7 +185,7 @@ const TrailerStatus = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Trailer Status')
-    XLSX.writeFile(wb, `TrailerStatus_${toFileStamp(fromDate)}_${toFileStamp(toDate)}.xlsx`)
+    writeXlsx(wb, `TrailerStatus_${toFileStamp(fromDate)}_${toFileStamp(toDate)}.xlsx`)
   }
 
   const handleClear = () => {

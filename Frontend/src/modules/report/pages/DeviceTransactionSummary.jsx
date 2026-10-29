@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { FiSearch, FiRefreshCw, FiX, FiChevronDown, FiCalendar, FiHardDrive } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useGetEquipmentQuery, useLazyGetDeviceTransactionSummaryQuery } from '../../../store/api/ymsApi'
@@ -139,7 +140,7 @@ const DeviceTransactionSummary = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'DeviceTransactionSummary')
-    XLSX.writeFile(wb, `DeviceTransactionSummary_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `DeviceTransactionSummary_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   const totalPages = Math.ceil(filteredRows.length / itemsPerPage) || 1

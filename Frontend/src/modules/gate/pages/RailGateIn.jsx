@@ -6,6 +6,7 @@ import {
   FiChevronLeft, FiChevronRight, FiTruck, FiBox, FiHome,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { FaTrain } from 'react-icons/fa'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
@@ -450,7 +451,7 @@ const RailGateIn = () => {
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Rail Gate In')
-    XLSX.writeFile(wb, `RailGateIn_${fromDate.replace(/:/g, '')}_${toDate.replace(/:/g, '')}.xlsx`)
+    writeXlsx(wb, `RailGateIn_${fromDate.replace(/:/g, '')}_${toDate.replace(/:/g, '')}.xlsx`)
   }
 
   const TH = ({ col, children }) => (

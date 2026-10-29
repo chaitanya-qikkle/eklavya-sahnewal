@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
+import { writeXlsx } from "../../../utils/excelDates";
 import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiTruck, FiPackage, FiMapPin, FiUpload, FiDownload } from "react-icons/fi";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
@@ -146,7 +147,7 @@ const TrailerGateIn = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "TrailerGateIn");
-    XLSX.writeFile(workbook, "trailer-gate-in.xlsx");
+    writeXlsx(workbook, "trailer-gate-in.xlsx");
   };
 
   const handleRefresh = () => {

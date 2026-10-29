@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import {
@@ -522,7 +523,7 @@ export default function ESurvey() {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'E-Survey')
-    XLSX.writeFile(wb, `esurvey-${today.slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `esurvey-${today.slice(0, 10)}.xlsx`)
   }
 
   // ── WIZARD VIEW ──────────────────────────────────────────────────────────────

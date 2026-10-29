@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { FiSearch, FiChevronUp, FiChevronDown, FiList } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
@@ -93,7 +94,7 @@ const MonthWiseInventory = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportRows)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Mismatch Containers")
-    XLSX.writeFile(workbook, "mismatch-containers.xlsx")
+    writeXlsx(workbook, "mismatch-containers.xlsx")
   }
 
   return (

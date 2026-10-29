@@ -3,6 +3,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { FiCalendar, FiRefreshCw, FiSearch, FiX, FiGitPullRequest } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import { useLazyGetActualVsProposedPlanQuery } from '../../../store/api/ymsApi'
 import { FilterExportBtn } from '../../../components/ui/FilterBar'
 
@@ -88,7 +89,7 @@ const ActualVsProposedPlan = () => {
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'ActualVsProposedPlan')
-    XLSX.writeFile(wb, `ActualVsProposedPlan_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `ActualVsProposedPlan_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (

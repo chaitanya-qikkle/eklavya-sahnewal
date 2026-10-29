@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { FiSearch, FiRefreshCw, FiX, FiArrowRight, FiCalendar, FiActivity, FiPackage, FiUpload, FiDownload, FiHome } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
 import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetRailPlanNameListQuery, useLazyGetRailPlanDetailQuery } from '../../../store/api/ymsApi'
@@ -104,7 +105,7 @@ const RailPlanReport = () => {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'RailPlans')
-    XLSX.writeFile(wb, `RailPlanNameList_${todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `RailPlanNameList_${todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   const handleExportRight = () => {
@@ -116,7 +117,7 @@ const RailPlanReport = () => {
     }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'PlanDetail')
-    XLSX.writeFile(wb, `RailPlanDetail_${selectedDoc || todayLocalDT().slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `RailPlanDetail_${selectedDoc || todayLocalDT().slice(0, 10)}.xlsx`)
   }
 
   return (
