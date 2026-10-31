@@ -183,7 +183,7 @@ export const API_ENDPOINTS = {
     GET_CONTAINER_LIVE_STATUS: buildUrl('/v1/container/container-live-status'),
     GET_CONTAINER_LIVE_STATUS_3D: buildUrl('/v1/container/container-live-status-3d'),
     GET_CONTAINER_INOUT_24H: buildUrl('/v1/container/container-inout-24h'), 
-    GET_CONtaINER_INPUT_24H_THROUGHPUT : buildUrl('/v1/container/container-inout-24h-throughput'),
+    GET_CONTAINER_INOUT_24H_THROUGHPUT: buildUrl('/v1/container/container-inout-24h-throughput'),
     GET_DASHBOARD_YARD_INVENTORY: buildUrl('/v1/container/dashboard-yard-inventory'),
     GET_DASHBOARD_SHIPLINE: buildUrl('/v1/container/dashboard-shipline'),
     GET_DASHBOARD_CONTAINER_AGEING: buildUrl('/v1/container/dashboard-containerageing'),

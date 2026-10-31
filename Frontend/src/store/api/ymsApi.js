@@ -898,9 +898,9 @@ export const ymsApi = createApi({
       }),
     }),
 
-    getContainerInOut24hthroughput: builder.query({
+    getContainerInOut24hThroughput: builder.query({
       query: () => ({
-        url: API_ENDPOINTS.CONTAINER.GET_CONtaINER_INPUT_24H_THROUGHPUT,
+        url: API_ENDPOINTS.CONTAINER.GET_CONTAINER_INOUT_24H_THROUGHPUT,
         method: 'GET',
       }),
     }),
