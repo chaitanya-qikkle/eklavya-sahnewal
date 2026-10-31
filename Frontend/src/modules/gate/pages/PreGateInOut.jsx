@@ -34,14 +34,17 @@ const IMAGE_SIDES = [
   { key: 'IMG_TOP',   label: 'T',  side: 'top'   },
   { key: 'Left2',     label: 'LD', side: 'left damage',  damage: true },
   { key: 'Right2',    label: 'RD', side: 'right damage', damage: true },
+  { key: 'Top2',      label: 'LT', side: 'top damage',   damage: true },
 ]
 
-// Left2 / Right2 come as "stitching_outputs/MAINGATE_IN/.../damage_left.jpg"
+// Left2 / Right2 / Top2 come as "stitching_outputs/MAINGATE_IN/.../damage_xxx.jpg"
 // → convert to the same "/v1/container/img?p=..." format the other images use
+const DAMAGE_KEYS = ['Left2', 'Right2', 'Top2']
+
 function getImageUrl(row, key) {
   const raw = row?.[key]
   if (!raw) return null
-  if (key === 'Left2' || key === 'Right2') {
+  if (DAMAGE_KEYS.includes(key)) {
     const rel = String(raw).replace(/^\/?stitching_outputs\//, '')
     return buildAssetUrl(`/v1/container/img?p=${rel}`)
   }
@@ -136,7 +139,7 @@ function DateCell({ raw, highlight }) {
   )
 }
 
-/* ─── Image Cell (L / R / T + LD / RD damage buttons) ─────────────────── */
+/* ─── Image Cell (L / R / T + LD / RD / LT damage buttons) ────────────── */
 // The DB can hold a path for a file that is not actually on the server
 // (backend then answers {"success":false,"message":"Image not found"}).
 // So "has a path" is not enough — probe the URL once with an <Image> and
@@ -286,7 +289,7 @@ function ImageSlot({ url, label, accent, onZoom }) {
   )
 }
 
-/* ─── Detail Modal — details on top (container | gate/vehicle), 5 images below ── */
+/* ─── Detail Modal — details on top (container | gate/vehicle), 6 images below ── */
 function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
   if (!row) return null
   const isIn = row.GateType === 'GATE_IN'
@@ -423,15 +426,16 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
             </div>
           </div>
 
-          {/* Bottom — 5 images (left/right/top + left/right damage), fills remaining modal height */}
+          {/* Bottom — 6 images (left/right/top + left/right/top damage), fills remaining modal height */}
           <div className="flex-1 min-h-0">
-            <div className="p-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 h-full">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 h-full">
               {[
                 { url: getImageUrl(row, 'IMG_LEFT'),  label: 'Left',         accent: '#0e4a78' },
                 { url: getImageUrl(row, 'IMG_RIGHT'), label: 'Right',        accent: '#0e4a78' },
                 { url: getImageUrl(row, 'IMG_TOP'),   label: 'Top',          accent: '#0e4a78' },
                 { url: getImageUrl(row, 'Left2'),     label: 'Left Damage',  accent: '#dc2626' },
                 { url: getImageUrl(row, 'Right2'),    label: 'Right Damage', accent: '#dc2626' },
+                { url: getImageUrl(row, 'Top2'),      label: 'Top Damage (LT)', accent: '#dc2626' },
               ].map(({ url, label, accent }) => (
                 <ImageSlot key={label} url={url} label={label} accent={accent} onZoom={onZoom} />
               ))}
@@ -801,7 +805,7 @@ export default function PreGateInOut() {
                       <TH col="GateOutDate">Gate Out</TH>
                       {/* <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th> */}
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Vehicle No</th>
-                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-44">Images</th>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-52">Images</th>
                     </tr>
                   </thead>
 
@@ -894,7 +898,7 @@ export default function PreGateInOut() {
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
 
-                          <td className="px-1.5 py-1.5 w-44" onClick={e => e.stopPropagation()}>
+                          <td className="px-1.5 py-1.5 w-52" onClick={e => e.stopPropagation()}>
                             <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                           </td>
                         </tr>

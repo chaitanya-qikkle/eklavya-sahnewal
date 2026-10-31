@@ -15,6 +15,17 @@ import { buildAssetUrl } from '../../../config/api'
 import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
+/* ─── Rail images: Camera1 = Left, Camera2 = Right ────────────────────────── */
+const RAIL_IMAGES = [
+  { key: 'left',  label: 'Left',  short: 'L', field: 'Camera1ImagePath' },
+  { key: 'right', label: 'Right', short: 'R', field: 'Camera2ImagePath' },
+]
+
+const getRailImageUrl = (row, field) => {
+  const raw = row?.[field]
+  return raw ? buildAssetUrl(raw) : null
+}
+
 function formatDateParts(raw) {
   if (!raw) return null
   try {
@@ -42,6 +53,29 @@ function DateCell({ raw }) {
       <p className="text-[10px] text-slate-400">{parts.time}</p>
     </div>
   )
+}
+
+/* ─── Image existence probe ───────────────────────────────────────────────── */
+// A path in the DB doesn't guarantee the file exists on the server, so probe
+// the URL once and only enable the button / tab when the image really loads.
+// Results are cached.
+const imgProbeCache = new Map() // url -> 'ok' | 'missing'
+
+function useImageStatus(url) {
+  const [status, setStatus] = useState(() => (!url ? 'missing' : imgProbeCache.get(url) || 'loading'))
+  useEffect(() => {
+    if (!url) { setStatus('missing'); return }
+    const cached = imgProbeCache.get(url)
+    if (cached) { setStatus(cached); return }
+    setStatus('loading')
+    let cancelled = false
+    const img = new Image()
+    img.onload  = () => { imgProbeCache.set(url, 'ok');      if (!cancelled) setStatus('ok') }
+    img.onerror = () => { imgProbeCache.set(url, 'missing'); if (!cancelled) setStatus('missing') }
+    img.src = url
+    return () => { cancelled = true }
+  }, [url])
+  return status
 }
 
 /* ─── Lightbox ───────────────────────────────────────────────────────────── */
@@ -90,11 +124,30 @@ function DetailField({ icon: Icon, label, children, accent = "#0e4a78" }) {
   )
 }
 
-/* ─── Detail Modal — left: record details, right: dual camera images ──────── */
+/* ─── Detail Modal — top: record details, bottom: Left / Right image tabs ──── */
 function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
+  const leftUrl  = getRailImageUrl(row, 'Camera1ImagePath')
+  const rightUrl = getRailImageUrl(row, 'Camera2ImagePath')
+  const leftStatus  = useImageStatus(leftUrl)
+  const rightStatus = useImageStatus(rightUrl)
+  const [activeTab, setActiveTab] = useState('left')
+
+  // Pick the first tab that actually has an image whenever the record changes
+  // (or once the probe results come in). User clicks don't re-trigger this.
+  useEffect(() => {
+    if (leftStatus === 'ok') setActiveTab('left')
+    else if (rightStatus === 'ok') setActiveTab('right')
+    else setActiveTab('left')
+  }, [row, leftStatus, rightStatus])
+
   if (!row) return null
 
-  const cam1Url = buildAssetUrl(row.Camera1ImagePath) || buildAssetUrl(row.Camera2ImagePath)
+  const tabs = [
+    { key: 'left',  label: 'Left',  url: leftUrl,  status: leftStatus },
+    { key: 'right', label: 'Right', url: rightUrl, status: rightStatus },
+  ]
+  const current = tabs.find(t => t.key === activeTab) || tabs[0]
+  const url = current.status === 'ok' ? current.url : null
 
   return (
     <div
@@ -232,55 +285,74 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
             </div>
           </div>
 
-          {/* Bottom — camera image, fills remaining modal height */}
+          {/* Bottom — Left / Right image tabs, fills remaining modal height */}
           <div className="flex-1 min-h-0">
-            <div className="p-4 grid grid-cols-1 gap-4 h-full max-w-2xl mx-auto">
-              {[
-                { url: cam1Url, label: 'Camera 1', icon: FiImage, accent: '#0e4a78' },
-              ].map(({ url, label, icon: Icon, accent }) => (
-                <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0">
-                  <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-                    <span className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `${accent}12`, color: accent }}>
-                        <Icon size={12} />
-                      </span>
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">{label}</span>
-                    </span>
-                    {url && (
-                      <a
-                        href={url}
-                        download
-                        onClick={e => e.stopPropagation()}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
-                        title="Download image"
-                      >
-                        <FiDownloadIcon size={12} />
-                      </a>
-                    )}
+            <div className="p-4 h-full max-w-4xl mx-auto">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0 h-full">
+
+                {/* Tabs */}
+                <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/60">
+                  <div className="flex items-center gap-1.5">
+                    {tabs.map(t => {
+                      const enabled = t.status === 'ok'
+                      const active = t.key === activeTab
+                      return (
+                        <button
+                          key={t.key}
+                          type="button"
+                          disabled={!enabled}
+                          onClick={() => setActiveTab(t.key)}
+                          title={enabled ? `View ${t.label}` : t.status === 'loading' ? `Checking ${t.label}…` : `No ${t.label} image`}
+                          className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider border transition-all
+                            ${!enabled
+                              ? `bg-slate-100 text-slate-300 border-slate-200 opacity-60 cursor-not-allowed ${t.status === 'loading' ? 'animate-pulse' : ''}`
+                              : active
+                                ? 'bg-[#0e4a78] text-white border-[#0e4a78] shadow'
+                                : 'bg-white text-[#0e4a78] border-[#0e4a78]/30 hover:bg-[#0e4a78]/10'}`}
+                        >
+                          <FiImage size={12} /> {t.label}
+                        </button>
+                      )
+                    })}
                   </div>
-                  {url ? (
-                    <button
-                      onClick={() => onZoom(url, label)}
-                      className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
-                      style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
+                  {url && (
+                    <a
+                      href={url}
+                      download
+                      onClick={e => e.stopPropagation()}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
+                      title="Download image"
                     >
-                      <img src={url} alt={label} className="max-w-full max-h-full object-contain p-2" />
-                      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
-                        <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
-                          <FiZoomIn className="text-[#0e4a78]" size={24} />
-                        </span>
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
-                      <span className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <FiImage size={28} />
-                      </span>
-                      <span className="text-xs font-semibold text-slate-400">No image available</span>
-                    </div>
+                      <FiDownloadIcon size={13} />
+                    </a>
                   )}
                 </div>
-              ))}
+
+                {/* Image */}
+                {url ? (
+                  <button
+                    onClick={() => onZoom(url, current.label)}
+                    className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
+                    style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px" }}
+                  >
+                    <img src={url} alt={current.label} className="max-w-full max-h-full object-contain p-2" />
+                    <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
+                      <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
+                        <FiZoomIn className="text-[#0e4a78]" size={24} />
+                      </span>
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
+                    <span className={`w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center ${current.status === 'loading' ? 'animate-pulse' : ''}`}>
+                      <FiImage size={28} />
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      {current.status === 'loading' ? 'Checking…' : 'No image available'}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -289,19 +361,42 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
   )
 }
 
-function ImageThumb({ url, label, onOpen }) {
-  return url ? (
+/* ─── Table thumb button (L / R) — disabled when the image doesn't exist ──── */
+function ThumbBtn({ url, label, short, onOpen }) {
+  const status = useImageStatus(url)
+
+  if (status !== 'ok') {
+    return (
+      <button
+        type="button"
+        disabled
+        title={status === 'loading' ? `Checking ${label}…` : `No ${label} image`}
+        className={`w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 opacity-50 cursor-not-allowed flex items-center justify-center text-[10px] font-bold ${status === 'loading' ? 'animate-pulse' : ''}`}
+      >
+        {short}
+      </button>
+    )
+  }
+
+  return (
     <button
+      type="button"
       onClick={() => onOpen(url, label)}
       title={`View ${label}`}
-      className="w-8 h-8 rounded-lg border border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white flex items-center justify-center transition-all"
+      className="w-7 h-7 rounded-lg border border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white flex items-center justify-center text-[10px] font-bold transition-all"
     >
-      <FiImage size={13} />
+      {short}
     </button>
-  ) : (
-    <span className="w-8 h-8 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 flex items-center justify-center">
-      <FiImage size={13} />
-    </span>
+  )
+}
+
+function ImagesCell({ row, onOpen }) {
+  return (
+    <div className="flex items-center gap-1.5 justify-center">
+      {RAIL_IMAGES.map(({ key, label, short, field }) => (
+        <ThumbBtn key={key} url={getRailImageUrl(row, field)} label={label} short={short} onOpen={onOpen} />
+      ))}
+    </div>
   )
 }
 
@@ -651,7 +746,7 @@ const RailGateIn = () => {
                       <TH col="RailInDateTime">Rail In</TH>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Equipment</th>
-                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-16">Image</th>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-24">Images</th>
                     </tr>
                   </thead>
 
@@ -714,14 +809,8 @@ const RailGateIn = () => {
                               ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"><FiTruck size={10} className="text-emerald-500 flex-shrink-0" />{row.EquipmentName}</span>
                               : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className="px-2 py-1.5 w-16">
-                            <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
-                              <ImageThumb
-                                url={buildAssetUrl(row.Camera1ImagePath) || buildAssetUrl(row.Camera2ImagePath)}
-                                label={row.Camera1ImagePath ? 'Camera 1' : 'Camera 2'}
-                                onOpen={(u, l) => setLightbox({ url: u, label: l })}
-                              />
-                            </div>
+                          <td className="px-2 py-1.5 w-24" onClick={e => e.stopPropagation()}>
+                            <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                           </td>
                         </tr>
                       )

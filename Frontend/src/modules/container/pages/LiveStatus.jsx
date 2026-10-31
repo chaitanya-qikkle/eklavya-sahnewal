@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
-import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiMapPin, FiAlertCircle, FiPackage, FiDownload, FiUpload, FiBox, FiX, FiLayers, FiTruck } from "react-icons/fi";
+import { FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiMapPin, FiAlertCircle, FiAlertTriangle, FiPackage, FiDownload, FiUpload, FiBox, FiX, FiLayers, FiTruck } from "react-icons/fi";
 import { FaFileExcel } from "react-icons/fa";
 import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import ContainerMap from "../../container/pages/ContainerMap";
 import { useLazyGetContainerLiveStatusQuery, useLazySearchContainerQuery } from "../../../store/api/ymsApi";
-import { StatCard, StatGrid, FilterCard } from "../../../components/ui/StatCard";
+import { FilterCard } from "../../../components/ui/StatCard";
 import { FilterBar, FilterExportBtn } from "../../../components/ui/FilterBar";
 
 const columns = [
@@ -22,8 +22,8 @@ const columns = [
   { key: "location", label: "Location", sortable: true },
   { key: "yardName", label: "Yard", sortable: true },
   { key: "GATE_IN_DATE", label: "Gate In", sortable: true },
-  { key: "StuffingDate", label: "Stuffing Date", sortable: true },     // ← NEW
-  { key: "DestuffingDate", label: "Destuffing Date", sortable: true }, // ← NEW
+  { key: "StuffingDate", label: "Stuffing Date", sortable: true },
+  { key: "DestuffingDate", label: "Destuffing Date", sortable: true },
   { key: "TOSS_IN_DATE", label: "Transaction Date", sortable: true },
   { key: "TIME_IN_YARD", label: "Day TAT", sortable: true },
   { key: "TIME_IN_YARD_HR", label: "Hr TAT", sortable: true },
@@ -41,6 +41,28 @@ const parseDateTime = (value) => {
 };
 
 const getRecordId = (record) => `${record.CONTAINER_NO}-${record.INVENTORY_ID || Math.random()}`;
+
+// ─────────────────────────────────────────────────────────────
+// Row classifiers (shared by stats, table filter and export)
+// ─────────────────────────────────────────────────────────────
+const isSize20 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().startsWith("20");
+const isSize40 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().startsWith("40");
+
+// Hazardous = location name starts with "HAZ" (HAZ:B:12:1, HAZ:A:3:2 ...)
+// Only the prefix matters; the rest of the location can be anything.
+const getLocationName = (r) => String(r.LOCATION_NAME || r.MASTERTABLE || r.BLOCK_NAME || "").trim().toUpperCase();
+const isHazardous = (r) => getLocationName(r).startsWith("HAZ");
+
+const procOf = (r) => String(r.CONTAINER_PROCESS || "").toLowerCase();
+
+// Single place that decides which rows belong to a filter value.
+const matchesFilter = (r, type) => {
+  if (type === "all") return true;
+  if (type === "20ft") return isSize20(r);
+  if (type === "40ft") return isSize40(r);
+  if (type === "Hazardous") return isHazardous(r);
+  return procOf(r) === String(type).toLowerCase();
+};
 
 // ─────────────────────────────────────────────────────────────
 // Date helpers
@@ -97,6 +119,72 @@ const fmtDate = (val) => {
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 };
 
+// ─────────────────────────────────────────────────────────────
+// Compact stat cards (no % badge)
+// ─────────────────────────────────────────────────────────────
+const TONES = {
+  slate:   { idle: "bg-slate-100 border-slate-300 hover:bg-slate-200",       active: "bg-slate-200 border-slate-500 ring-1 ring-slate-400",       icon: "text-slate-600" },
+  emerald: { idle: "bg-emerald-100 border-emerald-300 hover:bg-emerald-200", active: "bg-emerald-200 border-emerald-500 ring-1 ring-emerald-400", icon: "text-emerald-600" },
+  amber:   { idle: "bg-amber-100 border-amber-300 hover:bg-amber-200",       active: "bg-amber-200 border-amber-500 ring-1 ring-amber-400",       icon: "text-amber-600" },
+  violet:  { idle: "bg-violet-100 border-violet-300 hover:bg-violet-200",    active: "bg-violet-200 border-violet-500 ring-1 ring-violet-400",    icon: "text-violet-600" },
+  red:     { idle: "bg-red-100 border-red-300 hover:bg-red-200",             active: "bg-red-200 border-red-500 ring-1 ring-red-400",             icon: "text-red-600" },
+};
+
+const MiniStatCard = ({ label, value, icon: Icon, tone = "slate", isActive, onClick }) => {
+  const t = TONES[tone] || TONES.slate;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 min-w-[110px] flex items-center gap-2.5 px-4 py-3.5 rounded-lg border text-left transition ${isActive ? t.active : t.idle}`}
+    >
+      <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow-sm shrink-0">
+        <Icon className={`text-sm ${t.icon}`} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 leading-none truncate">{label}</p>
+        <p className="text-lg font-bold text-slate-800 leading-tight mt-1">{value}</p>
+      </div>
+    </button>
+  );
+};
+
+// One card: HAZ total + Import / Export + 20 / 40 breakdown. Click => table filters to HAZ.
+const HazardousCard = ({ stats, isActive, onClick }) => {
+  const t = TONES.red;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-none flex items-center gap-4 pl-4 pr-5 py-3 rounded-lg border text-left transition ${isActive ? t.active : t.idle}`}
+    >
+      <div className="flex items-center gap-2.5 shrink-0">
+        <div className="w-7 h-7 rounded-md bg-white flex items-center justify-center shadow-sm shrink-0">
+          <FiAlertTriangle className={`text-sm ${t.icon}`} />
+        </div>
+        <div>
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 leading-none">Hazardous</p>
+          <p className="text-lg font-bold text-slate-800 leading-tight mt-1">{stats.hazTotal}</p>
+        </div>
+      </div>
+
+      <div className="w-px self-stretch bg-red-300" />
+
+      <div className="text-[11px] leading-tight whitespace-nowrap">
+        <p className="font-semibold text-emerald-700">Import <span className="text-sm font-bold">{stats.hazImport}</span></p>
+        <p className="text-slate-600 mt-0.5">20ft <b className="text-slate-900">{stats.hazImp20}</b> · 40ft <b className="text-slate-900">{stats.hazImp40}</b></p>
+      </div>
+
+      <div className="w-px self-stretch bg-red-300" />
+
+      <div className="text-[11px] leading-tight whitespace-nowrap">
+        <p className="font-semibold text-amber-700">Export <span className="text-sm font-bold">{stats.hazExport}</span></p>
+        <p className="text-slate-600 mt-0.5">20ft <b className="text-slate-900">{stats.hazExp20}</b> · 40ft <b className="text-slate-900">{stats.hazExp40}</b></p>
+      </div>
+    </button>
+  );
+};
+
 const LiveStatus = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState([]);
@@ -112,7 +200,16 @@ const LiveStatus = () => {
     importCount: 0,
     exportCount: 0,
     emptyCount: 0,
-    uccCount: 0,
+    domesticCount: 0,
+    size20Count: 0,
+    size40Count: 0,
+    hazTotal: 0,
+    hazImport: 0,
+    hazExport: 0,
+    hazImp20: 0,
+    hazImp40: 0,
+    hazExp20: 0,
+    hazExp40: 0,
   });
 
   const [loading, setLoading] = useState(false);
@@ -136,7 +233,7 @@ const LiveStatus = () => {
   const suggestionRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ✅ Live-status SP feed (GET_CONTAINERLIVESTATUS).
+  // Live-status SP feed (GET_CONTAINERLIVESTATUS).
   // The SP returns the FULL snapshot in one call — pagination/process-filter
   // are computed client-side here for instant interaction.
   const [triggerFetch] = useLazyGetContainerLiveStatusQuery();
@@ -170,35 +267,44 @@ const LiveStatus = () => {
   };
 
   const allRowsRef = useRef([]);          // full snapshot from the SP
-  const activeFilterRef = useRef("all");  // current process filter
-
-  const isSize20 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().startsWith("20");
-  const isSize40 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().startsWith("40");
+  const activeFilterRef = useRef("all");  // current filter (process / size / Hazardous)
 
   const computeStats = (rows) => {
     const total = rows.length;
     let importCount = 0, exportCount = 0, emptyCount = 0, domesticCount = 0, size20Count = 0, size40Count = 0;
+    let hazTotal = 0, hazImport = 0, hazExport = 0;
+    let hazImp20 = 0, hazImp40 = 0, hazExp20 = 0, hazExp40 = 0;
     for (const r of rows) {
-      const p = String(r.CONTAINER_PROCESS || "").toLowerCase();
+      const p = procOf(r);
       if (p === "import") importCount++;
       else if (p === "export") exportCount++;
       else if (p === "empty") emptyCount++;
       else if (p === "domestic") domesticCount++;
       if (isSize20(r)) size20Count++;
       else if (isSize40(r)) size40Count++;
+
+      if (isHazardous(r)) {
+        hazTotal++;
+        if (p === "import") {
+          hazImport++;
+          if (isSize20(r)) hazImp20++;
+          else if (isSize40(r)) hazImp40++;
+        } else if (p === "export") {
+          hazExport++;
+          if (isSize20(r)) hazExp20++;
+          else if (isSize40(r)) hazExp40++;
+        }
+      }
     }
-    return { total, importCount, exportCount, emptyCount, domesticCount, size20Count, size40Count };
+    return {
+      total, importCount, exportCount, emptyCount, domesticCount, size20Count, size40Count,
+      hazTotal, hazImport, hazExport, hazImp20, hazImp40, hazExp20, hazExp40,
+    };
   };
 
   const applyClientSlice = (page, size, processType) => {
     const all = allRowsRef.current;
-    const filtered = processType === "all"
-      ? all
-      : processType === "20ft"
-        ? all.filter((r) => isSize20(r))
-        : processType === "40ft"
-          ? all.filter((r) => isSize40(r))
-          : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(processType).toLowerCase());
+    const filtered = all.filter((r) => matchesFilter(r, processType));
 
     const totalRecords = filtered.length;
     const totalPages = Math.max(1, Math.ceil(totalRecords / size));
@@ -268,7 +374,7 @@ const LiveStatus = () => {
     [backendPagination.currentPage, backendPagination.pageSize, search, triggerFetch, processApiResponse]
   );
 
-  // Process-type filter — pure client-side over the cached snapshot
+  // Filter (process / size / Hazardous) — pure client-side over the cached snapshot
   const fetchDataByProcess = useCallback(
     (processType, page = 1, size = null) => {
       activeFilterRef.current = processType;
@@ -367,7 +473,7 @@ const LiveStatus = () => {
       result.sort((a, b) => {
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
-        // ← CHANGED: case-insensitive so StuffingDate / DestuffingDate sort as dates too
+        // case-insensitive so StuffingDate / DestuffingDate sort as dates too
         if (String(sortConfig.key).toUpperCase().includes("DATE")) {
           return sortConfig.direction === "asc"
             ? parseDateTime(aValue) - parseDateTime(bValue)
@@ -453,27 +559,19 @@ const LiveStatus = () => {
   // Export to Excel — date columns are written as REAL Excel dates
   // (numeric serial + number format), not text strings.
   const handleExport = () => {
-    const all = allRowsRef.current;
-    const source = filter === "all"
-      ? all
-      : filter === "20ft"
-        ? all.filter(isSize20)
-        : filter === "40ft"
-          ? all.filter(isSize40)
-          : all.filter((r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === filter.toLowerCase());
+    const source = allRowsRef.current.filter((r) => matchesFilter(r, filter));
 
     if (source.length === 0) {
       notify.warning("No Data", "No records to export");
       return;
     }
 
-    // ← CHANGED: Stuffing / Destuffing added
     const DATE_HEADERS = ["Gate In Date", "Stuffing Date", "Destuffing Date", "Transaction Date"];
 
     const exportData = source.map((record) => {
       const gateIn = toExcelSerial(record.GATE_IN_DATE);
-      const stuffing = toExcelSerial(record.StuffingDate);        // ← NEW
-      const destuffing = toExcelSerial(record.DestuffingDate);    // ← NEW
+      const stuffing = toExcelSerial(record.StuffingDate);
+      const destuffing = toExcelSerial(record.DestuffingDate);
       const txnDate = toExcelSerial(record.TOSS_IN_DATE || record.LAST_MOVED_DATE || "");
       return {
         "Container No":     record.CONTAINER_NO,
@@ -485,10 +583,10 @@ const LiveStatus = () => {
         "Shipping Line":    record.SHIPPING_LINE,
         "Location":         record.MASTERTABLE || record.LOCATION_NAME || "",
         "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
-        "Gate In Date":     gateIn ?? "",      // real Excel date (number)
-        "Stuffing Date":    stuffing ?? "",    // ← NEW
-        "Destuffing Date":  destuffing ?? "",  // ← NEW
-        "Transaction Date": txnDate ?? "",     // real Excel date (number)
+        "Gate In Date":     gateIn ?? "",
+        "Stuffing Date":    stuffing ?? "",
+        "Destuffing Date":  destuffing ?? "",
+        "Transaction Date": txnDate ?? "",
         "Day TAT":          toNumberOrBlank(record.TIME_IN_YARD),
         "Hr TAT":           toNumberOrBlank(record.TIME_IN_YARD_HR),
         "Equipment Name":   record.OFFLOAD_EQP,
@@ -599,15 +697,14 @@ const LiveStatus = () => {
     applyClientSlice(1, newSize, activeFilterRef.current);
   };
 
-  // 20/40 ft cards follow the active process filter (Import/Export/Empty/Domestic).
+  // 20/40 ft cards follow the active filter (Import/Export/Empty/Domestic/Hazardous).
   // Process cards keep showing overall counts so they stay usable as filter buttons.
   const sizeStats = (() => {
-    if (filter === "all" || filter === "20ft" || filter === "40ft") {
+    // Hazardous has its own breakdown inside its card, so 20/40 cards stay at overall counts.
+    if (filter === "all" || filter === "20ft" || filter === "40ft" || filter === "Hazardous") {
       return { size20: totalStats.size20Count, size40: totalStats.size40Count, total: totalStats.total };
     }
-    const rows = allRowsRef.current.filter(
-      (r) => String(r.CONTAINER_PROCESS || "").toLowerCase() === String(filter).toLowerCase()
-    );
+    const rows = allRowsRef.current.filter((r) => matchesFilter(r, filter));
     return {
       size20: rows.filter(isSize20).length,
       size40: rows.filter(isSize40).length,
@@ -669,194 +766,193 @@ const LiveStatus = () => {
 
             {/* Stats + Filter — merged into one card */}
             <FilterCard>
-            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
-              <StatCard
-                label="Total Inventory"
-                value={totalStats.total}
-                icon={FiPackage}
-                tone="slate"
-                isActive={filter === "all"}
-                onClick={() => handleStatCardClick("all")}
-                total={totalStats.total}
-              />
-              <StatCard
-                label="Import"
-                value={totalStats.importCount}
-                icon={FiDownload}
-                tone="emerald"
-                isActive={filter === "Import"}
-                onClick={() => handleStatCardClick("Import")}
-                total={totalStats.total}
-              />
-              <StatCard
-                label="Export"
-                value={totalStats.exportCount}
-                icon={FiUpload}
-                tone="amber"
-                isActive={filter === "Export"}
-                onClick={() => handleStatCardClick("Export")}
-                total={totalStats.total}
-              />
-              <StatCard
-                label="Empty"
-                value={totalStats.emptyCount}
-                icon={FiBox}
-                tone="slate"
-                isActive={filter === "Empty"}
-                onClick={() => handleStatCardClick("Empty")}
-                total={totalStats.total}
-              />
-              <StatCard
-                label="Domestic"
-                value={totalStats.domesticCount}
-                icon={FiTruck}
-                tone="violet"
-                isActive={filter === "Domestic"}
-                onClick={() => handleStatCardClick("Domestic")}
-                total={totalStats.total}
-              />
-              <StatCard
-                label="20 ft"
-                value={sizeStats.size20}
-                icon={FiPackage}
-                tone="emerald"
-                isActive={filter === "20ft"}
-                onClick={() => handleStatCardClick("20ft")}
-                total={sizeStats.total}
-              />
-              <StatCard
-                label="40 ft"
-                value={sizeStats.size40}
-                icon={FiPackage}
-                tone="amber"
-                isActive={filter === "40ft"}
-                onClick={() => handleStatCardClick("40ft")}
-                total={sizeStats.total}
-              />
-            </StatGrid>
+              {/* Compact stat cards (6 single + Hazardous double-width = 8 columns) */}
+              <div className="flex flex-nowrap gap-2 overflow-x-auto p-[5px]">
+                <MiniStatCard
+                  label="Total Inventory"
+                  value={totalStats.total}
+                  icon={FiPackage}
+                  tone="slate"
+                  isActive={filter === "all"}
+                  onClick={() => handleStatCardClick("all")}
+                />
+                <MiniStatCard
+                  label="Import"
+                  value={totalStats.importCount}
+                  icon={FiDownload}
+                  tone="emerald"
+                  isActive={filter === "Import"}
+                  onClick={() => handleStatCardClick("Import")}
+                />
+                <MiniStatCard
+                  label="Export"
+                  value={totalStats.exportCount}
+                  icon={FiUpload}
+                  tone="amber"
+                  isActive={filter === "Export"}
+                  onClick={() => handleStatCardClick("Export")}
+                />
+                <MiniStatCard
+                  label="Empty"
+                  value={totalStats.emptyCount}
+                  icon={FiBox}
+                  tone="slate"
+                  isActive={filter === "Empty"}
+                  onClick={() => handleStatCardClick("Empty")}
+                />
+                <MiniStatCard
+                  label="Domestic"
+                  value={totalStats.domesticCount}
+                  icon={FiTruck}
+                  tone="violet"
+                  isActive={filter === "Domestic"}
+                  onClick={() => handleStatCardClick("Domestic")}
+                />
+                <MiniStatCard
+                  label="20 ft"
+                  value={sizeStats.size20}
+                  icon={FiPackage}
+                  tone="emerald"
+                  isActive={filter === "20ft"}
+                  onClick={() => handleStatCardClick("20ft")}
+                />
+                <MiniStatCard
+                  label="40 ft"
+                  value={sizeStats.size40}
+                  icon={FiPackage}
+                  tone="amber"
+                  isActive={filter === "40ft"}
+                  onClick={() => handleStatCardClick("40ft")}
+                />
+                <HazardousCard
+                  stats={totalStats}
+                  isActive={filter === "Hazardous"}
+                  onClick={() => handleStatCardClick("Hazardous")}
+                />
+              </div>
 
-            {/* Filter Bar — container search row */}
-            <FilterBar bare>
-              <div className="w-full">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Container No
-                </label>
-                <div className="mt-2 flex flex-col lg:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <div className="flex items-center flex-wrap gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 focus-within:border-[#0e4a78] focus-within:ring-2 focus-within:ring-[#0e4a78]/15 transition">
-                      <FiSearch className="text-slate-400 text-base shrink-0" />
-                      {containerChips.map((chip) => (
-                        <span
-                          key={chip}
-                          className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-bold font-mono"
-                        >
-                          {chip}
+              {/* Filter Bar — container search row */}
+              <FilterBar bare>
+                <div className="w-full">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Container No
+                  </label>
+                  <div className="mt-2 flex flex-col lg:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <div className="flex items-center flex-wrap gap-1.5 rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 focus-within:border-[#0e4a78] focus-within:ring-2 focus-within:ring-[#0e4a78]/15 transition">
+                        <FiSearch className="text-slate-400 text-base shrink-0" />
+                        {containerChips.map((chip) => (
+                          <span
+                            key={chip}
+                            className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-lg bg-[#eaf1f7] border border-[#c9dbe9] text-[#0e4a78] text-xs font-bold font-mono"
+                          >
+                            {chip}
+                            <button
+                              type="button"
+                              onClick={() => removeContainerChip(chip)}
+                              className="p-0.5 rounded hover:bg-[#0e4a78]/10 text-[#0e4a78]/60 hover:text-red-500 transition"
+                              title={`Remove ${chip}`}
+                            >
+                              <FiX className="text-[10px]" />
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          ref={inputRef}
+                          value={containerNo}
+                          onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
+                          onKeyDown={handleKeyDown}
+                          onFocus={() => {
+                            if (suggestions.length > 0) setShowSuggestions(true);
+                          }}
+                          placeholder={containerChips.length ? "Add another…" : "Enter container number(s) — comma or Enter to add"}
+                          className="flex-1 min-w-[140px] px-1.5 py-1 text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+                          autoComplete="off"
+                        />
+                        {(containerNo || containerChips.length > 0) && (
                           <button
                             type="button"
-                            onClick={() => removeContainerChip(chip)}
-                            className="p-0.5 rounded hover:bg-[#0e4a78]/10 text-[#0e4a78]/60 hover:text-red-500 transition"
-                            title={`Remove ${chip}`}
+                            onClick={() => {
+                              setContainerNo("");
+                              setContainerChips([]);
+                              setSuggestions([]);
+                              setShowSuggestions(false);
+                              setSearch("");
+                              setFilter("all");
+                              fetchData(1, backendPagination.pageSize, "");
+                            }}
+                            className="ml-auto px-2 text-slate-400 hover:text-[#0e4a78] transition shrink-0"
+                            title="Clear all"
                           >
-                            <FiX className="text-[10px]" />
+                            <FiX />
                           </button>
-                        </span>
-                      ))}
-                      <input
-                        ref={inputRef}
-                        value={containerNo}
-                        onChange={(e) => setContainerNo(e.target.value.toUpperCase())}
-                        onKeyDown={handleKeyDown}
-                        onFocus={() => {
-                          if (suggestions.length > 0) setShowSuggestions(true);
-                        }}
-                        placeholder={containerChips.length ? "Add another…" : "Enter container number(s) — comma or Enter to add"}
-                        className="flex-1 min-w-[140px] px-1.5 py-1 text-sm text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
-                        autoComplete="off"
-                      />
-                      {(containerNo || containerChips.length > 0) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setContainerNo("");
-                            setContainerChips([]);
-                            setSuggestions([]);
-                            setShowSuggestions(false);
-                            setSearch("");
-                            setFilter("all");
-                            fetchData(1, backendPagination.pageSize, "");
-                          }}
-                          className="ml-auto px-2 text-slate-400 hover:text-[#0e4a78] transition shrink-0"
-                          title="Clear all"
+                        )}
+                      </div>
+
+                      {showSuggestions && (suggestions.length > 0 || loadingSuggestions) && (
+                        <div
+                          ref={suggestionRef}
+                          className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl z-[200] max-h-72 overflow-y-auto ring-1 ring-slate-100"
                         >
-                          <FiX />
-                        </button>
+                          {loadingSuggestions ? (
+                            <div className="px-4 py-3 text-center text-slate-500 text-sm">
+                              <FiRefreshCw className="animate-spin inline mr-2" />
+                              Loading suggestions…
+                            </div>
+                          ) : (
+                            <>
+                              <p className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50 border-b border-slate-100">
+                                {suggestions.length} match{suggestions.length === 1 ? "" : "es"}
+                              </p>
+                              {suggestions.map((containerNumber, index) => (
+                                <div
+                                  key={`${containerNumber}-${index}`}
+                                  onClick={() => handleSuggestionClick(containerNumber)}
+                                  className={`px-4 py-2.5 cursor-pointer transition border-b border-slate-100 last:border-b-0 ${
+                                    index === selectedSuggestionIndex ? "bg-[#0e4a78] text-white" : "hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <FiMapPin
+                                      className={`text-sm flex-shrink-0 ${
+                                        index === selectedSuggestionIndex ? "text-white" : "text-slate-400"
+                                      }`}
+                                    />
+                                    <span
+                                      className={`font-mono text-sm font-semibold ${
+                                        index === selectedSuggestionIndex ? "text-white" : "text-slate-900"
+                                      }`}
+                                    >
+                                      {containerNumber}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    {showSuggestions && (suggestions.length > 0 || loadingSuggestions) && (
-                      <div
-                        ref={suggestionRef}
-                        className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl z-[200] max-h-72 overflow-y-auto ring-1 ring-slate-100"
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleContainerSubmit}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0e4a78] text-white font-semibold text-sm shadow-sm hover:bg-[#0a3b61] transition"
                       >
-                        {loadingSuggestions ? (
-                          <div className="px-4 py-3 text-center text-slate-500 text-sm">
-                            <FiRefreshCw className="animate-spin inline mr-2" />
-                            Loading suggestions…
-                          </div>
-                        ) : (
-                          <>
-                            <p className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50 border-b border-slate-100">
-                              {suggestions.length} match{suggestions.length === 1 ? "" : "es"}
-                            </p>
-                            {suggestions.map((containerNumber, index) => (
-                              <div
-                                key={`${containerNumber}-${index}`}
-                                onClick={() => handleSuggestionClick(containerNumber)}
-                                className={`px-4 py-2.5 cursor-pointer transition border-b border-slate-100 last:border-b-0 ${
-                                  index === selectedSuggestionIndex ? "bg-[#0e4a78] text-white" : "hover:bg-slate-50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <FiMapPin
-                                    className={`text-sm flex-shrink-0 ${
-                                      index === selectedSuggestionIndex ? "text-white" : "text-slate-400"
-                                    }`}
-                                  />
-                                  <span
-                                    className={`font-mono text-sm font-semibold ${
-                                      index === selectedSuggestionIndex ? "text-white" : "text-slate-900"
-                                    }`}
-                                  >
-                                    {containerNumber}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleContainerSubmit}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0e4a78] text-white font-semibold text-sm shadow-sm hover:bg-[#0a3b61] transition"
-                    >
-                      <FiSearch /> Submit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleShowMap}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 bg-white text-[#0e4a78] font-semibold text-sm hover:bg-blue-50 hover:border-[#0e4a78]/40 transition"
-                    >
-                      <FiMapPin /> Show on Map
-                    </button>
+                        <FiSearch /> Submit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleShowMap}
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-300 bg-white text-[#0e4a78] font-semibold text-sm hover:bg-blue-50 hover:border-[#0e4a78]/40 transition"
+                      >
+                        <FiMapPin /> Show on Map
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </FilterBar>
+              </FilterBar>
             </FilterCard>
 
             {/* Table Card */}
@@ -999,11 +1095,9 @@ const LiveStatus = () => {
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
                               {fmtDate(record.GATE_IN_DATE)}
                             </td>
-                            {/* ← NEW: Stuffing Date */}
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
                               {fmtDate(record.StuffingDate)}
                             </td>
-                            {/* ← NEW: Destuffing Date */}
                             <td className="px-4 py-2.5 text-slate-700 border-r border-slate-200 whitespace-nowrap">
                               {fmtDate(record.DestuffingDate)}
                             </td>

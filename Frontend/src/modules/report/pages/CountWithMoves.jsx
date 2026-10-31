@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { FiSearch, FiRefreshCw, FiX, FiLayers, FiChevronUp, FiChevronDown, FiTrendingUp, FiPackage, FiAward } from 'react-icons/fi'
+import { FiSearch, FiRefreshCw, FiX, FiLayers, FiChevronUp, FiChevronDown, FiTrendingUp, FiPackage, FiAward, FiDownload, FiUpload, FiTruck } from 'react-icons/fi'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import * as XLSX from 'xlsx'
 import { writeXlsx } from '../../../utils/excelDates'
@@ -16,11 +16,46 @@ const fmtDate = (val) => {
   return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`
 }
 
+const normProcess = (val) => String(val ?? '').trim().toLowerCase()
+
+// Process badge styles
+const PROCESS_BADGE = {
+  import:   'bg-sky-50 text-sky-700 border-sky-200',
+  export:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+  domestic: 'bg-amber-50 text-amber-700 border-amber-200',
+}
+
 const COLUMNS = [
   { key: 'ContNo',        label: 'Container No' },
+  { key: 'Process',       label: 'Process' },
   { key: 'Gate_IN',       label: 'Gate In Date', format: fmtDate },
   { key: 'LastShiftDate', label: 'Last Shift Date', format: fmtDate },
   { key: 'cnt',           label: 'Moves' },
+]
+
+// Top filter cards
+const PROCESS_CARDS = [
+  {
+    key: 'import',
+    label: 'Import',
+    icon: FiDownload,
+    iconBg: 'bg-sky-50 text-sky-600',
+    activeRing: 'ring-2 ring-sky-400 border-sky-400 bg-sky-50/60',
+  },
+  {
+    key: 'export',
+    label: 'Export',
+    icon: FiUpload,
+    iconBg: 'bg-emerald-50 text-emerald-600',
+    activeRing: 'ring-2 ring-emerald-400 border-emerald-400 bg-emerald-50/60',
+  },
+  {
+    key: 'domestic',
+    label: 'Domestic',
+    icon: FiTruck,
+    iconBg: 'bg-amber-50 text-amber-600',
+    activeRing: 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/60',
+  },
 ]
 
 const ChartTooltip = ({ active, payload, label }) => {
@@ -48,17 +83,37 @@ const CountWithMoves = () => {
   const { data, isFetching, isError, refetch } = useGetCountWithMovesQuery()
   const [search, setSearch] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: 'cnt', direction: 'desc' })
+  const [processFilter, setProcessFilter] = useState('') // '' | 'import' | 'export' | 'domestic'
 
   const rows = Array.isArray(data?.data) ? data.data : []
 
+  // Count per process (for the top cards)
+  const processCounts = useMemo(() => {
+    const counts = { import: 0, export: 0, domestic: 0 }
+    rows.forEach((r) => {
+      const p = normProcess(r.Process)
+      if (p in counts) counts[p] += 1
+    })
+    return counts
+  }, [rows])
+
   const filteredRows = useMemo(() => {
     let out = rows
+
+    // Card filter
+    if (processFilter) {
+      out = out.filter((r) => normProcess(r.Process) === processFilter)
+    }
+
+    // Search filter
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       out = out.filter((r) =>
         COLUMNS.some(({ key }) => String(r[key] ?? '').toLowerCase().includes(q))
       )
     }
+
+    // Sorting
     if (sortConfig.key) {
       out = [...out].sort((a, b) => {
         const av = a[sortConfig.key], bv = b[sortConfig.key]
@@ -68,13 +123,17 @@ const CountWithMoves = () => {
       })
     }
     return out
-  }, [rows, search, sortConfig])
+  }, [rows, search, sortConfig, processFilter])
 
   const handleSort = (key) => {
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
     }))
+  }
+
+  const handleCardClick = (key) => {
+    setProcessFilter((prev) => (prev === key ? '' : key))
   }
 
   const chartData = useMemo(() => {
@@ -122,6 +181,23 @@ const CountWithMoves = () => {
     </span>
   )
 
+  const renderCell = (col, row) => {
+    const raw = row[col.key]
+
+    if (col.key === 'Process') {
+      if (!raw) return <span className="text-slate-300">—</span>
+      const style = PROCESS_BADGE[normProcess(raw)] || 'bg-slate-50 text-slate-600 border-slate-200'
+      return (
+        <span className={`inline-block px-2 py-0.5 rounded-full border text-[11px] font-semibold ${style}`}>
+          {raw}
+        </span>
+      )
+    }
+
+    if (col.format) return col.format(raw)
+    return raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>
+  }
+
   return (
     <div
       className="w-full min-h-screen relative overflow-hidden bg-cover bg-center"
@@ -146,12 +222,53 @@ const CountWithMoves = () => {
               </div>
             </div>
 
+            {/* Process Cards (Import / Export / Domestic) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {PROCESS_CARDS.map((card) => {
+                const Icon = card.icon
+                const active = processFilter === card.key
+                return (
+                  <button
+                    key={card.key}
+                    type="button"
+                    onClick={() => handleCardClick(card.key)}
+                    title={active ? 'Click to clear filter' : `Filter ${card.label}`}
+                    className={`text-left flex items-center gap-4 rounded-2xl border shadow-md px-5 py-4 transition-all cursor-pointer hover:shadow-lg hover:-translate-y-0.5 ${
+                      active ? card.activeRing : 'bg-white border-slate-200'
+                    }`}
+                  >
+                    <span className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${card.iconBg}`}>
+                      <Icon size={22} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{card.label}</p>
+                      <p className="text-3xl font-black text-slate-800 leading-tight">
+                        {isFetching ? '…' : processCounts[card.key].toLocaleString()}
+                      </p>
+                    </div>
+                    {active && (
+                      <span className="flex-shrink-0 text-slate-400 hover:text-slate-700">
+                        <FiX size={16} />
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
 
               {/* Table Card */}
               <div className="xl:col-span-2 bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <h2 className="text-white font-bold text-base tracking-wide">Cont Count With Moves</h2>
+                  <h2 className="text-white font-bold text-base tracking-wide">
+                    Cont Count With Moves
+                    {processFilter && (
+                      <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/20 capitalize">
+                        {processFilter}
+                      </span>
+                    )}
+                  </h2>
                   <div className="flex items-center gap-2">
                     <div className="relative">
                       <input
@@ -217,27 +334,23 @@ const CountWithMoves = () => {
                       <tbody className="divide-y divide-slate-100">
                         {filteredRows.map((row, index) => (
                           <tr
-                            key={index}
+                            key={row.Master_Id ?? index}
                             className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/50`}
                           >
-                            {COLUMNS.map((col) => {
-                              const raw = row[col.key]
-                              const display = col.format ? col.format(raw) : (raw != null && raw !== '' ? raw : <span className="text-slate-300">—</span>)
-                              return (
-                                <td
-                                  key={col.key}
-                                  className={`px-3 py-2 whitespace-nowrap ${
-                                    col.key === 'ContNo'
-                                      ? 'text-slate-800 font-semibold'
-                                      : col.key === 'cnt'
-                                      ? 'text-[#0e4a78] font-bold'
-                                      : 'text-slate-600'
-                                  }`}
-                                >
-                                  {display}
-                                </td>
-                              )
-                            })}
+                            {COLUMNS.map((col) => (
+                              <td
+                                key={col.key}
+                                className={`px-3 py-2 whitespace-nowrap ${
+                                  col.key === 'ContNo'
+                                    ? 'text-slate-800 font-semibold'
+                                    : col.key === 'cnt'
+                                    ? 'text-[#0e4a78] font-bold'
+                                    : 'text-slate-600'
+                                }`}
+                              >
+                                {renderCell(col, row)}
+                              </td>
+                            ))}
                           </tr>
                         ))}
                       </tbody>
@@ -246,9 +359,17 @@ const CountWithMoves = () => {
                 </div>
 
                 {filteredRows.length > 0 && !isFetching && (
-                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
+                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
                     <span>Showing <strong className="text-slate-700">{filteredRows.length}</strong> of{' '}
                       <strong className="text-slate-700">{rows.length}</strong> records</span>
+                    {processFilter && (
+                      <button
+                        onClick={() => setProcessFilter('')}
+                        className="text-[#0e4a78] font-semibold hover:underline"
+                      >
+                        Clear filter
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

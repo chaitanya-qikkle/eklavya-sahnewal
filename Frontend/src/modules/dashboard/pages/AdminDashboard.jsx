@@ -22,7 +22,9 @@ import {
   useGetEquipmentTransactionLatestQuery,
   useLazyGetEquipmentDailyUtilizationQuery,
   useGetContainerStatusReportQuery,
-  useGetContainerInOut24hQuery,  useGetDashboardYardInventoryQuery,
+  useGetContainerInOut24hQuery,
+  useGetContainerInOut24hThroughputQuery,
+  useGetDashboardYardInventoryQuery,
   useGetDashboardShiplineQuery,
   useGetDashboardContainerAgeingQuery,
   useGetDashboardYardInventoryProcesswiseQuery,
@@ -94,6 +96,42 @@ const isMissingContainer = (row) => {
     "OCR_CONTAINER_NO", "ocr_container_no", "CONTAINER_TAG_ID", "container_tag_id");
   const clean = String(raw ?? "").trim().split(" ")[0];
   return clean.replace(/0/g, "") === "" || clean === "-" || clean === "";
+};
+
+// Hourly rows (HOUR, GATE-IN, IN 20FT ... OUT EMPTY TEUS) -> UI row objects.
+// Dono APIs (ContainerInOut_24Hours aur ContainerInOut_24Hours_Throughput) ke
+// column names same hain, isliye ek hi mapper dono ke liye.
+const buildHourlyRows = (rows) => {
+  const list = Array.isArray(rows) ? rows : [];
+  const n = (r, k) => Number(r[k] || 0);
+  return list.map((r) => {
+    const hourSlot = String(r["HOUR"] || "");
+    const label = hourSlot ? (hourSlot.split(" ")[1] || hourSlot) : "—"; // "17:00"
+    const proc = {};
+    ["IMPORT", "EXPORT", "DOMESTIC", "EMPTY"].forEach((P) => {
+      const k = P.toLowerCase();
+      ["IN", "OUT"].forEach((D) => { proc[`${D.toLowerCase()}_${k}`] = n(r, `${D} ${P}`); });
+    });
+    const in20 = n(r, "IN 20FT"), in40 = n(r, "IN 40FT");
+    const out20 = n(r, "OUT 20FT"), out40 = n(r, "OUT 40FT");
+    const detail = {};
+    ["IMPORT", "EXPORT", "DOMESTIC", "EMPTY"].forEach((P) => {
+      const k = P.toLowerCase();
+      ["IN", "OUT"].forEach((D) => {
+        const d = D.toLowerCase();
+        detail[`${d}_${k}`] = n(r, `${D} ${P}`);
+        detail[`${d}_${k}20`] = n(r, `${D} ${P} 20FT`);
+        detail[`${d}_${k}40`] = n(r, `${D} ${P} 40FT`);
+        detail[`${d}_${k}Teu`] = n(r, `${D} ${P} TEUS`);
+      });
+    });
+    return {
+      key: hourSlot || label, label, hourSlot,
+      in: n(r, "GATE-IN"), in20, in40, inTeu: n(r, "IN TEUS"),
+      out: n(r, "GATE-OUT"), out20, out40, outTeu: n(r, "OUT TEUS"),
+      ...proc, ...detail,
+    };
+  });
 };
 
 // ─── Theme tokens (light) ─────────────────────────────────────────────────────
@@ -271,7 +309,7 @@ const exportToExcel = (rows, sheetName, fileName) => {
   if (!Array.isArray(rows) || !rows.length) return;
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+  XLSX.utils.book_append_sheet(wb, ws, String(sheetName || "Sheet1").replace(/[:\\\/?*\[\]]/g, "-").slice(0, 31));
   const p = (n) => String(n).padStart(2, "0");
   const d = new Date();
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
@@ -312,7 +350,7 @@ const ViewSwitch = ({ options, value, onChange }) => (
   </div>
 );
 
-// ─── Chart Tooltip (dark) ────────────────────────────────────────────────────
+// ─── Chart Tooltip ───────────────────────────────────────────────────────────
 const Tip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -407,7 +445,6 @@ const RadialGauge = ({ value, max = 100, color = T.cyan, label, size = 180, suff
       <ResponsiveContainer width="100%" height="100%">
         <RadialBarChart cx="50%" cy="50%" innerRadius="68%" outerRadius="100%"
           data={data} startAngle={210} endAngle={-30}>
-          {/* track */}
           <defs>
             <linearGradient id={`rg-${color.replace("#", "")}`} x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={1} />
@@ -431,7 +468,6 @@ const RadialGauge = ({ value, max = 100, color = T.cyan, label, size = 180, suff
 
 // ─── Heatmap (hour x weekday) ────────────────────────────────────────────────
 const Heatmap = ({ data, color = T.cyan }) => {
-  // data: array of 7 (weekday) x 24 (hour) cells [{wd, h, v}]
   const max = Math.max(1, ...data.map((d) => d.v));
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return (
@@ -502,7 +538,7 @@ const DrillModal = ({ open, onClose, kpi }) => {
   }, [allRows, allTags, activeFilter, search]);
 
   if (!open || !kpi) return null;
-  const { label,displayValue, value, suffix, accent, decimals, sub, table, breakdown, sizes  } = kpi;
+  const { label, displayValue, value, suffix, accent, decimals, sub, table, breakdown, sizes } = kpi;
   const hasTable = !!(table && table.cols && allRows.length > 0);
 
   const handleExport = () => {
@@ -519,7 +555,6 @@ const DrillModal = ({ open, onClose, kpi }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fadein" onClick={onClose}>
       <div
-        // Table wale popup ki height FIXED — data kitna bhi ho popup bada nahi hoga
         className="w-full max-w-7xl rounded-3xl flex flex-col overflow-hidden max-h-[85vh]"
         style={{
           background: "linear-gradient(145deg, #ffffff, #f0f4ff)",
@@ -536,7 +571,6 @@ const DrillModal = ({ open, onClose, kpi }) => {
               {kpi.icon ? <kpi.icon className="w-6 h-6" strokeWidth={2} /> : null}
             </div>
             <div>
-              {/* <div className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: T.textMute }}>Deep Dive</div> */}
               <h2 className="text-xl md:text-2xl font-black" style={{ color: T.text }}>{label}</h2>
             </div>
           </div>
@@ -558,27 +592,25 @@ const DrillModal = ({ open, onClose, kpi }) => {
               </div>
               {suffix && <span className="text-lg font-bold" style={{ color: accent }}>{suffix}</span>}
             </div>
-             {sizes && (
-                <div className="flex items-center gap-3 ml-6 sm:ml-10">
-                  <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
-                    style={{ background: `${T.cyan}12`, border: `1px solid ${T.cyan}30` }}>
-                    <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>20ft</span>
-                    <span className="text-lg font-black tabular-nums" style={{ color: T.cyan }}>{fmtNumber(sizes.s20)}</span>
-                  </div>
-                  <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
-                    style={{ background: `${T.indigo}12`, border: `1px solid ${T.indigo}30` }}>
-                    <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>40ft</span>
-                    <span className="text-lg font-black tabular-nums" style={{ color: T.indigo }}>{fmtNumber(sizes.s40)}</span>
-                  </div>
-
-                  {/* NEW: TEUs */}
-                  <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
-                    style={{ background: `${T.emerald}12`, border: `1px solid ${T.emerald}30` }}>
-                    <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>TEUs</span>
-                    <span className="text-lg font-black tabular-nums" style={{ color: T.emerald }}>{fmtNumber(sizes.teus)}</span>
-                  </div>
+            {sizes && (
+              <div className="flex items-center gap-3 ml-6 sm:ml-10">
+                <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
+                  style={{ background: `${T.cyan}12`, border: `1px solid ${T.cyan}30` }}>
+                  <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>20ft</span>
+                  <span className="text-lg font-black tabular-nums" style={{ color: T.cyan }}>{fmtNumber(sizes.s20)}</span>
                 </div>
-              )}
+                <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
+                  style={{ background: `${T.indigo}12`, border: `1px solid ${T.indigo}30` }}>
+                  <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>40ft</span>
+                  <span className="text-lg font-black tabular-nums" style={{ color: T.indigo }}>{fmtNumber(sizes.s40)}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5 rounded-lg px-3 py-1.5"
+                  style={{ background: `${T.emerald}12`, border: `1px solid ${T.emerald}30` }}>
+                  <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: T.textMute }}>TEUs</span>
+                  <span className="text-lg font-black tabular-nums" style={{ color: T.emerald }}>{fmtNumber(sizes.teus)}</span>
+                </div>
+              </div>
+            )}
             <div className="text-xs ml-auto" style={{ color: T.textDim }}>{sub}</div>
           </div>
 
@@ -619,7 +651,6 @@ const DrillModal = ({ open, onClose, kpi }) => {
                       </div>
                       <div className="text-xl font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(b.value)}</div>
 
-                      {/* 20ft / 40ft / TEUs split (only for cards that provide `sizes`) */}
                       {b.sizes && (
                         <div className="mt-2 pt-2 border-t grid grid-cols-3 gap-1 text-center" style={{ borderColor: T.border }}>
                           <div>
@@ -709,7 +740,7 @@ const Stat = ({ label, value, decimals, color }) => (
   </div>
 );
 
-// ─── DataTable (reusable, dark, scrollable) ─────────────────────────────────
+// ─── DataTable (reusable, scrollable) ───────────────────────────────────────
 const DataTable = ({ cols, rows, footerRow, emptyMsg = "No data", maxHeight = "100%" }) => (
   <div className="flex-1 overflow-auto rounded-lg" style={{ background: "white", maxHeight, border: `1px solid ${T.border}` }}>
     <table className="w-full min-w-max text-xs">
@@ -777,7 +808,6 @@ const fmtHM = (min) => {
   return `${h}h ${String(r).padStart(2, "0")}m`;
 };
 
-// Tooltip is defined OUTSIDE the component so it isn't re-created on every render
 const UtilTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -787,7 +817,6 @@ const UtilTooltip = ({ active, payload, label }) => {
         let val;
         if (p.dataKey === "utilPct") val = `${p.value}%`;
         else if (p.dataKey.endsWith("Hours")) {
-          // workHours -> workMin, idleHours -> idleMin, breakHours -> breakMin, coolHours -> coolMin
           val = fmtHM(p.payload?.[p.dataKey.replace("Hours", "Min")]);
         } else val = p.value;
         return (
@@ -802,7 +831,6 @@ const UtilTooltip = ({ active, payload, label }) => {
 };
 
 const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoading, allEquipment }) => {
-  // Single date — always one day so expected hrs = 18
   const [selDate, setSelDate] = useState(() => _localDate(-1));
   const [chartType, setChartType] = useState("composed"); // table | bar | composed
 
@@ -815,9 +843,7 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
     const coolMin  = hmToMin(r.CoolingTime   ?? r.coolingtime);
     return {
       name: r.EquipmentNo ?? r.equipmentno ?? r.EQUIPMENT_NO ?? "—",
-      // minutes (used by tooltip -> "3h 56m")
       workMin, idleMin, breakMin, coolMin,
-      // decimal hours (used for bar height)
       workHours:  +(workMin  / 60).toFixed(2),
       idleHours:  +(idleMin  / 60).toFixed(2),
       breakHours: +(breakMin / 60).toFixed(2),
@@ -1056,7 +1082,6 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
               <tfoot style={{ background: "#f8fafc", borderTop: `2px solid ${T.border}` }}>
                 <tr>
                   <td className="px-3 py-2.5 font-black text-[10px] uppercase tracking-wider" style={{ color: T.textMute }}>Average</td>
-                  {/* Breakdown + Cooling + Idle + Work = 4 columns */}
                   <td colSpan={4} />
                   <td className="px-3 py-2.5 font-black tabular-nums text-center" style={{ color: T.blue }}>
                     {chartData.reduce((s, d) => s + d.moves, 0)}
@@ -1079,8 +1104,6 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
 };
 
 // ─── Daily Equipment Moves Count (bars = moves, line = utilization %) ────────
-// Same source as UtilizationSection (GET_EQUIPMENT_DAILY_UTILIZATION) — no
-// separate API call, just a different, more compact chart composition.
 const MovesCountChart = ({ utilizationApi }) => {
   const [view, setView] = useState("chart"); // chart | table
 
@@ -1243,9 +1266,16 @@ const AdminDashboard = () => {
     { refetchOnFocus: true }
   );
 
-  // Last-24h gate in/out throughput — ContainerInOut_24Hours SP, pre-bucketed
-  // hourly server-side (EKL_TRN_INVENTORY.GateInDate/GateOutDate).
+  // Last-24h gate in/out — ContainerInOut_24Hours SP.
+  // Used for: top counts (IN/OUT, 20'/40', TEUs, process cards), KPI card, charts, trend.
   const { data: gateInOut24hApi, isFetching: gateInOut24hLoading } = useGetContainerInOut24hQuery(
+    undefined,
+    { pollingInterval: 60000 }
+  );
+
+  // Last-24h gate in/out — ContainerInOut_24Hours_Throughput SP.
+  // Used ONLY for: hourly table rows (panel Table view, drill-down popup table, Excel export).
+  const { data: gateThroughputApi, isFetching: gateThroughputLoading } = useGetContainerInOut24hThroughputQuery(
     undefined,
     { pollingInterval: 60000 }
   );
@@ -1304,7 +1334,6 @@ const AdminDashboard = () => {
   }, [equipmentApi]);
 
   // Debounced re-fetch of OCR whenever date range OR equipment selection changes.
-  // Initial fetch on mount, then again whenever filters or equipment list update.
   useEffect(() => {
     const t = setTimeout(() => {
       const sel = filters.equipmentIds;
@@ -1358,7 +1387,6 @@ const AdminDashboard = () => {
     return allEquipment.filter((e) => e.deviceId && sel.has(e.deviceId));
   }, [allEquipment, filters.equipmentIds]);
 
-  // Must be defined before equipmentStats (which depends on it)
   const filterRange = useMemo(() => {
     const fromD = new Date(filters.from);
     const toD = new Date(filters.to);
@@ -1385,9 +1413,7 @@ const AdminDashboard = () => {
         if (dt) lastTxByDevice.set(dev, dt);
       }
     });
-    // Merge liveLocMap (GPS live-location pings) as additional source — this is
-    // the same feed the Equipment Fleet table's "Last Tx" column reads, so a
-    // machine pinging seconds ago there must also count as active here.
+    // Merge liveLocMap (GPS live-location pings) as additional source
     liveLocMap.forEach((loc, dev) => {
       const dt = parseDateTime(loc?.lastAt);
       if (!dt) return;
@@ -1395,7 +1421,7 @@ const AdminDashboard = () => {
       if (!existing || dt.getTime() > existing.getTime()) lastTxByDevice.set(dev, dt);
     });
 
-    // Active = last tx within 8 hours of NOW (real operational status, not filter window)
+    // Active = last tx within 8 hours of NOW
     const ACTIVE_WINDOW_MS = 8 * 60 * 60 * 1000;
     const nowMs = now.getTime();
 
@@ -1421,7 +1447,6 @@ const AdminDashboard = () => {
   );
 
   // Process / size filters applied client-side over the live snapshot.
-  // (Date filter applies only to time-windowed views like throughput / heatmap.)
   const containers = useMemo(() => {
     if (filters.processes.size === 0 && filters.sizes.size === 0) return containersAll;
     return containersAll.filter((c) => {
@@ -1443,23 +1468,20 @@ const AdminDashboard = () => {
 
   const containerStats = useMemo(() => {
     const total = containers.length;
-    let imp = 0, exp = 0, empty = 0, dom = 0, other = 0;   // dom = domestic count
+    let imp = 0, exp = 0, empty = 0, dom = 0, other = 0;
     let size20 = 0, size40 = 0, size40hq = 0, sizeOther = 0;
     let damaged = 0;
 
-    // Har category ke liye size split + TEUs
-    // s20 = 20ft count, s40 = 40ft/40HQ count, teus = total TEUs
-    // (20ft = 1 TEU, 40ft/40HQ = 2 TEU, other sizes = 1 TEU — chaho to 2 kar do)
     const mk = () => ({ s20: 0, s40: 0, teus: 0 });
     const split = {
       import: mk(), export: mk(), empty: mk(),
-      domestic: mk(),                       // ← Domestic ka apna size split
+      domestic: mk(),
       damaged: mk(),
     };
     const addSize = (bucket, sz) => {
       if (sz.startsWith("20")) { bucket.s20++; bucket.teus += 1; }
       else if (sz.startsWith("40") || sz.includes("HQ")) { bucket.s40++; bucket.teus += 2; }
-      else { bucket.teus += 1; } // other size: sirf TEUs me judta hai
+      else { bucket.teus += 1; }
     };
 
     containers.forEach((c) => {
@@ -1467,7 +1489,7 @@ const AdminDashboard = () => {
       if (p === "import") imp++;
       else if (p === "export") exp++;
       else if (p === "empty") empty++;
-      else if (p === "domestic") dom++;      // ← Domestic count
+      else if (p === "domestic") dom++;
       else other++;
 
       const sz = String(get(c, "CONTAINER_SIZE", "container_size") || "").toUpperCase();
@@ -1499,8 +1521,7 @@ const AdminDashboard = () => {
       .sort((a, b) => b.count - a.count);
   }, [containers]);
 
-  // ── Gate In/Out (24h): total = res.data[0], hourly = res.hourly ────────────
-  // API: /container-inout-24h  ->  { data: [summaryRow], hourly: [25 hourly rows] }
+  // ── Gate In/Out (24h) — counts from ContainerInOut_24Hours (res.data[0]) ──
   const teuOf = (s20, s40) => s20 + s40 * 2;   // 20ft = 1 TEU, 40ft = 2 TEU
 
   const gateSummary = useMemo(() => {
@@ -1514,52 +1535,28 @@ const AdminDashboard = () => {
     return {
       in: grp("GateIn"), out: grp("GateOut"),
       proc: {
-        in:  { import: grp("ImportIn"),  export: grp("ExportIn"),  empty: grp("EmptyIn") },
-        out: { import: grp("ImportOut"), export: grp("ExportOut"), empty: grp("EmptyOut") },
+        in:  { import: grp("ImportIn"),  export: grp("ExportIn"),  domestic: grp("DomesticIn"),  empty: grp("EmptyIn") },
+        out: { import: grp("ImportOut"), export: grp("ExportOut"), domestic: grp("DomesticOut"), empty: grp("EmptyOut") },
       },
     };
   }, [gateInOut24hApi]);
 
-  const hourlyThroughput = useMemo(() => {
-    const rows = Array.isArray(gateInOut24hApi?.hourly) ? gateInOut24hApi.hourly : [];
-    const n = (r, k) => Number(r[k] || 0);
-    return rows.map((r) => {
-      const hourSlot = String(r["HOUR"] || "");
-      const label = hourSlot ? (hourSlot.split(" ")[1] || hourSlot) : "—";   // "11:00"
-      const proc = {};
-      ["IMPORT", "EXPORT", "EMPTY"].forEach((P) => {
-        const k = P.toLowerCase();
-        ["IN", "OUT"].forEach((D) => { proc[`${D.toLowerCase()}_${k}`] = n(r, `${D} ${P}`); });
-      });
-      const in20 = n(r, "IN 20FT"),   in40 = n(r, "IN 40FT");
-      const out20 = n(r, "OUT 20FT"), out40 = n(r, "OUT 40FT");
-      const detail = {};
-      ["IMPORT", "EXPORT", "EMPTY"].forEach((P) => {
-        const k = P.toLowerCase();
-        ["IN", "OUT"].forEach((D) => {
-          const d = D.toLowerCase();
-          detail[`${d}_${k}`] = n(r, `${D} ${P}`);
-          detail[`${d}_${k}20`] = n(r, `${D} ${P} 20FT`);
-          detail[`${d}_${k}40`] = n(r, `${D} ${P} 40FT`);
-          detail[`${d}_${k}Teu`] = n(r, `${D} ${P} TEUS`);
-        });
-      });
-      return {
-        key: hourSlot || label, label, hourSlot,
-        in: n(r, "GATE-IN"), in20, in40, inTeu: n(r, "IN TEUS"),
-        out: n(r, "GATE-OUT"), out20, out40, outTeu: n(r, "OUT TEUS"),
-        ...proc, ...detail,
-      };
-    });
-  }, [gateInOut24hApi]);
+  // Charts + trend: purani API ke hourly rows (res.hourly)
+  const hourlyThroughput = useMemo(
+    () => buildHourlyRows(gateInOut24hApi?.hourly),
+    [gateInOut24hApi]
+  );
 
-  // Process-wise 24h totals: { dir: { import|export|empty: {count, s20, s40, teus} } }
+  // Tables + Excel: nayi throughput API ke rows (res.data)
+  const hourlyTable = useMemo(
+    () => buildHourlyRows(gateThroughputApi?.data),
+    [gateThroughputApi]
+  );
+
+  // Process-wise 24h totals
   const gateProcTotals = gateSummary.proc;
 
-  // Dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING. One SP row per
-  // (Process, Aging bucket) with Size20/Size40 counts; fold those into the
-  // same 5 fixed buckets the panel already renders (Aging strings from the
-  // SP match these bucket names exactly).
+  // Dwell-time distribution — GET_DASHBOARD_CONTAINERAGEING
   const ageingBuckets = useMemo(() => {
     const buckets = [
       { name: "DAY 0-5",      label: "DAY 0-5",      count: 0, import: 0, export: 0, domestic: 0, empty: 0, color: T.emerald },
@@ -1586,8 +1583,7 @@ const AdminDashboard = () => {
     return buckets;
   }, [containerAgeingApi]);
 
-  // ── Shipping Line Wise Inventory — GET_DASHBOARD_SHIPLINE (real line
-  // names from the SP, not a container-number-prefix guess) ──────────────
+  // ── Shipping Line Wise Inventory — GET_DASHBOARD_SHIPLINE ──
   const shippingLineData = useMemo(() => {
     const rows = Array.isArray(shiplineApi?.data) ? shiplineApi.data : [];
     const mapped = rows.map((r) => {
@@ -1605,7 +1601,7 @@ const AdminDashboard = () => {
       .map((r) => ({ ...r, pct: grand > 0 ? +((r.total / grand) * 100).toFixed(2) : 0 }));
   }, [shiplineApi]);
 
-  // ── Yard Inventory by Block — GET_DASHBOARD_YARDINVENTORY (real capacity/utilization) ──
+  // ── Yard Inventory by Block — GET_DASHBOARD_YARDINVENTORY ──
   const yardInventoryData = useMemo(() => {
     const rows = Array.isArray(yardInvApi?.data) ? yardInvApi.data : [];
     return rows
@@ -1627,9 +1623,8 @@ const AdminDashboard = () => {
       .sort((a, b) => b.count - a.count);
   }, [yardInvApi]);
 
-  // ── Container In/Out monthly (uses status report for full history incl. gate-outs) ──
+  // ── Container In/Out monthly ──
   const containerInOutData = useMemo(() => {
-    // SP_MONTHLY_GATE_INOUT returns pre-aggregated rows: { MOVEMENT_TYPE, MONTH_KEY, CONTAINER_COUNT }
     const rows = Array.isArray(statusReportApi?.data) ? statusReportApi.data : [];
     const monthMap = new Map();
     rows.forEach((r) => {
@@ -1665,7 +1660,6 @@ const AdminDashboard = () => {
     const missing = rows.filter(isMissingContainer).length;
     const captured = total - missing;
     const pct = total > 0 ? (captured / total) * 100 : 0;
-    // Per-machine breakdown — same calc as ServiceDashboard
     const byMachine = new Map();
     rows.forEach((r) => {
       const m = get(r, "DeviceID", "deviceid", "EqpName", "eqpname", "EQUIPMENT_NAME", "DEVICE_IMEI") || "Unknown";
@@ -1735,7 +1729,6 @@ const AdminDashboard = () => {
       const dt = parseDateTime(get(r, "TRANSACTION_DATE", "transaction_date",
         "LAST_TRANSACTION_DATE", "last_transaction_date", "DATE_TIME", "date_time"));
       if (!dt) return;
-      // Date range filter
       const t = dt.getTime();
       if (t < filterRange.fromMs || t > filterRange.toMs) return;
       const eqp = get(r, "EQUIPMENT_CODE", "equipment_code", "EqpName", "eqpname", "DEVICE_IMEI");
@@ -1781,9 +1774,7 @@ const AdminDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestEqpTxApi, filterRange, allowedEqpNames]);
 
-  // Process mix, with 20/40 size split folded in — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE.
-  // Replaces the old client-side containerStats tally and the separate Size
-  // Distribution panel (size20/size40 now render inside this same chart).
+  // Process mix, with 20/40 size split — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE.
   const PROCESS_COLOR = {
     IMPORT: T.blue, EXPORT: T.pink, DOMESTIC: T.teal, EMPTY: T.amber, UNALLOCATED: T.textMute,
   };
@@ -1907,121 +1898,150 @@ const AdminDashboard = () => {
   const online = !!(equipmentApi || liveStatusApi);
 
   // ─── KPI configs (for cards + drill-down) ─────────────────────────────────
-  const kpis = useMemo(() => [
-        {
-      key: "inventory",
-      icon: FiPackage,
-      label: "Yard Inventory",
-      value: containerStats.total,
-      // sub: `${containerStats.imp} import · ${containerStats.exp} export · ${containerStats.empty} empty · ${containerStats.dom} domestic`,
-       sizes: {
-        s20: containerStats.size20,
-        s40: containerStats.size40 + containerStats.size40hq,
-        teus: containerStats.size20 + (containerStats.size40 + containerStats.size40hq) * 2
-      },
-      accent: T.cyan,
-      loading: liveStatusLoading,
-      history: history.inventory,
-      breakdown: [
-        { name: "Import",   value: containerStats.imp,     color: T.blue,   filterKey: "import",   sizes: containerStats.split.import },
-        { name: "Export",   value: containerStats.exp,     color: T.pink,   filterKey: "export",   sizes: containerStats.split.export },
-        { name: "Empty",    value: containerStats.empty,   color: T.amber,  filterKey: "empty",    sizes: containerStats.split.empty },
-        { name: "Domestic", value: containerStats.dom,     color: T.teal,   filterKey: "domestic", sizes: containerStats.split.domestic },
-      ],
-      table: {
-        title: "All Containers",
-        cols: ["Container No", "Process", "Status", "Size", "Location", "Gate In"],
-        rows: containers.map((c) => [
-          get(c, "CONTAINER_NO", "container_no") || "—",
-          get(c, "CONTAINER_PROCESS", "container_process") || "—",
-          (() => {
-            const s = String(get(c, "INVENTORY_STATUS", "inventory_status") || "").trim().toUpperCase();
-            if (!s) return "—";
-            if (s === "EMPTY") return "Empty";
-            if (s === "FULL" || s === "LOADED" || s === "LADEN") return "Loaded";
-            return s.charAt(0) + s.slice(1).toLowerCase();
-          })(),
-          get(c, "CONTAINER_SIZE", "container_size") || "—",
-          get(c, "MASTERTABLE", "LOCATION_NAME", "YARD_NAME") || "—",
-          fmtDate(parseDateTime(get(c, "GATE_IN_DATE", "gate_in_date"))),
-        ]),
-        // Har row ke filter tags (same logic jo containerStats me hai)
-        tags: containers.map((c) => {
-          const t = [];
-          const p = String(get(c, "CONTAINER_PROCESS", "container_process") || "").toLowerCase();
-          if (p === "import") t.push("import");
-          else if (p === "export") t.push("export");
-          else if (p === "empty") t.push("empty");
-          else if (p === "domestic") t.push("domestic");
-          return t;
-        }),
-      },
-    },
-    {
-      key: "active",
-      icon: FiCpu,
-      label: "Active Equipment",
-      value: equipmentStats.active,
-      suffix: `/${equipmentStats.total}`,
-      // sub: `${equipmentStats.breakdown} breakdown · ${equipmentStats.idle} idle · ${equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown} offline`,
-      accent: T.emerald,
-      loading: equipmentLoading,
-      history: history.active,
-      breakdown: [
-        { name: "Active", value: equipmentStats.active, color: T.emerald },
-        { name: "Idle", value: equipmentStats.idle, color: T.amber },
-        { name: "Breakdown", value: equipmentStats.breakdown, color: T.red },
-        { name: "Offline", value: Math.max(equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown, 0), color: T.textMute },
-      ],
-    },
-    {
-      key: "gateIn",
-      icon: FiTrendingUp,
-      label: "Gate In/Out (24h)",
-      value: totalIn24h,
-      displayValue: `${totalIn24h}/${totalOut24h}`,
-      // sub: `In ${totalIn24h} · Out ${totalOut24h}`,
-      trend: inTrend,
-      accent: T.blue,
-      loading: liveStatusLoading,
-      history: history.gateIn,
-      sizeRows: [
-        { name: "IN",  color: T.blue, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teus: totalInTeu },
-        { name: "OUT", color: T.cyan, total: totalOut24h, s20: totalOut20, s40: totalOut40, teus: totalOutTeu },
-      ],
-      breakdown: [
-        { name: "Gate-In", value: totalIn24h, color: T.blue, sizes: { s20: totalIn20, s40: totalIn40, teus: totalInTeu } },
-        { name: "Gate-Out", value: totalOut24h, color: T.cyan, sizes: { s20: totalOut20, s40: totalOut40, teus: totalOutTeu } },
-        ...[["import", "Import", T.blue], ["export", "Export", T.pink], ["empty", "Empty", T.amber]].flatMap(([k, label, color]) => [
-          { name: `${label} In`,  value: gateProcTotals.in[k].count,  color, sizes: { s20: gateProcTotals.in[k].s20,  s40: gateProcTotals.in[k].s40,  teus: gateProcTotals.in[k].teus } },
-          { name: `${label} Out`, value: gateProcTotals.out[k].count, color, sizes: { s20: gateProcTotals.out[k].s20, s40: gateProcTotals.out[k].s40, teus: gateProcTotals.out[k].teus } },
-        ]),
-      ],
-      table: {
-        title: "Hourly throughput",
-        cols: [
-          "Hour", "Gate-In", "In 20FT", "In 40FT", "In TEUS",
-          "Gate-Out", "Out 20FT", "Out 40FT", "Out TEUS",
-          "In Import", "In Import 20FT", "In Import 40FT", "In Import TEUS",
-          "Out Import", "Out Import 20FT", "Out Import 40FT", "Out Import TEUS",
-          "In Export", "In Export 20FT", "In Export 40FT", "In Export TEUS",
-          "Out Export", "Out Export 20FT", "Out Export 40FT", "Out Export TEUS",
-          "In Empty", "In Empty 20FT", "In Empty 40FT", "In Empty TEUS",
-          "Out Empty", "Out Empty 20FT", "Out Empty 40FT", "Out Empty TEUS",
+  const kpis = useMemo(() => {
+    // Yard Inventory ka breakdown Process Mix wali same API (processData) se
+    const pm = (n) => {
+      const d = processData.find((x) => x.name.toLowerCase() === n);
+      return d
+        ? { count: d.value, s20: d.size20, s40: d.size40, teus: d.teus }
+        : { count: 0, s20: 0, s40: 0, teus: 0 };
+    };
+    const pmTotal = processData.reduce((s, d) => s + d.value, 0);
+    const pmS20 = processData.reduce((s, d) => s + d.size20, 0);
+    const pmS40 = processData.reduce((s, d) => s + d.size40, 0);
+    const pmTeus = processData.reduce((s, d) => s + d.teus, 0);
+    const hasPM = processData.length > 0;
+
+    return [
+      {
+        key: "inventory",
+        icon: FiPackage,
+        label: "Yard Inventory",
+        value: hasPM ? pmTotal : containerStats.total,
+        sizes: hasPM
+          ? { s20: pmS20, s40: pmS40, teus: pmTeus }
+          : {
+              s20: containerStats.size20,
+              s40: containerStats.size40 + containerStats.size40hq,
+              teus: containerStats.size20 + (containerStats.size40 + containerStats.size40hq) * 2,
+            },
+        accent: T.cyan,
+        loading: liveStatusLoading,
+        history: history.inventory,
+        breakdown: [
+          { name: "Import",   value: pm("import").count,   color: T.blue,  filterKey: "import",   sizes: pm("import") },
+          { name: "Export",   value: pm("export").count,   color: T.pink,  filterKey: "export",   sizes: pm("export") },
+          { name: "Empty",    value: pm("empty").count,    color: T.amber, filterKey: "empty",    sizes: pm("empty") },
+          { name: "Domestic", value: pm("domestic").count, color: T.teal,  filterKey: "domestic", sizes: pm("domestic") },
         ],
-        rows: hourlyThroughput.map((h) => [
-          h.hourSlot, h.in, h.in20, h.in40, h.inTeu,
-          h.out, h.out20, h.out40, h.outTeu,
-          h.in_import, h.in_import20, h.in_import40, h.in_importTeu,
-          h.out_import, h.out_import20, h.out_import40, h.out_importTeu,
-          h.in_export, h.in_export20, h.in_export40, h.in_exportTeu,
-          h.out_export, h.out_export20, h.out_export40, h.out_exportTeu,
-          h.in_empty, h.in_empty20, h.in_empty40, h.in_emptyTeu,
-          h.out_empty, h.out_empty20, h.out_empty40, h.out_emptyTeu,
-        ]),
+        table: {
+          title: "All Containers",
+          cols: ["Container No", "Process", "Status", "Size", "Location", "Gate In"],
+          rows: containers.map((c) => [
+            get(c, "CONTAINER_NO", "container_no") || "—",
+            get(c, "CONTAINER_PROCESS", "container_process") || "—",
+            (() => {
+              const s = String(get(c, "INVENTORY_STATUS", "inventory_status") || "").trim().toUpperCase();
+              if (!s) return "—";
+              if (s === "EMPTY") return "Empty";
+              if (s === "FULL" || s === "LOADED" || s === "LADEN") return "Loaded";
+              return s.charAt(0) + s.slice(1).toLowerCase();
+            })(),
+            get(c, "CONTAINER_SIZE", "container_size") || "—",
+            get(c, "MASTERTABLE", "LOCATION_NAME", "YARD_NAME") || "—",
+            fmtDate(parseDateTime(get(c, "GATE_IN_DATE", "gate_in_date"))),
+          ]),
+          tags: containers.map((c) => {
+            const t = [];
+            const p = String(get(c, "CONTAINER_PROCESS", "container_process") || "").toLowerCase();
+            if (p === "import") t.push("import");
+            else if (p === "export") t.push("export");
+            else if (p === "empty") t.push("empty");
+            else if (p === "domestic") t.push("domestic");
+            return t;
+          }),
+        },
       },
-    },
-  ], [containerStats, equipmentStats, totalIn24h, totalOut24h, inTrend, ocrStats, equipmentLoading, liveStatusLoading, utilizationLoading, lockLoading, history, ageingBuckets, containers, liveEquipment, hourlyThroughput, gateProcTotals, dailyUtilPct, utilizationApi]);
+      {
+        key: "active",
+        icon: FiCpu,
+        label: "Active Equipment",
+        value: equipmentStats.active,
+        suffix: `/${equipmentStats.total}`,
+        accent: T.emerald,
+        loading: equipmentLoading,
+        history: history.active,
+        breakdown: [
+          { name: "Active", value: equipmentStats.active, color: T.emerald },
+          { name: "Idle", value: equipmentStats.idle, color: T.amber },
+          { name: "Breakdown", value: equipmentStats.breakdown, color: T.red },
+          { name: "Offline", value: Math.max(equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown, 0), color: T.textMute },
+        ],
+      },
+      {
+        key: "gateIn",
+        icon: FiTrendingUp,
+        label: "Gate In/Out (24h)",
+        value: totalIn24h,
+        displayValue: `${totalIn24h}/${totalOut24h}`,
+        trend: inTrend,
+        accent: T.blue,
+        loading: liveStatusLoading,
+        history: history.gateIn,
+        sizeRows: [
+          { name: "IN",  color: T.blue, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teus: totalInTeu },
+          { name: "OUT", color: T.cyan, total: totalOut24h, s20: totalOut20, s40: totalOut40, teus: totalOutTeu },
+        ],
+        // Counts / breakdown cards: purani API (ContainerInOut_24Hours)
+        breakdown: (() => {
+          const P = [["import", "Import", T.blue], ["export", "Export", T.pink], ["domestic", "Domestic", T.purple], ["empty", "Empty", T.amber]];
+          const mk = (dir, label, color, k) => ({
+            name: `${label} ${dir === "in" ? "In" : "Out"}`,
+            value: gateProcTotals[dir][k].count, color,
+            sizes: { s20: gateProcTotals[dir][k].s20, s40: gateProcTotals[dir][k].s40, teus: gateProcTotals[dir][k].teus },
+          });
+          return [
+            { name: "Gate-In", value: totalIn24h, color: T.blue, sizes: { s20: totalIn20, s40: totalIn40, teus: totalInTeu } },
+            ...P.map(([k, l, c]) => mk("in", l, c, k)),
+            { name: "Gate-Out", value: totalOut24h, color: T.cyan, sizes: { s20: totalOut20, s40: totalOut40, teus: totalOutTeu } },
+            ...P.map(([k, l, c]) => mk("out", l, c, k)),
+          ];
+        })(),
+        // Hourly table: nayi API (ContainerInOut_24Hours_Throughput)
+        table: {
+          title: "Hourly throughput",
+          cols: [
+            "Hour", "Gate-In", "In 20FT", "In 40FT", "In TEUS",
+            "Gate-Out", "Out 20FT", "Out 40FT", "Out TEUS",
+            "In Import", "In Import 20FT", "In Import 40FT", "In Import TEUS",
+            "Out Import", "Out Import 20FT", "Out Import 40FT", "Out Import TEUS",
+            "In Export", "In Export 20FT", "In Export 40FT", "In Export TEUS",
+            "Out Export", "Out Export 20FT", "Out Export 40FT", "Out Export TEUS",
+            "In Domestic", "In Domestic 20FT", "In Domestic 40FT", "In Domestic TEUS",
+            "Out Domestic", "Out Domestic 20FT", "Out Domestic 40FT", "Out Domestic TEUS",
+            "In Empty", "In Empty 20FT", "In Empty 40FT", "In Empty TEUS",
+            "Out Empty", "Out Empty 20FT", "Out Empty 40FT", "Out Empty TEUS",
+          ],
+          rows: hourlyTable.map((h) => [
+            h.hourSlot, h.in, h.in20, h.in40, h.inTeu,
+            h.out, h.out20, h.out40, h.outTeu,
+            h.in_import, h.in_import20, h.in_import40, h.in_importTeu,
+            h.out_import, h.out_import20, h.out_import40, h.out_importTeu,
+            h.in_export, h.in_export20, h.in_export40, h.in_exportTeu,
+            h.out_export, h.out_export20, h.out_export40, h.out_exportTeu,
+            h.in_domestic, h.in_domestic20, h.in_domestic40, h.in_domesticTeu,
+            h.out_domestic, h.out_domestic20, h.out_domestic40, h.out_domesticTeu,
+            h.in_empty, h.in_empty20, h.in_empty40, h.in_emptyTeu,
+            h.out_empty, h.out_empty20, h.out_empty40, h.out_emptyTeu,
+          ]),
+        },
+      },
+    ];
+  }, [
+    containerStats, processData, equipmentStats, totalIn24h, totalOut24h, totalIn20, totalIn40,
+    totalOut20, totalOut40, totalInTeu, totalOutTeu, inTrend, equipmentLoading, liveStatusLoading,
+    history, containers, hourlyTable, gateProcTotals,
+  ]);
 
   // ─── Equipment table sort/filter ─────────────────────────────────────────
   const sortedEquipment = useMemo(() => {
@@ -2173,10 +2193,9 @@ const AdminDashboard = () => {
 
           {/* Main chart row */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
-            {/* Throughput with chart type switcher */}
             <Panel
               title="Gate Throughput · Last 24h"
-              subtitle={gateInOut24hLoading ? "Loading…" : "Hourly gate-in vs gate-out — rolling last 24 hours"}
+              subtitle={(gateInOut24hLoading || gateThroughputLoading) ? "Loading…" : "Hourly gate-in vs gate-out — rolling last 24 hours"}
               icon={FiActivity}
               accent={T.cyan}
               className="xl:col-span-12 h-[380px]"
@@ -2192,9 +2211,10 @@ const AdminDashboard = () => {
                       { value: "table", label: "Table", icon: FiList },
                     ]}
                   />
+                  {/* Excel export: nayi throughput API (hourlyTable) */}
                   <ExportBtn
                     onClick={() => exportToExcel(
-                      hourlyThroughput.map((r) => ({
+                      hourlyTable.map((r) => ({
                         HOUR: r.hourSlot,
                         "GATE-IN": r.in, "IN 20FT": r.in20, "IN 40FT": r.in40, "IN TEUS": r.inTeu,
                         "GATE-OUT": r.out, "OUT 20FT": r.out20, "OUT 40FT": r.out40, "OUT TEUS": r.outTeu,
@@ -2202,16 +2222,19 @@ const AdminDashboard = () => {
                         "OUT IMPORT": r.out_import, "OUT IMPORT 20FT": r.out_import20, "OUT IMPORT 40FT": r.out_import40, "OUT IMPORT TEUS": r.out_importTeu,
                         "IN EXPORT": r.in_export, "IN EXPORT 20FT": r.in_export20, "IN EXPORT 40FT": r.in_export40, "IN EXPORT TEUS": r.in_exportTeu,
                         "OUT EXPORT": r.out_export, "OUT EXPORT 20FT": r.out_export20, "OUT EXPORT 40FT": r.out_export40, "OUT EXPORT TEUS": r.out_exportTeu,
+                        "IN DOMESTIC": r.in_domestic, "IN DOMESTIC 20FT": r.in_domestic20, "IN DOMESTIC 40FT": r.in_domestic40, "IN DOMESTIC TEUS": r.in_domesticTeu,
+                        "OUT DOMESTIC": r.out_domestic, "OUT DOMESTIC 20FT": r.out_domestic20, "OUT DOMESTIC 40FT": r.out_domestic40, "OUT DOMESTIC TEUS": r.out_domesticTeu,
                         "IN EMPTY": r.in_empty, "IN EMPTY 20FT": r.in_empty20, "IN EMPTY 40FT": r.in_empty40, "IN EMPTY TEUS": r.in_emptyTeu,
                         "OUT EMPTY": r.out_empty, "OUT EMPTY 20FT": r.out_empty20, "OUT EMPTY 40FT": r.out_empty40, "OUT EMPTY TEUS": r.out_emptyTeu,
                       })),
                       "Gate Throughput", "GateThroughput24h",
                     )}
-                    disabled={!hourlyThroughput.length}
+                    disabled={!hourlyTable.length}
                   />
                 </div>
               }
             >
+              {/* Top counts: purani API (ContainerInOut_24Hours) */}
               <div className="flex items-center gap-3 mb-3 flex-wrap">
                 {[
                   { name: "IN",  color: T.cyan, total: totalIn24h,  s20: totalIn20,  s40: totalIn40,  teu: totalInTeu,  proc: gateProcTotals.in },
@@ -2239,7 +2262,7 @@ const AdminDashboard = () => {
                       <span style={{ color: T.textDim }}>TEUs</span>
                       <span className="tabular-nums" style={{ color: T.text }}>{fmtNumber(g.teu)}</span>
                     </span>
-                    {[["Import", "import", T.blue], ["Export", "export", T.pink], ["Empty", "empty", T.amber]].map(([label, k, c]) => (
+                    {[["Import", "import", T.blue], ["Export", "export", T.pink], ["Domestic", "domestic", T.purple], ["Empty", "empty", T.amber]].map(([label, k, c]) => (
                       <span key={k} className="flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c }} />
                         <span style={{ color: T.textDim }}>{label}</span>
@@ -2251,6 +2274,7 @@ const AdminDashboard = () => {
               </div>
               <div className="flex-1 min-h-0">
                 {chartView === "table" ? (
+                  // Table rows: nayi throughput API (hourlyTable). Footer totals: purani API (counts).
                   <DataTable
                     cols={[
                       { label: "Hour", key: "hourSlot", bold: true },
@@ -2278,6 +2302,14 @@ const AdminDashboard = () => {
                       { label: "Out Export 20FT", key: "out_export20", align: "right" },
                       { label: "Out Export 40FT", key: "out_export40", align: "right" },
                       { label: "Out Export TEUS", key: "out_exportTeu", align: "right" },
+                      { label: "In Domestic", key: "in_domestic", align: "right" },
+                      { label: "In Domestic 20FT", key: "in_domestic20", align: "right" },
+                      { label: "In Domestic 40FT", key: "in_domestic40", align: "right" },
+                      { label: "In Domestic TEUS", key: "in_domesticTeu", align: "right" },
+                      { label: "Out Domestic", key: "out_domestic", align: "right" },
+                      { label: "Out Domestic 20FT", key: "out_domestic20", align: "right" },
+                      { label: "Out Domestic 40FT", key: "out_domestic40", align: "right" },
+                      { label: "Out Domestic TEUS", key: "out_domesticTeu", align: "right" },
                       { label: "In Empty", key: "in_empty", align: "right" },
                       { label: "In Empty 20FT", key: "in_empty20", align: "right" },
                       { label: "In Empty 40FT", key: "in_empty40", align: "right" },
@@ -2287,7 +2319,7 @@ const AdminDashboard = () => {
                       { label: "Out Empty 40FT", key: "out_empty40", align: "right" },
                       { label: "Out Empty TEUS", key: "out_emptyTeu", align: "right" },
                     ]}
-                    rows={hourlyThroughput}
+                    rows={hourlyTable}
                     footerRow={[
                       "Total", fmtNumber(totalIn24h), fmtNumber(totalIn20), fmtNumber(totalIn40), fmtNumber(totalInTeu),
                       fmtNumber(totalOut24h), fmtNumber(totalOut20), fmtNumber(totalOut40), fmtNumber(totalOutTeu),
@@ -2295,6 +2327,8 @@ const AdminDashboard = () => {
                       fmtNumber(gateProcTotals.out.import.count), fmtNumber(gateProcTotals.out.import.s20), fmtNumber(gateProcTotals.out.import.s40), fmtNumber(gateProcTotals.out.import.teus),
                       fmtNumber(gateProcTotals.in.export.count), fmtNumber(gateProcTotals.in.export.s20), fmtNumber(gateProcTotals.in.export.s40), fmtNumber(gateProcTotals.in.export.teus),
                       fmtNumber(gateProcTotals.out.export.count), fmtNumber(gateProcTotals.out.export.s20), fmtNumber(gateProcTotals.out.export.s40), fmtNumber(gateProcTotals.out.export.teus),
+                      fmtNumber(gateProcTotals.in.domestic.count), fmtNumber(gateProcTotals.in.domestic.s20), fmtNumber(gateProcTotals.in.domestic.s40), fmtNumber(gateProcTotals.in.domestic.teus),
+                      fmtNumber(gateProcTotals.out.domestic.count), fmtNumber(gateProcTotals.out.domestic.s20), fmtNumber(gateProcTotals.out.domestic.s40), fmtNumber(gateProcTotals.out.domestic.teus),
                       fmtNumber(gateProcTotals.in.empty.count), fmtNumber(gateProcTotals.in.empty.s20), fmtNumber(gateProcTotals.in.empty.s40), fmtNumber(gateProcTotals.in.empty.teus),
                       fmtNumber(gateProcTotals.out.empty.count), fmtNumber(gateProcTotals.out.empty.s20), fmtNumber(gateProcTotals.out.empty.s40), fmtNumber(gateProcTotals.out.empty.teus),
                     ]}
@@ -2358,9 +2392,6 @@ const AdminDashboard = () => {
 
           {/* Process Mix + Yard Inventory */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
-            {/* Process Mix — GET_DASHBOARD_YARDINVENTORY_PROCESSWISE, with the
-                20/40 size split folded in (replaces the separate Size
-                Distribution panel) */}
             <Panel title="Process Mix" subtitle="By process · 20ft vs 40ft" icon={FiPieChart} accent={T.blue} className="xl:col-span-4 h-[340px]"
               right={
                 <div className="flex items-center gap-2">
@@ -2440,7 +2471,7 @@ const AdminDashboard = () => {
                       >
                         {processData.map((d, i) => <Cell key={i} fill={d.color} />)}
                       </Pie>
-                      {/* Inner ring — per-process 20ft/40ft split, segments aligned under each outer slice */}
+                      {/* Inner ring — per-process 20ft/40ft split */}
                       <Pie
                         data={processData.flatMap((d) => [
                           { name: `${d.name} 20ft`, value: d.size20, color: T.cyan },
@@ -2484,7 +2515,7 @@ const AdminDashboard = () => {
               )}
             </Panel>
 
-            {/* Yard Inventory — GET_DASHBOARD_YARDINVENTORY (real capacity/utilization) */}
+            {/* Yard Inventory — GET_DASHBOARD_YARDINVENTORY */}
             <Panel title="Yard Inventory" subtitle={yardInvLoading ? "Loading…" : `${yardInventoryData.length} blocks`} icon={FiLayers}
               accent={T.teal} className="xl:col-span-8 h-[340px]"
               right={
@@ -2578,7 +2609,7 @@ const AdminDashboard = () => {
             allEquipment={allEquipment}
           />
 
-          {/* Ageing + In/Out + Moves Count side by side */}
+          {/* Ageing + Moves Count side by side */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             <Panel title="Container Ageing" subtitle="Dwell time distribution" icon={FiClock}
               accent={T.amber} className="xl:col-span-6 h-[320px]"
@@ -2695,7 +2726,7 @@ const AdminDashboard = () => {
             <MovesCountChart utilizationApi={utilizationApi} />
           </div>
 
-          {/* Shipping Line + Size Distribution */}
+          {/* Shipping Line */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
             <Panel title="Shipping Line Wise Inventory" subtitle="Container count by line · 20ft vs 40ft" icon={FiBarChart2}
               accent={T.indigo} className="xl:col-span-12 h-[420px]"
@@ -2765,7 +2796,6 @@ const AdminDashboard = () => {
             </Panel>
 
           </div>
-
 
         </main>
       </div>

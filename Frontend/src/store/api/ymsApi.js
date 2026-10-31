@@ -898,6 +898,14 @@ export const ymsApi = createApi({
       }),
     }),
 
+    getContainerInOut24hthroughput: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.CONTAINER.GET_CONtaINER_INPUT_24H_THROUGHPUT,
+        method: 'GET',
+      }),
+    }),
+
+
     getDashboardYardInventory: builder.query({
       query: ({ plant_id } = {}) => {
         const params = new URLSearchParams()
@@ -1327,7 +1335,9 @@ export const {
   useLazyGetRailInQuery,
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
-  useGetContainerInOut24hQuery,  useGetDashboardYardInventoryQuery,
+  useGetContainerInOut24hQuery,
+  useGetContainerInOut24hThroughputQuery,
+  useGetDashboardYardInventoryQuery,
   useGetDashboardShiplineQuery,
   useGetDashboardContainerAgeingQuery,
   useGetDashboardYardInventoryProcesswiseQuery,

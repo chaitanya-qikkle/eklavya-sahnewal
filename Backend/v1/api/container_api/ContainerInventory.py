@@ -369,32 +369,86 @@ GROUP BY H.HourStart
 ORDER BY H.HourStart
 OPTION (MAXRECURSION 25);
 """
+def execute_multi_result_query(self, query):
+    try:
+        cursor = self.connection.cursor()
+        cursor.execute(query)
 
+        result_sets = []
+
+        while True:
+            if cursor.description:
+                columns = [column[0] for column in cursor.description]
+                rows = cursor.fetchall()
+
+                result_sets.append([
+                    dict(zip(columns, row))
+                    for row in rows
+                ])
+
+            if not cursor.nextset():
+                break
+
+        return {
+            "status": "success",
+            "message": "Query executed successfully",
+            "data": result_sets[0] if len(result_sets) > 0 else [],
+            "hourly": result_sets[1] if len(result_sets) > 1 else []
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+        
 @router.get("/container-inout-24h")
 def get_container_inout_24h():
     """Total (data) + hourly rows (hourly) for the last 24h."""
     db = SQLManager()
-    db2 = SQLManager()
     try:
-        # 1) total / summary — procedure se
         response = db.execute_query("EXEC dbo.ContainerInOut_24Hours")
 
-        # 2) neeche ka hourly data
-        hourly = db2.execute_query(_hourly_sql())
+        hourly = db.execute_query(_hourly_sql())
         if isinstance(hourly, dict) and hourly.get("status") == "success":
             response["hourly"] = hourly.get("data", [])
         else:
             response["hourly"] = []
-            response["hourly_error"] = (hourly or {}).get("message", "hourly query failed")
+            response["hourly_error"] = (hourly or {}).get(
+                "message", "hourly query failed"
+            )
 
         return response
+
     except Exception as e:
         return {"status": "error", "message": f"Server Error: {str(e)}"}
+
     finally:
         db.close_connection()
-        db2.close_connection()
 
 
+@router.get("/container-inout-24h-throughput")
+def get_container_inout_24h():
+    """Get summary and hourly data from stored procedure only."""
+
+    db = SQLManager()
+
+    try:
+        response = db.execute_query(
+            "EXEC dbo.ContainerInOut_24Hours_Throughput"
+        )
+
+        return response
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Server Error: {str(e)}"
+        }
+
+    finally:
+        db.close_connection()
+        
 @router.get("/container-info")
 def get_container_info(container_no: str = ""):
     db = SQLManager()

@@ -404,7 +404,8 @@ const ContainerLifecycle = () => {
                       <table className="w-full text-sm">
                         <thead className="bg-gradient-to-r from-[#0e4a78] to-[#0b3a5e]">
                           <tr>
-                            {["Container No", "Size", "Type / ISO", "Status", "Gate In Date", "Gate Out Date", "Offload Date", "Last Location"].map(h => (
+                            {/* "Offload Date" column hidden (commented) */}
+                            {["Container No", "Size", "Type / ISO", "Status", "Gate In Date", "Gate Out Date", /* "Offload Date", */ "Last Location"].map(h => (
                               <th key={h} className="px-5 py-3 text-left font-bold text-white text-xs uppercase tracking-wider border-r border-white/10 last:border-r-0">{h}</th>
                             ))}
                           </tr>
@@ -451,9 +452,11 @@ const ContainerLifecycle = () => {
                                   <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
                                     {fmt(row.GateOutDate)}
                                   </td>
+                                  {/* Offload Date column hidden (commented)
                                   <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
                                     {row.TAT ?? "-"}
                                   </td>
+                                  */}
                                   <td className="px-5 py-3 text-slate-600">
                                     {isSelected
                                       ? (offloadTimeline[offloadTimeline.length - 1]?.Area ?? row.LastLocation ?? containerInfo?.lastLocation ?? "-")
@@ -486,9 +489,11 @@ const ContainerLifecycle = () => {
                               <td className="px-5 py-3 font-bold text-slate-500 whitespace-nowrap">
                                 {pickDate(gateInOut?.GateOutDate, containerInfo?.gateOutDate)}
                               </td>
+                              {/* Offload Date column hidden (commented)
                               <td className="px-5 py-3 font-bold text-amber-600 whitespace-nowrap">
                                 {containerInfo?.offloadDate ?? "-"}
                               </td>
+                              */}
                               <td className="px-5 py-3 text-slate-600">
                                 {containerInfo?.lastLocation ?? "-"}
                               </td>
