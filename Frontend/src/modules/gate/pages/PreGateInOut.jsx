@@ -34,7 +34,7 @@ const IMAGE_SIDES = [
   { key: 'IMG_TOP',   label: 'T',  side: 'top'   },
   { key: 'Left2',     label: 'LD', side: 'left damage',  damage: true },
   { key: 'Right2',    label: 'RD', side: 'right damage', damage: true },
-  { key: 'Top2',      label: 'LT', side: 'top damage',   damage: true },
+  { key: 'Top2',      label: 'TD', side: 'top damage',   damage: true },
 ]
 
 // Left2 / Right2 / Top2 come as "stitching_outputs/MAINGATE_IN/.../damage_xxx.jpg"
