@@ -148,6 +148,7 @@ const Navbar = ({ brand = "Qikkle" }) => {
   const DB_URL_TO_REACT = {
     "AdminDashboard/Dashboard/Index":            "/dashboard/admin",
     "AdminDashboard/Dashboard/ServiceDashboard":   "/dashboard/service",
+    "AdminDashboard/Dashboard/GateDashboard":      "/dashboard/gate",
     "AdminDashboard/Dashboard/3DVisualization":    "/dashboard/3d-visualization",
     "dashboard/developer":                        "/dashboard/developer",
     "Gate/Trailer/Index":                        "/gate/trailer-in",
