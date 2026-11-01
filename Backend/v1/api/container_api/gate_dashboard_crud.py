@@ -85,8 +85,16 @@ def list_missing_images(gate_name: str, date: Optional[str] = None):
     """All images in <root>/<gate_name>/<today>/<MISSING_FOLDER>, newest first."""
     folder = _day_folder(gate_name, date)
     if folder is None:
-        return {"status": "success", "folder": None, "images": [],
-                "message": "No 00000000000 folder for this gate and date"}
+        raw = (date or "").strip()[:10].replace("-", "")
+        day = raw if re.fullmatch(r"\d{8}", raw) else datetime.now().strftime("%Y%m%d")
+        gate_dir = IMG_ROOT / gate_name.strip()
+        try:
+            days = sorted((d.name for d in gate_dir.iterdir() if d.is_dir() and (d / MISSING_FOLDER).is_dir()), reverse=True)[:5]
+        except Exception:
+            days = []
+        msg = f"No {MISSING_FOLDER} folder for {gate_name} on {day}."
+        msg += f" Dates that have one: {', '.join(days)}" if days else f" Folder {gate_dir} not found on the server."
+        return {"status": "success", "folder": None, "images": [], "message": msg}
     try:
         root = IMG_ROOT.resolve()
         files = sorted(

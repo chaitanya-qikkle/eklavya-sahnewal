@@ -23,7 +23,9 @@ const TABS = [
   { key: 'rail', label: 'Rail Gate In', icon: FaTrain },
 ]
 
-// Rail transactions carry no gate name; this is their folder under the stitching root.
+// Image folders under the stitching root. A transaction's GateName is a device /
+// gate code (e.g. COM-WB-BK-IN-110), not the folder, so each tab has one fixed folder.
+const MAIN_GATE_FOLDER = 'MAINGATE_IN'
 const RAIL_GATE_FOLDER = 'RAILGATE_IN'
 
 const SIDE_STYLE = {
@@ -374,7 +376,7 @@ export default function GateDashboard() {
   const folderMode = !!selected && !dummy
   useEffect(() => {
     if (!folderMode) return
-    fetchImgs({ gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : selected.place, date: String(selected.time || '').slice(0, 10) })
+    fetchImgs({ gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER, date: String(selected.time || '').slice(0, 10) })
   }, [folderMode, selected?.key]) // eslint-disable-line
   const serverImgs = folderMode ? imgsQ.currentData : null
   const serverFolder = serverImgs?.folder || null
@@ -629,7 +631,7 @@ export default function GateDashboard() {
                     <span className="font-mono text-slate-700 break-all">
                       {savedInfo
                         ? siblingFolder(baseFolder, savedInfo.cn)
-                        : baseFolder || <span className="text-slate-400">Will come from the SP (backend pending)</span>}
+                        : baseFolder || <span className="text-slate-400">{imgsQ.isFetching ? 'Looking for the 00000000000 folder…' : 'No folder found'}</span>}
                     </span>
                     {!savedInfo && baseFolder && <span className="ml-auto text-[10px] font-bold text-slate-500 whitespace-nowrap">{files.length} images</span>}
                   </div>
