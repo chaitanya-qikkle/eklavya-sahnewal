@@ -992,6 +992,14 @@ export const ymsApi = createApi({
       query: () => ({ url: API_ENDPOINTS.CONTAINER.GET_GATE_NAMES, method: 'GET' }),
     }),
 
+    getGateDashboardImages: builder.query({
+      query: ({ gate_name, date }) => ({
+        url: API_ENDPOINTS.CONTAINER.GET_GATE_DASHBOARD_IMAGES,
+        method: 'GET',
+        params: { gate_name, ...(date ? { date } : {}) },
+      }),
+    }),
+
     saveGateDashboard: builder.mutation({
       query: (body) => ({ url: API_ENDPOINTS.CONTAINER.SAVE_GATE_DASHBOARD, method: 'POST', body }),
     }),
@@ -1336,6 +1344,7 @@ export const {
   useDeleteBreakdownMutation,
   useGetGateNamesQuery,
   useSaveGateDashboardMutation,
+  useLazyGetGateDashboardImagesQuery,
   useGetVehicleContainerDetectionQuery,
   useLazyGetRailInQuery,
   useGetPreGateSurveyQuery,

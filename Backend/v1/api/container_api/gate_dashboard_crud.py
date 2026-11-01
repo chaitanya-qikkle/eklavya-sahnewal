@@ -20,7 +20,8 @@ import shutil
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from utils.db_utils import SQLManager
@@ -29,7 +30,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Image folders handed out by the SP must live under this root.
-IMG_ROOT = pathlib.Path(os.getenv("GATE_DASHBOARD_IMG_ROOT", r"D:\stitching\outputs"))
+IMG_ROOT = pathlib.Path(os.getenv("GATE_DASHBOARD_IMG_ROOT", r"D:\Application\eklavya-budget-main\stitching"))
+# Folder (inside <root>/<gate>/<yyyymmdd>/) that holds the images whose container no. was not read.
+MISSING_FOLDER = os.getenv("GATE_DASHBOARD_MISSING_FOLDER", "00000000000")
+IMG_EXT = (".jpg", ".jpeg", ".png")
 MAIN_TABLE = os.getenv("GATE_DASHBOARD_TABLE", "Containers")
 
 CONTAINER_RE = re.compile(r"^[A-Z]{4}\d{7}$")
@@ -56,6 +60,58 @@ def _parse_dt(value):
         except ValueError:
             pass
     return None
+
+
+def _day_folder(gate_name: str, date: Optional[str]):
+    """<root>/<gate>/<yyyymmdd>/<MISSING_FOLDER>; date defaults to today."""
+    raw = (date or "").strip()[:10].replace("-", "")
+    day = raw if re.fullmatch(r"\d{8}", raw) else datetime.now().strftime("%Y%m%d")
+    gate = gate_name.strip()
+    # Try the gate name as given, then with '-' / ' ' turned into '_'.
+    for name in dict.fromkeys([gate, gate.upper(), re.sub(r"[-\s]+", "_", gate).upper()]):
+        if not name or name != os.path.basename(name) or name in (".", ".."):
+            continue
+        folder = IMG_ROOT / name / day / MISSING_FOLDER
+        if folder.is_dir():
+            return folder
+    return None
+
+
+@router.get("/gate-dashboard/images")
+def list_missing_images(gate_name: str, date: Optional[str] = None):
+    """All images in <root>/<gate_name>/<today>/<MISSING_FOLDER>, newest first."""
+    folder = _day_folder(gate_name, date)
+    if folder is None:
+        return {"status": "success", "folder": None, "images": [],
+                "message": "No 00000000000 folder for this gate and date"}
+    try:
+        root = IMG_ROOT.resolve()
+        files = sorted(
+            (p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMG_EXT),
+            key=lambda p: p.stat().st_mtime, reverse=True,
+        )
+        images = [
+            {"name": p.name,
+             "url": "/v1/container/gate-dashboard/img?p=" + p.resolve().relative_to(root).as_posix()}
+            for p in files
+        ]
+        return {"status": "success", "folder": str(folder), "images": images}
+    except Exception as e:
+        logger.exception("gate-dashboard images error")
+        return {"status": "error", "message": f"Server Error: {e}", "folder": None, "images": []}
+
+
+@router.get("/gate-dashboard/img", include_in_schema=False)
+def serve_image(p: str = Query(...)):
+    try:
+        target = (IMG_ROOT / p).resolve()
+        target.relative_to(IMG_ROOT.resolve())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not target.is_file() or target.suffix.lower() not in IMG_EXT:
+        raise HTTPException(status_code=404, detail="Image not found")
+    media = "image/png" if target.suffix.lower() == ".png" else "image/jpeg"
+    return FileResponse(str(target), media_type=media, headers={"Cache-Control": "public, max-age=300"})
 
 
 @router.post("/gate-dashboard/save")
