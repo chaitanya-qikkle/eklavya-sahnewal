@@ -30,7 +30,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Image folders handed out by the SP must live under this root.
-IMG_ROOT = pathlib.Path(os.getenv("GATE_DASHBOARD_IMG_ROOT", r"D:\Application\eklavya-budget-main\stitching"))
+IMG_ROOT = pathlib.Path(
+    os.getenv("GATE_DASHBOARD_IMG_ROOT")
+    or os.getenv("RAIL_IN_IMG_ROOT")  # same stitching root the Rail Gate In images already use
+    or r"D:\Application\eklavya-budget-main\stitching"
+)
 # Folder (inside <root>/<gate>/<yyyymmdd>/) that holds the images whose container no. was not read.
 MISSING_FOLDER = os.getenv("GATE_DASHBOARD_MISSING_FOLDER", "00000000000")
 IMG_EXT = (".jpg", ".jpeg", ".png")
@@ -83,18 +87,21 @@ def _day_folder(gate_name: str, date: Optional[str]):
 @router.get("/gate-dashboard/images")
 def list_missing_images(gate_name: str, date: Optional[str] = None):
     """All images in <root>/<gate_name>/<today>/<MISSING_FOLDER>, newest first."""
-    folder = _day_folder(gate_name, date)
+    raw = (date or "").strip()[:10].replace("-", "")
+    day = raw if re.fullmatch(r"\d{8}", raw) else datetime.now().strftime("%Y%m%d")
+    gate_dir = IMG_ROOT / os.path.basename(gate_name.strip())
+    try:
+        days = sorted((d.name for d in gate_dir.iterdir() if d.is_dir() and (d / MISSING_FOLDER).is_dir()), reverse=True)
+    except Exception:
+        days = []
+    folder = _day_folder(gate_name, day)
+    fallback = False
+    if folder is None and days:
+        # No 00000000000 folder for the asked date → show the latest one that exists.
+        folder, day, fallback = gate_dir / days[0] / MISSING_FOLDER, days[0], True
     if folder is None:
-        raw = (date or "").strip()[:10].replace("-", "")
-        day = raw if re.fullmatch(r"\d{8}", raw) else datetime.now().strftime("%Y%m%d")
-        gate_dir = IMG_ROOT / gate_name.strip()
-        try:
-            days = sorted((d.name for d in gate_dir.iterdir() if d.is_dir() and (d / MISSING_FOLDER).is_dir()), reverse=True)[:5]
-        except Exception:
-            days = []
-        msg = f"No {MISSING_FOLDER} folder for {gate_name} on {day}."
-        msg += f" Dates that have one: {', '.join(days)}" if days else f" Folder {gate_dir} not found on the server."
-        return {"status": "success", "folder": None, "images": [], "message": msg}
+        return {"status": "success", "folder": None, "images": [], "dates": [], "date": day,
+                "message": f"Folder {gate_dir} has no {MISSING_FOLDER} folder (or is not on the server)."}
     try:
         root = IMG_ROOT.resolve()
         files = sorted(
@@ -106,7 +113,8 @@ def list_missing_images(gate_name: str, date: Optional[str] = None):
              "url": "/v1/container/gate-dashboard/img?p=" + p.resolve().relative_to(root).as_posix()}
             for p in files
         ]
-        return {"status": "success", "folder": str(folder), "images": images}
+        return {"status": "success", "folder": str(folder), "images": images,
+                "date": day, "dates": days[:15], "fallback": fallback}
     except Exception as e:
         logger.exception("gate-dashboard images error")
         return {"status": "error", "message": f"Server Error: {e}", "folder": None, "images": []}
@@ -145,6 +153,7 @@ def save_container(body: SaveBody):
             return {"status": "error", "message": "Source image not found"}
         dest_dir = folder.parent / container_no
         dest_dir.relative_to(root)
+        existed = dest_dir.is_dir()  # folder already there → the image is added into it
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / f"{body.side}.jpg"
         shutil.copy2(src, dest)
@@ -155,7 +164,7 @@ def save_container(body: SaveBody):
         return {"status": "error", "message": f"Could not save image: {e}"}
 
     if not body.update_record:
-        return {"status": "success", "path": str(dest)}
+        return {"status": "success", "path": str(dest), "folder_existed": existed}
 
     # 2) Database
     now = datetime.now()
@@ -180,7 +189,7 @@ def save_container(body: SaveBody):
             )
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "Database write failed")}
-        return {"status": "success", "path": str(dest)}
+        return {"status": "success", "path": str(dest), "folder_existed": existed}
     except Exception as e:
         logger.exception("gate-dashboard save error")
         return {"status": "error", "message": f"Server Error: {e}"}

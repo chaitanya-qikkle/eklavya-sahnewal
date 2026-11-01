@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   FiSearch, FiRefreshCw, FiImage, FiX, FiZoomIn, FiCalendar, FiCheck,
-  FiFolder, FiClock, FiTruck, FiHash, FiAlertCircle,
+  FiFolder, FiClock, FiTruck, FiHash, FiAlertCircle, FiChevronLeft, FiChevronRight,
 } from 'react-icons/fi'
 import { FaDoorOpen, FaTrain } from 'react-icons/fa'
 import Navbar from '../../../components/layout/Navbar'
@@ -82,82 +82,6 @@ const siblingFolder = (folder, containerNo) => {
   const base = String(folder).replace(/[\\/]+$/, '')
   const i = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'))
   return `${i >= 0 ? base.slice(0, i + 1) : ''}${containerNo}`
-}
-
-/* ─── Dummy data (local testing) ─────────────────────────────────────────── */
-// Lets the whole flow be tried without the backend / SP: fake transactions,
-// fake left/right/top pictures (inline SVG) and the container-number entry.
-// ON by default only in `npm run dev`; there is a toggle in the filter bar.
-const DUMMY_DEFAULT = import.meta.env.DEV
-
-const DUMMY_REAL_NOS = ['MSKU4521987', 'TCLU8830214', 'CAIU2764503']
-const DUMMY_VEHICLES = ['MH12AB4521', 'MH14CD8890', 'GJ05EF1203', 'MH43GH7761', 'RJ14JK3342', 'MH04LM9015']
-
-// Folder with many unread images, like the real one: <no>_<side>_<HH_MM_SS>.jpg
-function makeDummyFiles(seed) {
-  const sides = ['left', 'right', 'top']
-  const files = []
-  for (let n = 0; n < 12; n++) {
-    const s = (seed * 7 + n * 53) % 3600
-    files.push(`00000000000_${sides[(n + seed) % 3]}_00_${p2(Math.floor(s / 60))}_${p2(s % 60)}.jpg`)
-  }
-  return files.sort()
-}
-
-function makeDummyRows(tab) {
-  const now = Date.now()
-  const rows = []
-  for (let i = 0; i < 10; i++) {
-    const missing = i % 3 !== 2 // 2 out of 3 are "not read" (0000…)
-    const t = new Date(now - (i * 95 + 20) * 60 * 1000)
-    const stamp = `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}:00`
-    const containerNo = missing ? '00000000' : DUMMY_REAL_NOS[i % DUMMY_REAL_NOS.length]
-    const size = i % 2 === 0 ? '20' : '40'
-    const process = ['EXPORT', 'IMPORT', 'EMPTY'][i % 3]
-    if (tab === 'main') {
-      rows.push({
-        ID: 9000 + i,
-        ContainerNo: containerNo,
-        VehicleNo: DUMMY_VEHICLES[i % DUMMY_VEHICLES.length],
-        GateName: ['MAINGATE_IN', 'MAINGATE_IN_2', 'COMPLEXGATE_IN'][i % 3 === 1 ? 1 : i % 4 === 0 ? 0 : 2],
-        ContainerDetectedTime: stamp,
-        ContainerSize: size,
-        Process: process,
-        ...(i % 3 !== 2 ? { ImageFolderPath: `GATE_IN/20261101/0000000000`, ImageFiles: makeDummyFiles(i) } : { ContainerImagePath: dummyImage('x_left_00_10_00.jpg', 'left') }),
-      })
-    } else {
-      rows.push({
-        ContMasterID: 7000 + i,
-        ContainerNo: containerNo,
-        WagonNo: `WGN${String(48210 + i * 7)}`,
-        RakeNo: `RK-${2260 + (i % 3)}`,
-        RailInDateTime: stamp,
-        ContainerSize: size,
-        Process: process,
-        DocumentNo: `DOC${5500 + i}`,
-        ...(missing ? { ImageFolderPath: `RAIL_IN/20261101/0000000000`, ImageFiles: makeDummyFiles(i) } : { Camera1ImagePath: dummyImage('x_right_00_10_00.jpg', 'right') }),
-      })
-    }
-  }
-  return rows
-}
-
-// Fake container photo: corrugated side (left/right) or roof (top) with a
-// caption showing which folder / file it came from.
-function dummyImage(file, side) {
-  const name = parseImageName(file).time.replace(/:/g, '_') || file
-  const base = { left: ['#2563eb', '#1e40af'], right: ['#059669', '#047857'], top: ['#d97706', '#b45309'] }[side]
-  const ribs = Array.from({ length: 24 }, (_, i) =>
-    `<rect x="${30 + i * 21}" y="${side === 'top' ? 70 : 60}" width="9" height="${side === 'top' ? 160 : 180}" fill="${base[1]}" opacity=".55"/>`
-  ).join('')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 320">
-    <rect width="560" height="320" fill="#e2e8f0"/>
-    <rect x="20" y="${side === 'top' ? 60 : 50}" width="520" height="${side === 'top' ? 180 : 200}" rx="6" fill="${base[0]}"/>
-    ${ribs}
-    <text x="280" y="${side === 'top' ? 160 : 150}" font-family="monospace" font-size="34" font-weight="700" fill="#fff" text-anchor="middle" stroke="#0f172a" stroke-width="1">${name}</text>
-    <text x="280" y="285" font-family="monospace" font-size="20" fill="#334155" text-anchor="middle">${side} (dummy)</text>
-  </svg>`
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
@@ -290,6 +214,61 @@ function ImageThumb({ file, url, selected, onSelect, onZoom, hideName }) {
   )
 }
 
+// One image of the folder at a time. Swipe (touch), arrow buttons or ← / → keys
+// move to the next one; the image on screen is the one that gets saved.
+function ImageViewer({ files, index, urlFor, onGo, onZoom }) {
+  const file = files[index]
+  const url = urlFor(file)
+  const { side, time, name } = parseImageName(file)
+  const [err, setErr] = useState(false)
+  const touchX = React.useRef(null)
+  useEffect(() => { setErr(false) }, [url])
+  useEffect(() => {
+    const onKey = (e) => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return
+      if (e.key === 'ArrowLeft') onGo(-1)
+      else if (e.key === 'ArrowRight') onGo(1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onGo])
+  const arrow = 'absolute top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-[#0e4a78] hover:bg-white hover:scale-105 transition-all'
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50/70 border-b border-slate-100">
+        <span className={`text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full ${SIDE_STYLE[side] || 'bg-slate-100 text-slate-500'}`}>{side || 'unknown side'}</span>
+        {time && <span className="text-xs font-mono text-slate-500 inline-flex items-center gap-1"><FiClock size={11} />{time}</span>}
+        <span className="ml-auto text-xs font-bold text-slate-500">{index + 1} / {files.length}</span>
+      </div>
+      <div
+        className="relative h-[46vh] min-h-[260px] flex items-center justify-center select-none"
+        style={{ background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px' }}
+        onTouchStart={(e) => { touchX.current = e.touches[0].clientX }}
+        onTouchEnd={(e) => {
+          if (touchX.current == null) return
+          const dx = e.changedTouches[0].clientX - touchX.current
+          touchX.current = null
+          if (Math.abs(dx) > 50) onGo(dx < 0 ? 1 : -1)
+        }}
+      >
+        {url && !err ? (
+          <img src={url} alt={name} onError={() => setErr(true)} draggable={false}
+            className="max-w-full max-h-full object-contain cursor-zoom-in p-2" onClick={() => onZoom(url, name)} />
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-slate-300"><FiImage size={34} /><span className="text-xs font-semibold text-slate-400">Image could not be loaded</span></div>
+        )}
+        {files.length > 1 && (
+          <>
+            <button type="button" onClick={() => onGo(-1)} className={`${arrow} left-3`} title="Previous"><FiChevronLeft size={22} /></button>
+            <button type="button" onClick={() => onGo(1)} className={`${arrow} right-3`} title="Next"><FiChevronRight size={22} /></button>
+          </>
+        )}
+      </div>
+      <div className="px-4 py-2 text-[11px] font-mono text-slate-400 truncate border-t border-slate-100" title={name}>{name}</div>
+    </div>
+  )
+}
+
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 
 export default function GateDashboard() {
@@ -301,13 +280,12 @@ export default function GateDashboard() {
   const [gate, setGate] = useState('all') // Main Gate In only: one gate or 'all'
   const [selectedKey, setSelectedKey] = useState(null)
   const [containerInput, setContainerInput] = useState('')
-  const [pickedFile, setPickedFile] = useState(null) // image chosen in the folder gallery
   const [sideOverride, setSideOverride] = useState(null) // used only when the file name has no side
   const [saved, setSaved] = useState({}) // txn key -> { cn, side, file } (UI only until the backend exists)
   const [lightbox, setLightbox] = useState(null)
 
-  const [dummy, setDummy] = useState(DUMMY_DEFAULT)
-  const [dummySeed, setDummySeed] = useState(0) // bump = regenerate fake rows
+  const [viewIdx, setViewIdx] = useState(0)       // which folder image is on screen (= the one that gets saved)
+  const [dateOverride, setDateOverride] = useState(null) // yyyymmdd chosen by the operator
 
   // Exactly the same call as the Main Gate In page (no options), so both share one cache entry.
   const mainQ = useGetVehicleContainerDetectionQuery()
@@ -316,34 +294,33 @@ export default function GateDashboard() {
   const [fetchImgs, imgsQ] = useLazyGetGateDashboardImagesQuery()
 
   const loadRail = useCallback(() => fetchRail({ from_date: fromDate, to_date: toDate }), [fetchRail, fromDate, toDate])
-  useEffect(() => { if (!dummy && tab === 'rail') loadRail() }, [tab, dummy]) // eslint-disable-line
+  useEffect(() => { if (tab === 'rail') loadRail() }, [tab]) // eslint-disable-line
 
   const active = tab === 'main' ? mainQ : railQ
-  const isFetching = !dummy && !!active.isFetching
-  const isError = !dummy && !!active.isError
-  const refresh = () => {
-    if (dummy) { setDummySeed((s) => s + 1); return }
-    return tab === 'main' ? mainQ.refetch() : loadRail()
-  }
+  const isFetching = !!active.isFetching
+  const isError = !!active.isError
+  const refresh = () => (tab === 'main' ? mainQ.refetch() : loadRail())
 
   const txns = useMemo(() => {
-    const rows = dummy
-      ? makeDummyRows(tab)
-      : (Array.isArray(active.data?.data) ? active.data.data : [])
+    const rows = Array.isArray(active.data?.data) ? active.data.data : []
     return normalize(tab, rows)
-  }, [active.data, tab, dummy, dummySeed]) // eslint-disable-line
+  }, [active.data, tab]) // eslint-disable-line
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const from = timeOf(fromDate), to = timeOf(toDate)
     return txns
       .filter((t) => {
         if (missingOnly && !t.missing) return false
+        // Main Gate In SP has no date range, so it is filtered here; Rail is already ranged by its SP.
+        const tm = timeOf(t.time)
+        if (tab === 'main' && tm && ((from && tm < from) || (to && tm > to))) return false
         if (tab === 'main' && gate !== 'all' && t.place !== gate) return false
         if (q &&!`${t.containerNo ?? ''} ${t.ref ?? ''} ${t.place ?? ''}`.toLowerCase().includes(q)) return false
         return true
       })
       .sort((a, b) => timeOf(b.time) - timeOf(a.time))
-  }, [txns, missingOnly, search, tab, gate])
+  }, [txns, missingOnly, search, tab, gate, fromDate, toDate])
 
   // Gates = the distinct GateName values of the Main Gate In SP rows (same as
   // the Main Gate In page), shown with their raw names.
@@ -366,31 +343,35 @@ export default function GateDashboard() {
   // The transaction's own container number is filled in automatically (editable).
   useEffect(() => {
     const cn = selected && !isMissing(selected.containerNo) ? String(selected.containerNo).trim().split(' ')[0].toUpperCase() : ''
-    setContainerInput(cn); setPickedFile(null); setSideOverride(null)
+    setContainerInput(cn); setViewIdx(0); setDateOverride(null); setSideOverride(null)
   }, [selectedKey]) // eslint-disable-line
-  useEffect(() => { setSideOverride(null) }, [pickedFile])
 
   const savedInfo = selected ? saved[selected.key] : null
-  // Missing transaction → all images of <stitching>/<gate>/<its date>/00000000000
-  // on the server (listed by the backend). Dummy mode / other rows use the row's own data.
-  const folderMode = !!selected && !dummy
+  // Selected transaction -> every image of <stitching>/<gate>/<date>/00000000000
+  // on the server (listed by the backend), shown one at a time.
+  const folderMode = !!selected
   useEffect(() => {
     if (!folderMode) return
-    fetchImgs({ gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER, date: String(selected.time || '').slice(0, 10) })
-  }, [folderMode, selected?.key]) // eslint-disable-line
+    fetchImgs({
+      gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER,
+      date: dateOverride || String(selected.time || '').slice(0, 10),
+    })
+    setViewIdx(0)
+  }, [folderMode, selected?.key, dateOverride]) // eslint-disable-line
   const serverImgs = folderMode ? imgsQ.currentData : null
-  const serverFolder = serverImgs?.folder || null
-  const baseFolder = (folderMode && serverFolder) || folderOf(selected)
+  const baseFolder = serverImgs?.folder || folderOf(selected)
   const files = useMemo(
-    () => folderMode ? (serverImgs?.images || []).map((i) => i.url) : [...displayFilesOf(selected)].sort(),
-    [selected, folderMode, serverImgs],
+    () => (folderMode ? (serverImgs?.images || []).map((i) => i.url) : []),
+    [folderMode, serverImgs],
   )
-  const picked = pickedFile && files.includes(pickedFile) ? pickedFile : null
+  // The image on screen is the one that gets saved.
+  const picked = files.length ? files[Math.min(viewIdx, files.length - 1)] : null
+  useEffect(() => { setSideOverride(null) }, [picked])
   // Side comes from the file name; when it has none the operator picks it.
   const pickedSide = picked ? (parseImageName(picked).side || sideOverride) : null
+  const go = (d) => { if (files.length) setViewIdx((i) => (i + d + files.length) % files.length) }
 
-  // Real urls come from the SP folder; dummy mode draws a fake picture instead.
-  const urlFor = (file) => String(file).startsWith('data:') ? file : dummy ?dummyImage(file, parseImageName(file).side || 'left') : imageUrl(baseFolder, file)
+  const urlFor = (file) => imageUrl(baseFolder, file)
 
   const handleSubmit = () => {
     const cn = containerInput.trim().toUpperCase()
@@ -408,13 +389,8 @@ export default function GateDashboard() {
       return
     }
     const done = () => setSaved((s) => ({ ...s, [selected.key]: { cn, side: pickedSide, file: picked } }))
-    if (dummy) {
-      done()
-      notify.info('Dummy mode', 'Nothing was written — turn Dummy data OFF to save for real')
-      return
-    }
     if (!baseFolder) {
-      notify.warning('No folder', 'This transaction has no image folder from the SP')
+      notify.warning('No folder', 'No 00000000000 folder was found for this transaction')
       return
     }
     saveGate({
@@ -431,7 +407,7 @@ export default function GateDashboard() {
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
         done()
-        notify.success('Saved', `${cn} saved as ${pickedSide}.jpg`)
+        notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'added to the existing folder' : 'saved in a new folder'}`)
       })
       .catch(() => notify.error('Save failed', 'Server error'))
   }
@@ -508,7 +484,6 @@ export default function GateDashboard() {
 
           {/* Filters */}
           <div className="bg-white/95 rounded-2xl shadow-sm border border-slate-200 p-3 mb-4 flex flex-wrap items-end gap-3">
-            {tab === 'rail' && <>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               <span className="flex items-center gap-1 mb-1"><FiCalendar size={11} /> From</span>
               <input type="datetime-local" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
@@ -519,7 +494,6 @@ export default function GateDashboard() {
               <input type="datetime-local" value={toDate} onChange={(e) => setToDate(e.target.value)}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30" />
             </label>
-            </>}
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex-1 min-w-[200px]">
               <span className="flex items-center gap-1 mb-1"><FiSearch size={11} /> Search</span>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tab === 'main' ? 'Vehicle / gate…' : 'Wagon / rake…'}
@@ -532,15 +506,6 @@ export default function GateDashboard() {
               }`}
             >
               {missingOnly ? 'Missing only' : 'All transactions'}
-            </button>
-            <button
-              onClick={() => { setDummy((v) => !v); setSelectedKey(null) }}
-              title="Fake transactions + images for testing without backend"
-              className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
-                dummy ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-slate-500 border-slate-300'
-              }`}
-            >
-              Dummy data: {dummy ? 'ON' : 'OFF'}
             </button>
             <button onClick={refresh}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[#0e4a78] text-white hover:bg-[#0b3e66] transition-colors">
@@ -666,21 +631,31 @@ export default function GateDashboard() {
                       </p>
                     </div>
                   ) : (
-                    /* All images of the folder, side read from the file name */
-                    <div>
-                      <p className="text-[11px] text-slate-500 mb-2">Click the image that shows the missing container.</p>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 max-h-[52vh] overflow-auto pr-1">
-                        {files.map((f) => (
-                          <ImageThumb
-                            key={`${selected.key}-${f}`}
-                            file={f}
-                            url={urlFor(f)}
-                            selected={f === picked}
-                            onSelect={() => setPickedFile(f)}
-                            onZoom={(url) => setLightbox({ url, label: f })}
-                          />
-                        ))}
-                      </div>
+                    <div className="space-y-3">
+                      {/* Date of the folder: the transaction's date, or any other day that has a 00000000000 folder */}
+                      {serverImgs?.dates?.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-slate-500 inline-flex items-center gap-1"><FiCalendar size={11} /> Folder date</span>
+                          {serverImgs.dates.slice(0, 8).map((d) => (
+                            <button key={d} type="button" onClick={() => setDateOverride(d)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold border transition-all ${
+                                serverImgs.date === d ? 'bg-[#0e4a78] text-white border-[#0e4a78]' : 'bg-white text-slate-500 border-slate-200 hover:border-[#0e4a78]/40'
+                              }`}>{d}</button>
+                          ))}
+                        </div>
+                      )}
+                      {serverImgs?.fallback && (
+                        <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1.5">
+                          <FiAlertCircle size={12} /> No folder for this transaction's date, showing {serverImgs.date} instead.
+                        </p>
+                      )}
+                      <ImageViewer
+                        files={files}
+                        index={Math.min(viewIdx, files.length - 1)}
+                        urlFor={urlFor}
+                        onGo={go}
+                        onZoom={(url, label) => setLightbox({ url, label })}
+                      />
                     </div>
                   )}
 
