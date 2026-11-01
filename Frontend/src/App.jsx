@@ -31,6 +31,7 @@ const InventoryMapping = lazyPage(() => import('./modules/container/pages/Invent
 const routeDefinitions = [
   { path: '/dashboard/admin', Component: lazyPage(() => import('./modules/dashboard/pages/AdminDashboard')) },
   { path: '/dashboard/service', Component: lazyPage(() => import('./modules/dashboard/pages/ServiceDashboard')) },
+  { path: '/dashboard/gate', Component: lazyPage(() => import('./modules/dashboard/pages/GateDashboard')) },
   { path: '/dashboard/developer', Component: lazyPage(() => import('./modules/dashboard/pages/DeveloperDashboard')) },
 
   { path: '/application/client', Component: lazyPage(() => import('./modules/application/pages/Client')) },
