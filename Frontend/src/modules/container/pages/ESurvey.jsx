@@ -3,7 +3,6 @@ import { motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import { writeXlsx } from '../../../utils/excelDates'
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import {
   FiSearch, FiRefreshCw, FiChevronUp, FiChevronDown, FiX,
   FiCamera, FiMessageSquare, FiArrowLeft, FiArrowRight,
@@ -21,6 +20,14 @@ import { selectAuthUser } from '../../../store/slices/authSlice'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20
+
+// PDF header details — yahan se Sahnewal ka address / email edit kar sakte ho
+const COMPANY = {
+  name:  'GATEWAY DISTRIPARKS PVT LTD. - SAHNEWAL',
+  addr1: 'Gateway Distriparks (Sahnewal), Sahnewal,',
+  addr2: 'Ludhiana - 141 120, Punjab.',
+  email: 'esurvey@gdlsahnewal.com',
+}
 
 // 5 images: Left / Right / Top + Left Damage (Left2) / Right Damage (Right2)
 const SIDES = [
@@ -50,7 +57,8 @@ function getImageUrl(row, key) {
   return buildAssetUrl(raw)
 }
 
-function fetchImageAsDataUrl(url) {
+// returns { dataUrl, w, h } so the PDF can keep the original aspect ratio
+function loadImageForPdf(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -59,7 +67,7 @@ function fetchImageAsDataUrl(url) {
       canvas.width = img.naturalWidth
       canvas.height = img.naturalHeight
       canvas.getContext('2d').drawImage(img, 0, 0)
-      resolve(canvas.toDataURL('image/jpeg', 0.85))
+      resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.85), w: img.naturalWidth, h: img.naturalHeight })
     }
     img.onerror = reject
     img.src = url
@@ -254,256 +262,207 @@ export default function ESurvey() {
   const prevStep     = () => { if (step > 1) { setStep(s => s - 1); setZoom(1) } }
   const handleChange = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
+  // ── PDF: "SURVEY REPORT CONTAINER CONDITION" format (GDL Sahnewal) ─────────
   const downloadPDF = useCallback(async (sv, f) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const W = doc.internal.pageSize.getWidth()
     const H = doc.internal.pageSize.getHeight()
-    const NAVY  = [14, 74, 120]
-    const STEEL = [10, 59, 97]
-    const GOLD  = [234, 179, 8]
-    const RED   = [185, 28, 28]
-    const LIGHT = [236, 244, 251]
-    const WHITE = [255, 255, 255]
+    const M  = 10               // page margin
+    const CW = W - 2 * M        // content width
+    const CX = W / 2            // centre x
 
-    // ── HEADER GRADIENT BLOCK ──────────────────────────────────────────────
-    doc.setFillColor(...NAVY)
-    doc.rect(0, 0, W, 28, 'F')
-    // accent stripe
-    doc.setFillColor(...GOLD)
-    doc.rect(0, 28, W, 1.2, 'F')
+    doc.setDrawColor(0, 0, 0)
+    doc.setTextColor(0, 0, 0)
 
-    // logo placeholder circle
-    doc.setFillColor(...STEEL)
-    doc.circle(18, 14, 8, 'F')
-    doc.setFillColor(...GOLD)
-    doc.circle(18, 14, 5, 'F')
-    doc.setFillColor(...NAVY)
-    doc.circle(18, 14, 2.5, 'F')
-
-    // title
-    doc.setTextColor(...WHITE)
+    // ── company header ─────────────────────────────────────────────────────
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.text('CONTAINER INSPECTION REPORT', 30, 11)
+    doc.text(COMPANY.name, CX, 14, { align: 'center' })
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(180, 210, 235)
-    doc.text('E-Survey  ·  Gate Management System  ·  GDL Chennai', 30, 17)
-    doc.setTextColor(200, 220, 240)
-    doc.setFontSize(7)
-    doc.text(`Generated: ${fmt(new Date())}   ·   Survey By: ${loggedInName}`, 30, 23)
-
-    // ── CONTAINER INFO CARD ────────────────────────────────────────────────
-    const INFO_Y = 33
-    doc.setFillColor(...LIGHT)
-    doc.roundedRect(10, INFO_Y, W - 20, 18, 2, 2, 'F')
-    doc.setDrawColor(...NAVY)
+    doc.setFontSize(8)
+    doc.text(COMPANY.addr1, CX, 19.5, { align: 'center' })
+    doc.text(COMPANY.addr2, CX, 23.5, { align: 'center' })
+    doc.setFontSize(8.5)
+    doc.text(`E-mail : ${COMPANY.email}`, CX, 29, { align: 'center' })
     doc.setLineWidth(0.4)
-    doc.roundedRect(10, INFO_Y, W - 20, 18, 2, 2, 'S')
+    doc.line(M, 34, W - M, 34)
 
-    // left accent bar
-    doc.setFillColor(...NAVY)
-    doc.roundedRect(10, INFO_Y, 3, 18, 1, 1, 'F')
-
-    doc.setTextColor(...NAVY)
+    // ── SL NO / DATE ───────────────────────────────────────────────────────
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
-    doc.text(sv.ContainerNo || '—', 17, INFO_Y + 8)
+    doc.setFontSize(8.5)
+    doc.text(`SL NO : ${sv.SurveyId ?? '—'}`, M, 40.5)
+    doc.text(`DATE : ${fmt(toLocalInputValue(new Date())).slice(0, 10)}`, W - M, 40.5, { align: 'right' })
 
-    const gateType = sv.GateType || '—'
-    const badgeX = 17
-    const badgeY = INFO_Y + 10
-    doc.setFontSize(7)
+    // ── title ──────────────────────────────────────────────────────────────
+    const TITLE = 'SURVEY REPORT CONTAINER CONDITION'
+    doc.setFontSize(12)
+    doc.text(TITLE, CX, 47, { align: 'center' })
+    const tw = doc.getTextWidth(TITLE)
+    doc.setLineWidth(0.3)
+    doc.line(CX - tw / 2, 48.2, CX + tw / 2, 48.2)
+
+    // ── "carried out at the request of" ────────────────────────────────────
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.text('THIS INSPECTION HAS BEEN CARRIED OUT AT THE REQUEST OF', CX, 54, { align: 'center' })
+    doc.text('M/S :', M, 60)
     doc.setFont('helvetica', 'bold')
-    const isGateIn = gateType === 'GATE_IN'
-    doc.setFillColor(isGateIn ? 16 : 217, isGateIn ? 185 : 119, isGateIn ? 129 : 6)
-    doc.roundedRect(badgeX, badgeY, 22, 5, 1, 1, 'F')
-    doc.setTextColor(...WHITE)
-    doc.text(isGateIn ? 'GATE IN' : 'GATE OUT', badgeX + 11, badgeY + 3.5, { align: 'center' })
+    doc.text(String(f.inspectionRequestedOf || ''), M + 10, 59.5)
+    doc.setLineWidth(0.2)
+    doc.line(M + 9, 60.8, W - M, 60.8)
 
-    // right side info pills
-    const pills = [
-      { label: 'GATE',        val: sv.GateName     || '—' },
-      { label: 'SIZE',        val: f.containerSize || sv.ContSize  || '—' },
-      { label: 'TYPE',        val: f.containerType || sv.ContType  || '—' },
-      { label: 'SURVEY TIME', val: fmt(sv.SurveyTime) },
-    ]
-    let px = W - 14
-    for (let i = pills.length - 1; i >= 0; i--) {
-      const { label, val } = pills[i]
+    // ── Incoming / Outgoing / Off Hire / On Hire ───────────────────────────
+    const opts = ['Incoming', 'Outgoing', 'Off Hire', 'On Hire']
+    const activeOpt = sv.GateType === 'GATE_IN' ? 'Incoming' : sv.GateType === 'GATE_OUT' ? 'Outgoing' : ''
+    const TY = 67
+    doc.setFontSize(9)
+    const wOf = (t, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); return doc.getTextWidth(t) }
+    const SEP = ' / '
+    const sepW = wOf(SEP, false)
+    const totalW = opts.reduce((a, o) => a + wOf(o, o === activeOpt), 0) + sepW * (opts.length - 1)
+    let ox = CX - totalW / 2
+    opts.forEach((o, i) => {
+      const b = o === activeOpt
+      const w = wOf(o, b)
+      doc.setFont('helvetica', b ? 'bold' : 'normal')
+      doc.setTextColor(b ? 0 : 110, b ? 0 : 110, b ? 0 : 110)
+      doc.text(o, ox, TY)
+      if (b) { doc.setLineWidth(0.3); doc.line(ox, TY + 0.9, ox + w, TY + 0.9) }
+      ox += w
+      if (i < opts.length - 1) {
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(110, 110, 110)
+        doc.text(SEP, ox, TY)
+        ox += sepW
+      }
+    })
+    doc.setTextColor(0, 0, 0)
+
+    // label (bold) + value (normal)
+    const lv = (label, value, x, y) => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8)
+      doc.text(label, x, y)
+      const lw = doc.getTextWidth(label) + 1.5
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(6)
-      doc.setTextColor(100, 130, 160)
-      const valW = doc.getTextWidth(val) + 4
-      px -= valW
-      doc.setFillColor(...WHITE)
-      doc.setDrawColor(180, 205, 225)
-      doc.setLineWidth(0.3)
-      doc.roundedRect(px, INFO_Y + 3, valW, 11, 1.5, 1.5, 'FD')
-      doc.setTextColor(100, 130, 160)
-      doc.text(label, px + valW / 2, INFO_Y + 7, { align: 'center' })
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7)
-      doc.setTextColor(...NAVY)
-      doc.text(val, px + valW / 2, INFO_Y + 12, { align: 'center' })
-      px -= 3
+      doc.text(String(value ?? '—'), x + lw, y)
     }
 
-    // ── SECTION TITLE: PHOTO EVIDENCE ─────────────────────────────────────
-    const SEC1_Y = INFO_Y + 22
-    doc.setFillColor(...NAVY)
-    doc.rect(10, SEC1_Y, 3, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(...NAVY)
-    doc.text('PHOTO EVIDENCE', 15, SEC1_Y + 5)
-    doc.setDrawColor(200, 220, 235)
+    // ── container info box (2 rows) ────────────────────────────────────────
+    const IB_Y = 74
+    const IB_H = 16
     doc.setLineWidth(0.3)
-    doc.line(52, SEC1_Y + 4.5, W - 10, SEC1_Y + 4.5)
+    doc.rect(M, IB_Y, CW, IB_H)
+    doc.line(M, IB_Y + IB_H / 2, W - M, IB_Y + IB_H / 2)
+    const r1 = IB_Y + 5.2
+    const r2 = IB_Y + IB_H / 2 + 5.2
+    lv('Container No:',     f.containerNo   || sv.ContainerNo || '—', M + 2,   r1)
+    lv('Size:',             f.containerSize || sv.ContSize    || '—', M + 55,  r1)
+    lv('Type:',             f.containerType || sv.ContType    || '—', M + 85,  r1)
+    lv('Document No:',      f.documentNo    || sv.DocumentNo  || '—', M + 115, r1)
+    lv('Vehicle No:',       f.vehicleNo     || '—',                   M + 2,   r2)
+    lv('Transaction Type:', f.transactionType || '—',                 M + 55,  r2)
+    lv('Gate In Date:',     fmt(sv.GateInDate),                       M + 115, r2)
 
-    // ── 5 IMAGES: row 1 = L / R / T, row 2 = LD / RD ──────────────────────
-    const IMG_Y   = SEC1_Y + 9
-    const IMG_H   = 50
-    const CARD_H  = IMG_H + 14
-    const GAP     = 3
-    const ROW_GAP = 4
-    const COLS    = 3
-    const IMG_W   = (W - 20 - GAP * (COLS - 1)) / COLS
-    const imgEntries = [
-      { label: 'LEFT SIDE',    icon: 'L',  url: getImageUrl(sv, 'IMG_LEFT'),  remark: f.leftRemark,        damage: false },
-      { label: 'RIGHT SIDE',   icon: 'R',  url: getImageUrl(sv, 'IMG_RIGHT'), remark: f.rightRemark,       damage: false },
-      { label: 'TOP VIEW',     icon: 'T',  url: getImageUrl(sv, 'IMG_TOP'),   remark: f.topRemark,         damage: false },
-      { label: 'LEFT DAMAGE',  icon: 'LD', url: getImageUrl(sv, 'Left2'),     remark: f.leftDamageRemark,  damage: true  },
-      { label: 'RIGHT DAMAGE', icon: 'RD', url: getImageUrl(sv, 'Right2'),    remark: f.rightDamageRemark, damage: true  },
+    // ── remarks table (2 columns, rows grow with text) ─────────────────────
+    const HALF = CW / 2
+    const LH = 3.6
+    const remarkRows = [
+      [['LeftSide Remark:',      f.leftRemark],        ['RightSide Remark:',        f.rightRemark]],
+      [['TopSide Remark:',       f.topRemark],         ['Overall Remark:',          f.overallRemark]],
+      [['LeftDamage Remark:',    f.leftDamageRemark],  ['RightDamage Remark:',      f.rightDamageRemark]],
+      [['Place of Inspection:',  f.placeOfInspection], ['Survey by/Presence of:',   f.surveyBy || loggedInName]],
     ]
-    const rowCount = Math.ceil(imgEntries.length / COLS)
+    const measured = remarkRows.map(row => {
+      const cells = row.map(([label, value]) => {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8)
+        const lw = doc.getTextWidth(label) + 1.5
+        doc.setFont('helvetica', 'normal')
+        const lines = doc.splitTextToSize(String(value || '—'), HALF - 4 - lw)
+        return { label, lw, lines }
+      })
+      const h = Math.max(...cells.map(c => c.lines.length)) * LH + 3.6
+      return { cells, h }
+    })
+    const RT_Y = IB_Y + IB_H + 6
+    const RT_H = measured.reduce((a, r) => a + r.h, 0)
+    doc.setLineWidth(0.3)
+    doc.rect(M, RT_Y, CW, RT_H)
+    doc.line(CX, RT_Y, CX, RT_Y + RT_H)
+    let ry = RT_Y
+    measured.forEach((row, i) => {
+      if (i > 0) doc.line(M, ry, W - M, ry)
+      row.cells.forEach((c, ci) => {
+        const x = M + ci * HALF + 2
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8)
+        doc.text(c.label, x, ry + 5)
+        doc.setFont('helvetica', 'normal')
+        c.lines.forEach((ln, li) => doc.text(ln, x + c.lw, ry + 5 + li * LH))
+      })
+      ry += row.h
+    })
 
-    for (let i = 0; i < imgEntries.length; i++) {
-      const col = i % COLS
-      const row = Math.floor(i / COLS)
-      const x = 10 + col * (IMG_W + GAP)
-      const y = IMG_Y + row * (CARD_H + ROW_GAP)
-      const { label, icon, url, remark, damage } = imgEntries[i]
-      const badgeColor = damage ? RED : NAVY
+    // ── image block: [Left | Right] / [Top (full)] / [Left Dmg | Right Dmg] ─
+    const IMG_TOP = RT_Y + RT_H + 5
+    const IMG_BOTTOM = H - 34                      // leave room for signature + note
+    const availH = Math.max(IMG_BOTTOM - IMG_TOP, 90)
+    const h1 = availH * 0.30
+    const h2 = availH * 0.40
+    const h3 = availH * 0.30
+    const cells = [
+      { label: 'LEFT SIDE',    url: getImageUrl(sv, 'IMG_LEFT'),  x: M,        y: IMG_TOP,           w: HALF, h: h1 },
+      { label: 'RIGHT SIDE',   url: getImageUrl(sv, 'IMG_RIGHT'), x: M + HALF, y: IMG_TOP,           w: HALF, h: h1 },
+      { label: 'TOP VIEW',     url: getImageUrl(sv, 'IMG_TOP'),   x: M,        y: IMG_TOP + h1,      w: CW,   h: h2 },
+      { label: 'LEFT DAMAGE',  url: getImageUrl(sv, 'Left2'),     x: M,        y: IMG_TOP + h1 + h2, w: HALF, h: h3 },
+      { label: 'RIGHT DAMAGE', url: getImageUrl(sv, 'Right2'),    x: M + HALF, y: IMG_TOP + h1 + h2, w: HALF, h: h3 },
+    ]
+    const LABEL_H = 6
+    for (const c of cells) {
+      doc.setDrawColor(0, 0, 0)
+      doc.setLineWidth(0.3)
+      doc.rect(c.x, c.y, c.w, c.h)
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7)
+      doc.text(c.label, c.x + 2, c.y + 4)
 
-      // card shadow simulation
-      doc.setFillColor(200, 215, 230)
-      doc.roundedRect(x + 0.7, y + 0.7, IMG_W, CARD_H, 2, 2, 'F')
-
-      // card bg
-      doc.setFillColor(...WHITE)
-      doc.roundedRect(x, y, IMG_W, CARD_H, 2, 2, 'F')
-
-      // image area
-      doc.setFillColor(240, 245, 250)
-      doc.roundedRect(x, y, IMG_W, IMG_H, 2, 2, 'F')
-
+      const boxX = c.x + 1, boxY = c.y + LABEL_H
+      const boxW = c.w - 2, boxH = c.h - LABEL_H - 1
       let drawn = false
-      if (url) {
+      if (c.url) {
         try {
-          const dataUrl = await fetchImageAsDataUrl(url)
-          doc.addImage(dataUrl, 'JPEG', x, y, IMG_W, IMG_H, undefined, 'FAST')
+          const { dataUrl, w, h } = await loadImageForPdf(c.url)
+          const s = Math.min(boxW / w, boxH / h)
+          const dw = w * s, dh = h * s
+          doc.addImage(dataUrl, 'JPEG', boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh, undefined, 'FAST')
           drawn = true
         } catch { /* fall through to placeholder */ }
       }
       if (!drawn) {
-        doc.setTextColor(180, 180, 180)
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(7)
-        doc.text('No Image', x + IMG_W / 2, y + IMG_H / 2, { align: 'center' })
+        doc.setFontSize(8)
+        doc.setTextColor(150, 150, 150)
+        doc.text('No Image', c.x + c.w / 2, c.y + c.h / 2 + 2, { align: 'center' })
+        doc.setTextColor(0, 0, 0)
       }
-
-      // label badge overlay
-      doc.setFillColor(...badgeColor)
-      doc.roundedRect(x + 1.5, y + 1.5, IMG_W - 3, 6, 1, 1, 'F')
-      doc.setTextColor(...WHITE)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(6)
-      doc.text(`${icon}  ${label}`, x + IMG_W / 2, y + 5.5, { align: 'center' })
-
-      // remark area
-      doc.setTextColor(80, 100, 120)
-      doc.setFont('helvetica', 'italic')
-      doc.setFontSize(6.5)
-      const lines = doc.splitTextToSize(remark || 'No remark', IMG_W - 4)
-      doc.text(lines, x + IMG_W / 2, y + IMG_H + 5, { align: 'center' })
     }
 
-    // ── SECTION TITLE: INSPECTION DETAILS ────────────────────────────────
-    const SEC2_Y = IMG_Y + rowCount * CARD_H + (rowCount - 1) * ROW_GAP + 4
-    doc.setFillColor(...GOLD)
-    doc.rect(10, SEC2_Y, 3, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(...NAVY)
-    doc.text('INSPECTION DETAILS', 15, SEC2_Y + 5)
-    doc.setDrawColor(200, 220, 235)
+    // ── signature + note ───────────────────────────────────────────────────
     doc.setLineWidth(0.3)
-    doc.line(57, SEC2_Y + 4.5, W - 10, SEC2_Y + 4.5)
+    doc.line(W - M - 50, H - 24, W - M, H - 24)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.text('GDL SURVEYOR', W - M, H - 19.5, { align: 'right' })
 
-    // ── DETAILS TABLE ─────────────────────────────────────────────────────
-    const tableBody = [
-      ['Container No',          f.containerNo        || sv.ContainerNo || '—'],
-      ['Vehicle No',            f.vehicleNo          || '—'],
-      ['Size',                  f.containerSize      || sv.ContSize    || '—'],
-      ['Type',                  f.containerType      || sv.ContType    || '—'],
-      ['Transaction',           f.transactionType    || '—'],
-      ['Document No',           f.documentNo         || sv.DocumentNo  || '—'],
-      ['Survey By',             loggedInName],
-      ['Place of Inspection',   f.placeOfInspection  || '—'],
-      ['Inspection Requested Of', f.inspectionRequestedOf || '—'],
-      ['Overall Remark',        f.overallRemark      || '—'],
-    ]
-
-    // split into 2 columns: left 5 rows, right 5 rows
-    const leftRows  = tableBody.slice(0, 5)
-    const rightRows = tableBody.slice(5)
-    const COL_W = (W - 23) / 2
-    const LABEL_W = 42
-
-    autoTable(doc, {
-      startY: SEC2_Y + 9,
-      body: leftRows,
-      theme: 'plain',
-      styles: { fontSize: 7.5, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 } },
-      columnStyles: {
-        0: { fontStyle: 'bold', textColor: NAVY, cellWidth: LABEL_W, fillColor: LIGHT },
-        1: { textColor: [40, 60, 80], cellWidth: COL_W - LABEL_W },
-      },
-      margin: { left: 10, right: W / 2 + 1.5 },
-      alternateRowStyles: { fillColor: [248, 251, 255] },
-      didDrawCell: (data) => {
-        if (data.column.index === 0 && data.row.index === 0) {
-          doc.setFillColor(...NAVY)
-          doc.rect(data.cell.x, data.cell.y, 1.5, data.cell.height, 'F')
-        }
-      },
-    })
-
-    autoTable(doc, {
-      startY: SEC2_Y + 9,
-      body: rightRows,
-      theme: 'plain',
-      styles: { fontSize: 7.5, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 } },
-      columnStyles: {
-        0: { fontStyle: 'bold', textColor: NAVY, cellWidth: LABEL_W, fillColor: LIGHT },
-        1: { textColor: [40, 60, 80], cellWidth: COL_W - LABEL_W },
-      },
-      margin: { left: W / 2 + 1.5, right: 10 },
-      alternateRowStyles: { fillColor: [248, 251, 255] },
-    })
-
-    // ── FOOTER ─────────────────────────────────────────────────────────────
-    doc.setFillColor(...NAVY)
-    doc.rect(0, H - 12, W, 12, 'F')
-    doc.setFillColor(...GOLD)
-    doc.rect(0, H - 12, W, 0.8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    const noteLabel = 'Issue without Prejudice Note : '
+    doc.text(noteLabel, M, H - 11)
+    const noteLabelW = doc.getTextWidth(noteLabel)   // measured while bold
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
-    doc.setTextColor(160, 195, 225)
-    doc.text('GDL Chennai  ·  Gate Management System  ·  E-Survey Report', 10, H - 5)
-    doc.setTextColor(200, 220, 240)
-    doc.text(`Surveyed by: ${loggedInName}   ·   ${fmt(new Date())}`, W - 10, H - 5, { align: 'right' })
+    doc.text(
+      'This report will be destroyed after 6 months unless we receive & query from the Applicant for survey',
+      M + noteLabelW, H - 11
+    )
 
     doc.save(`esurvey-${sv.ContainerNo || 'report'}-${today.slice(0, 10)}.pdf`)
   }, [today, loggedInName])
