@@ -195,6 +195,7 @@ export const API_ENDPOINTS = {
     GET_GATE_NAMES: buildUrl('/v1/container/gate-names'),
     GET_VEHICLE_CONTAINER_DETECTION: buildUrl('/v1/container/vehicle-container-detection'),
     GET_RAIL_IN: buildUrl('/v1/container/rail-in'),
+    SAVE_GATE_DASHBOARD: buildUrl('/v1/container/gate-dashboard/save'),
     GET_CONTAINER_STATUS_REPORT: buildUrl('/v1/container/container-status-report'),
     GET_CONTAINER_GATE_REPORT: buildUrl('/v1/container/container-gate-report'),
     GET_CONTAINER_HISTORY_REPORT: buildUrl('/v1/container/container-history-report'),
