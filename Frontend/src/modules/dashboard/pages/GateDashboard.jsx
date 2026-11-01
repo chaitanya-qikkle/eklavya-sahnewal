@@ -286,7 +286,8 @@ export default function GateDashboard() {
   const [dummy, setDummy] = useState(DUMMY_DEFAULT)
   const [dummySeed, setDummySeed] = useState(0) // bump = regenerate fake rows
 
-  const mainQ = useGetVehicleContainerDetectionQuery(undefined, { skip: dummy || tab !== 'main' })
+  // Exactly the same call as the Main Gate In page (no options), so both share one cache entry.
+  const mainQ = useGetVehicleContainerDetectionQuery()
   const [fetchRail, railQ] = useLazyGetRailInQuery()
   const [saveGate, { isLoading: saving }] = useSaveGateDashboardMutation()
 
