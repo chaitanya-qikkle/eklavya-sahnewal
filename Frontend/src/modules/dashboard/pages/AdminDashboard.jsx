@@ -370,6 +370,65 @@ const Tip = ({ active, payload, label }) => {
   );
 };
 
+// ─── Shipping line: extra columns config (20ft/40ft pehle, Total se pehle) ───
+const SHIP_FIELDS = [
+  { key: "size20",   label: "20ft",          color: T.cyan },
+  { key: "size40",   label: "40ft",          color: T.indigo },
+  { key: "teus",     label: "TEUs",          color: T.emerald },
+  { key: "impCount", label: "Import",        color: T.blue },
+  { key: "imp20",    label: "Import 20",     color: T.blue },
+  { key: "imp40",    label: "Import 40",     color: T.blue },
+  { key: "impTeu",   label: "Import TEUs",   color: T.blue },
+  { key: "expCount", label: "Export",        color: T.pink },
+  { key: "exp20",    label: "Export 20",     color: T.pink },
+  { key: "exp40",    label: "Export 40",     color: T.pink },
+  { key: "expTeu",   label: "Export TEUs",   color: T.pink },
+  { key: "empCount", label: "Empty",         color: T.amber },
+  { key: "emp20",    label: "Empty 20",      color: T.amber },
+  { key: "emp40",    label: "Empty 40",      color: T.amber },
+  { key: "empTeu",   label: "Empty TEUs",    color: T.amber },
+  { key: "domCount", label: "Domestic",      color: T.teal },
+  { key: "dom20",    label: "Domestic 20",   color: T.teal },
+  { key: "dom40",    label: "Domestic 40",   color: T.teal },
+  { key: "domTeu",   label: "Domestic TEUs", color: T.teal },
+];
+
+// Order: 20ft, 40ft, TEUs, Total, phir baaki columns
+const SHIP_HEAD = SHIP_FIELDS.slice(0, 3);
+const SHIP_REST = SHIP_FIELDS.slice(3);
+
+// ─── Shipping line chart tooltip ─────────────────────────────────────────────
+const ShipTipRow = ({ label, v, color }) => (
+  <div className="flex items-center justify-between gap-4 py-0.5">
+    <span style={{ color: T.textDim }}>{label}</span>
+    <span className="font-black tabular-nums" style={{ color: color || T.text }}>
+      {typeof v === "number" ? fmtNumber(v) : v}
+    </span>
+  </div>
+);
+
+const ShipTip = ({ active, payload }) => {
+  const d = payload?.[0]?.payload;
+  if (!active || !d) return null;
+  return (
+    <div className="rounded-xl px-3 py-2 text-xs"
+      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text, minWidth: 200 }}>
+      <div className="font-black text-[11px] mb-1" style={{ color: T.text }}>{d.name}</div>
+      <ShipTipRow label="20ft" v={d.size20} color={T.cyan} />
+      <ShipTipRow label="40ft" v={d.size40} color={T.indigo} />
+      <div className="border-t my-1" style={{ borderColor: T.border }} />
+            <ShipTipRow label="Import" v={d.impCount} color={T.blue} />
+      <ShipTipRow label="Export" v={d.expCount} color={T.pink} />
+      <ShipTipRow label="Empty" v={d.empCount} color={T.amber} />
+      <ShipTipRow label="Domestic" v={d.domCount} color={T.teal} />
+      <div className="border-t my-1" style={{ borderColor: T.border }} />
+      <ShipTipRow label="TEUs" v={d.teus} color={T.emerald} />
+      <ShipTipRow label="Total" v={d.total} />
+      <ShipTipRow label="Share" v={`${d.pct}%`} />
+    </div>
+  );
+};
+
 // ─── Container Ageing tooltip — mini breakdown table (Import/Export/Domestic/Empty) ──
 const AgeingTip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -1584,14 +1643,22 @@ const AdminDashboard = () => {
   }, [containerAgeingApi]);
 
   // ── Shipping Line Wise Inventory — GET_DASHBOARD_SHIPLINE ──
+  // Naye fields: Size45, Empty/Laden 20/40, Import/Export/Domestic (count, 20/40/45, TEUs), SizeTeus.
+  // Jis line me field nahi hai (WINWIN, YML, ZIM...) wahan 0.
   const shippingLineData = useMemo(() => {
     const rows = Array.isArray(shiplineApi?.data) ? shiplineApi.data : [];
     const mapped = rows.map((r) => {
-      const size20 = Number(get(r, "Size20", "SIZE20", "size20") || 0);
-      const size40 = Number(get(r, "Size40", "SIZE40", "size40") || 0);
+      const num = (...k) => Number(get(r, ...k) || 0);
+      const size20 = num("Size20", "SIZE20", "size20");
+      const size40 = num("Size40", "SIZE40", "size40");
       return {
         name: String(get(r, "Line_NO", "LINE_NO", "line_no") || "OTHERS").trim(),
         size20, size40,
+        impCount: num("ImportCount"), imp20: num("Import20"), imp40: num("Import40"), impTeu: num("ImportTEUs"),
+        expCount: num("ExportCount"), exp20: num("Export20"), exp40: num("Export40"), expTeu: num("ExportTEUs"),
+        domCount: num("DomesticCount"), dom20: num("Domestic20"), dom40: num("Domestic40"), domTeu: num("DomesticTEUs"),
+        empCount: num("EmptyCount"), emp20: num("Empty20"), emp40: num("Empty40"), empTeu: num("EmptyTEUs"),
+        teus: num("SizeTeus") || size20 + size40 * 2,
         total: size20 + size40,
       };
     });
@@ -2728,7 +2795,8 @@ const AdminDashboard = () => {
 
           {/* Shipping Line */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
-            <Panel title="Shipping Line Wise Inventory" subtitle="Container count by line · 20ft vs 40ft" icon={FiBarChart2}
+            <Panel title="Shipping Line Wise Inventory" subtitle="Container count by line · 20ft vs 40ft · process wise"
+              icon={FiBarChart2}
               accent={T.indigo} className="xl:col-span-12 h-[420px]"
               right={
                 <div className="flex items-center gap-2">
@@ -2740,7 +2808,13 @@ const AdminDashboard = () => {
                   />
                   <ExportBtn
                     onClick={() => exportToExcel(
-                      shippingLineData.map((r) => ({ Line: r.name, "20ft": r.size20, "40ft": r.size40, Total: r.total, "%": r.pct })),
+                      shippingLineData.map((r) => {
+                        const o = { Line: r.name };
+                        SHIP_HEAD.forEach((f) => { o[f.label] = r[f.key]; });
+                        o["Total"] = r.total;
+                        SHIP_REST.forEach((f) => { o[f.label] = r[f.key]; });
+                        return o;
+                      }),
                       "Shipping Line Inventory", "ShippingLineInventory",
                     )}
                     disabled={!shippingLineData.length}
@@ -2752,17 +2826,23 @@ const AdminDashboard = () => {
                 <DataTable
                   cols={[
                     { label: "Line", key: "name", bold: true },
-                    { label: "20ft", key: "size20", align: "right", render: (v) => <span style={{ color: T.cyan }}>{v}</span> },
-                    { label: "40ft", key: "size40", align: "right", render: (v) => <span style={{ color: T.indigo }}>{v}</span> },
-                    { label: "Total", key: "total", align: "right", render: (v) => <b>{v}</b> },
-                    { label: "%", align: "right", render: (_, r) => <span style={{ color: T.textMute }}>{r.pct}%</span> },
+                    ...SHIP_HEAD.map((f) => ({
+                      label: f.label, key: f.key, align: "right",
+                      render: (v) => <span style={{ color: f.color }}>{fmtNumber(v)}</span>,
+                    })),
+                    { label: "Total", key: "total", align: "right", render: (v) => <b>{fmtNumber(v)}</b> },
+                    ...SHIP_REST.map((f) => ({
+                      label: f.label, key: f.key, align: "right",
+                      render: (v) => <span style={{ color: f.color }}>{fmtNumber(v)}</span>,
+                    })),
                   ]}
                   rows={shippingLineData}
-                  footerRow={["Total",
-                    fmtNumber(shippingLineData.reduce((s, r) => s + r.size20, 0)),
-                    fmtNumber(shippingLineData.reduce((s, r) => s + r.size40, 0)),
+                  footerRow={[
+                    "Total",
+                    ...SHIP_HEAD.map((f) => fmtNumber(shippingLineData.reduce((s, r) => s + r[f.key], 0))),
                     fmtNumber(shippingLineData.reduce((s, r) => s + r.total, 0)),
-                    "100%"]}
+                    ...SHIP_REST.map((f) => fmtNumber(shippingLineData.reduce((s, r) => s + r[f.key], 0))),
+                  ]}
                 />
               ) : (
                 <div className="flex-1 min-h-0">
@@ -2784,11 +2864,12 @@ const AdminDashboard = () => {
                       <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} />
                       <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }}
                         tickFormatter={(v) => `${v}%`} />
-                      <Tooltip content={<Tip />} />
+                      <Tooltip content={<ShipTip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
                       <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                      <Bar yAxisId="left" dataKey="size20" name="Size 20" stackId="a" fill={T.cyan} radius={[0, 0, 0, 0]} barSize={18} />
-                      <Bar yAxisId="left" dataKey="size40" name="Size 40" stackId="a" fill={T.indigo} radius={[4, 4, 0, 0]} barSize={18} />
-                      <Line yAxisId="right" type="monotone" dataKey="pct" name="%" stroke={T.emerald} strokeWidth={2} dot={{ r: 3, fill: T.emerald }} />
+                      <Bar yAxisId="left" dataKey="size20" name="20ft" stackId="a" fill={T.cyan} barSize={18} />
+                      <Bar yAxisId="left" dataKey="size40" name="40ft" stackId="a" fill={T.indigo} radius={[4, 4, 0, 0]} barSize={18} />
+                      <Line yAxisId="right" type="monotone" dataKey="pct" name="%" stroke={T.emerald}
+                        strokeWidth={2} dot={{ r: 3, fill: T.emerald }} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
