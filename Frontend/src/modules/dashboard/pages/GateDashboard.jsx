@@ -187,11 +187,18 @@ const isMissing = (containerNo) => {
 const CONTAINER_RE = /^[A-Z]{4}\d{7}$/
 
 // Both gates reduced to one shape so the list/panel don't care which tab.
-// A transaction is "missing" when none of its container images (left / right /
-// top → ContainerImagePath, or Camera1/2ImagePath on rail) came through at all.
-const hasOwnImage = (r) => !!(r.ContainerImagePath || r.Camera1ImagePath || r.Camera2ImagePath)
+// A transaction is "missing" when one or more of its container images did not
+// come through: Main Gate = ContainerImagePath; Rail = Camera1 (left) and
+// Camera2 (right) — either one absent counts. The operator opens it, finds the
+// image in <stitching>/<gate>/<date>/00000000000 and saves it for that container.
+const missingImages = (tab, r) => tab === 'main'
+  ? (r.ContainerImagePath ? [] : ['container'])
+  : [!r.Camera1ImagePath && 'left', !r.Camera2ImagePath && 'right'].filter(Boolean)
 const normalize = (tab, rows) =>
-  normalizeRaw(tab, rows).map((t) => ({ ...t, missing: !hasOwnImage(t.raw) }))
+  normalizeRaw(tab, rows).map((t) => {
+    const miss = missingImages(tab, t.raw)
+    return { ...t, missing: miss.length > 0, missingSides: miss }
+  })
 
 const normalizeRaw = (tab, rows) =>
   rows.map((r, i) => tab === 'main'
@@ -288,7 +295,7 @@ export default function GateDashboard() {
   const [fromDate, setFromDate] = useState(yesterdayStr())
   const [toDate, setToDate] = useState(todayStr())
   const [search, setSearch] = useState('')
-  const [missingOnly, setMissingOnly] = useState(true)
+  const [missingOnly, setMissingOnly] = useState(false) // Main Gate In rows always carry a container no. + image, so "missing only" would hide them all
   const [gate, setGate] = useState('all') // Main Gate In only: one gate or 'all'
   const [selectedKey, setSelectedKey] = useState(null)
   const [containerInput, setContainerInput] = useState('')
@@ -354,13 +361,17 @@ export default function GateDashboard() {
 
   // Switching tab / transaction resets the entry box.
   useEffect(() => { setSelectedKey(null); setGate('all') }, [tab])
-  useEffect(() => { setContainerInput(''); setPickedFile(null); setSideOverride(null) }, [selectedKey])
+  // The transaction's own container number is filled in automatically (editable).
+  useEffect(() => {
+    const cn = selected && !isMissing(selected.containerNo) ? String(selected.containerNo).trim().split(' ')[0].toUpperCase() : ''
+    setContainerInput(cn); setPickedFile(null); setSideOverride(null)
+  }, [selectedKey]) // eslint-disable-line
   useEffect(() => { setSideOverride(null) }, [pickedFile])
 
   const savedInfo = selected ? saved[selected.key] : null
   // Missing transaction → all images of <stitching>/<gate>/<its date>/00000000000
   // on the server (listed by the backend). Dummy mode / other rows use the row's own data.
-  const folderMode = !!selected && selected.missing && !dummy
+  const folderMode = !!selected && !dummy
   useEffect(() => {
     if (!folderMode) return
     fetchImgs({ gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : selected.place, date: String(selected.time || '').slice(0, 10) })
@@ -412,6 +423,8 @@ export default function GateDashboard() {
       file: parseImageName(picked).name,
       gate_name: selected.place,
       detected_time: selected.time,
+      // The row already exists when it has a container number → only the image is saved.
+      update_record: isMissing(selected.containerNo),
     }).unwrap()
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
@@ -582,6 +595,9 @@ export default function GateDashboard() {
                         <span className="inline-flex items-center gap-1"><FiClock size={10} />{formatDate(t.time)}</span>
                         {t.ref && <span className="inline-flex items-center gap-1"><FiTruck size={10} />{t.refLabel}: <b className="text-slate-700">{t.ref}</b></span>}
                         {tab === 'rail' && t.place && <span>{t.place}</span>}
+                        {t.missingSides?.length > 0 && !done && (
+                          <span className="font-bold text-red-500">Missing: {t.missingSides.join(', ')}</span>
+                        )}
                       </div>
                     </button>
                   )
@@ -702,7 +718,7 @@ export default function GateDashboard() {
                     <p className="text-[11px] text-slate-400 mt-2">
                       {picked
                         ? <>Saving creates folder <b>{containerInput || '<container no>'}</b> with the selected image as <b>{pickedSide || '?'}.jpg</b>.</>
-                        : 'Select an image above first.'}
+                        : 'Select the missing image above first. The container number is filled from the transaction.'}
                       {containerInput && !CONTAINER_RE.test(containerInput) && <span className="text-red-500 font-semibold"> · Needs 4 letters + 7 digits</span>}
                     </p>
                   </div>

@@ -48,6 +48,9 @@ class SaveBody(BaseModel):
     file: str
     gate_name: Optional[str] = None
     detected_time: Optional[str] = None
+    # True only when the transaction had no container number and this save supplies it.
+    # For a transaction that already has its number just the image is saved.
+    update_record: bool = False
 
 
 def _parse_dt(value):
@@ -142,6 +145,9 @@ def save_container(body: SaveBody):
     except Exception as e:
         logger.exception("gate-dashboard save: image copy failed")
         return {"status": "error", "message": f"Could not save image: {e}"}
+
+    if not body.update_record:
+        return {"status": "success", "path": str(dest)}
 
     # 2) Database
     now = datetime.now()
