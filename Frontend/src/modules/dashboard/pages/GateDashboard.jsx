@@ -11,6 +11,7 @@ import { buildAssetUrl } from '../../../config/api'
 import { StatCard, StatGrid } from '../../../components/ui/StatCard'
 import {
   useGetVehicleContainerDetectionQuery,
+  useSaveGateDashboardMutation,
   useLazyGetRailInQuery,
 } from '../../../store/api/ymsApi'
 
@@ -287,6 +288,7 @@ export default function GateDashboard() {
 
   const mainQ = useGetVehicleContainerDetectionQuery(undefined, { skip: dummy || tab !== 'main' })
   const [fetchRail, railQ] = useLazyGetRailInQuery()
+  const [saveGate, { isLoading: saving }] = useSaveGateDashboardMutation()
 
   const loadRail = useCallback(() => fetchRail({ from_date: fromDate, to_date: toDate }), [fetchRail, fromDate, toDate])
   useEffect(() => { if (!dummy && tab === 'rail') loadRail() }, [tab, dummy]) // eslint-disable-line
@@ -365,10 +367,31 @@ export default function GateDashboard() {
       notify.warning('Invalid container no', 'Format: 4 letters + 7 digits (e.g. MSKU1234567)')
       return
     }
-    // TODO(backend): call the SP here → it creates folder "<cn>" and saves the
-    // picked image into it as "<side>.jpg". For now only the UI state changes.
-    setSaved((s) => ({ ...s, [selected.key]: { cn, side: pickedSide, file: picked } }))
-    notify.info('UI preview', 'Backend is not connected yet — this change is only shown on screen')
+    const done = () => setSaved((s) => ({ ...s, [selected.key]: { cn, side: pickedSide, file: picked } }))
+    if (dummy) {
+      done()
+      notify.info('Dummy mode', 'Nothing was written — turn Dummy data OFF to save for real')
+      return
+    }
+    if (!baseFolder) {
+      notify.warning('No folder', 'This transaction has no image folder from the SP')
+      return
+    }
+    saveGate({
+      gate: tab,
+      container_no: cn,
+      side: pickedSide,
+      folder: baseFolder,
+      file: picked,
+      gate_name: selected.place,
+      detected_time: selected.time,
+    }).unwrap()
+      .then((res) => {
+        if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
+        done()
+        notify.success('Saved', `${cn} saved as ${pickedSide}.jpg`)
+      })
+      .catch(() => notify.error('Save failed', 'Server error'))
   }
 
   const inputOk = !!picked && CONTAINER_RE.test(containerInput.trim().toUpperCase())
@@ -628,7 +651,7 @@ export default function GateDashboard() {
                       />
                       <button
                         onClick={handleSubmit}
-                        disabled={!inputOk}
+                        disabled={!inputOk || saving}
                         className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         <FiCheck size={15} /> Save
