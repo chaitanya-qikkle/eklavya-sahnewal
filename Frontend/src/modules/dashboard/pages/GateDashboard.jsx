@@ -358,7 +358,6 @@ export default function GateDashboard() {
   useEffect(() => { setSideOverride(null) }, [pickedFile])
 
   const savedInfo = selected ? saved[selected.key] : null
-  const baseFolder = (folderMode && serverFolder) || folderOf(selected)
   // Missing transaction → all images of <stitching>/<gate>/<its date>/00000000000
   // on the server (listed by the backend). Dummy mode / other rows use the row's own data.
   const folderMode = !!selected && selected.missing && !dummy
@@ -368,6 +367,7 @@ export default function GateDashboard() {
   }, [folderMode, selected?.key]) // eslint-disable-line
   const serverImgs = folderMode ? imgsQ.currentData : null
   const serverFolder = serverImgs?.folder || null
+  const baseFolder = (folderMode && serverFolder) || folderOf(selected)
   const files = useMemo(
     () => folderMode ? (serverImgs?.images || []).map((i) => i.url) : [...displayFilesOf(selected)].sort(),
     [selected, folderMode, serverImgs],
