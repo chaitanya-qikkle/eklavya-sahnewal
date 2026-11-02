@@ -527,15 +527,11 @@ export default function GateDashboard() {
 
         <main className="flex-1 px-4 sm:px-6 pb-10">
           {/* Header */}
-          <header className="pt-6 pb-4 flex items-end justify-between gap-3 flex-wrap">
+          <header className="pt-2 pb-2 flex items-end justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Dashboard</p>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
+              <h1 className="text-xl font-bold text-[#0e4a78] flex items-center gap-2">
                 <FaDoorOpen /> Gate Dashboard
               </h1>
-              <p className="text-slate-500 mt-0.5 text-sm">
-                Missing container transactions — pick the image showing the container &amp; enter its number
-              </p>
             </div>
 
             {/* Summary: top-right corner */}
@@ -548,12 +544,12 @@ export default function GateDashboard() {
           </header>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-2">
             {TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold border transition-all ${
                   tab === key
                     ? 'bg-[#0e4a78] text-white border-[#0e4a78] shadow-md'
                     : 'bg-white/90 text-slate-600 border-slate-200 hover:border-[#0e4a78]/40 hover:text-[#0e4a78]'
@@ -567,7 +563,7 @@ export default function GateDashboard() {
           {/* Summary */}
           {/* Gate filter (Main Gate In) */}
           {tab === 'main' && (
-            <div className="bg-white/95 rounded-2xl border border-slate-200 shadow-sm p-3 mb-4 flex items-center gap-2 flex-wrap">
+            <div className="bg-white/95 rounded-2xl border border-slate-200 shadow-sm px-3 py-2 mb-2 flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 mr-1 inline-flex items-center gap-1"><FaDoorOpen size={12} /> Gate</span>
               {[{ key: 'all', label: 'All gates', count: Object.values(gateCounts).reduce((a, b) => a + b, 0) },
                 ...gateList.map((g) => ({ key: g, label: g, count: gateCounts[g] || 0 }))].map(({ key, label, count }) => (
@@ -588,7 +584,7 @@ export default function GateDashboard() {
           )}
 
           {/* Filters */}
-          <div className="bg-white/95 rounded-2xl shadow-sm border border-slate-200 p-3 mb-4 flex flex-wrap items-end gap-3">
+          <div className="bg-white/95 rounded-2xl shadow-sm border border-slate-200 px-3 py-2 mb-2 flex flex-wrap items-end gap-3">
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               <span className="flex items-center gap-1 mb-1"><FiCalendar size={11} /> Date</span>
               <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)}
@@ -698,18 +694,6 @@ export default function GateDashboard() {
                 </div>
               ) : (
                 <div className="p-4 space-y-4">
-                  {/* Folder path */}
-                  <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                    <FiFolder className="text-[#0e4a78] flex-shrink-0" />
-                    <span className="font-semibold text-slate-500">Folder</span>
-                    <span className="font-mono text-slate-700 break-all">
-                      {savedInfo
-                        ? siblingFolder(baseFolder, savedInfo.cn)
-                        : baseFolder || <span className="text-slate-400">{imgsQ.isFetching ? 'Looking for the 00000000000 folder…' : 'No folder found'}</span>}
-                    </span>
-                    {!savedInfo && baseFolder && <span className="ml-auto text-[10px] font-bold text-slate-500 whitespace-nowrap">{files.length} images</span>}
-                  </div>
-
                   {/* Container number + side + Save: always at the top so no scrolling is needed */}
                   {!savedInfo && (
                   <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-3 space-y-1.5">
