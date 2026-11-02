@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import {
-  FiSearch, FiRefreshCw, FiImage, FiX, FiZoomIn, FiCalendar, FiCheck,
+  FiSearch, FiRefreshCw, FiImage, FiZoomIn, FiZoomOut, FiMinimize, FiCalendar, FiCheck,
   FiFolder, FiClock, FiTruck, FiHash, FiAlertCircle, FiChevronLeft, FiChevronRight,
 } from 'react-icons/fi'
 import { FaDoorOpen, FaTrain } from 'react-icons/fa'
@@ -13,6 +13,7 @@ import {
   useGetVehicleContainerDetectionQuery,
   useSaveGateDashboardMutation,
   useCheckGateDashboardSidesMutation,
+  useLazySearchGateDashboardContainersQuery,
   useLazyGetGateDashboardImagesQuery,
   useLazyGetRailInQuery,
 } from '../../../store/api/ymsApi'
@@ -38,11 +39,13 @@ const SIDE_STYLE = {
 // File names look like "00000000000_left_00_51_09.jpg" → side + time of day.
 const parseImageName = (file) => {
   const name = String(file || '').split(/[\\/]/).pop()
-  const m = name.match(/_(left|right|top)_(\d{2})_(\d{2})_(\d{2})/i)
+  // "…_left_00_51_09.jpg" (folder images) or a saved "left.jpg"
+  const s = name.match(/(?:^|[_\-.])(left|right|top)(?:[_\-.]|$)/i)
+  const m = name.match(/_(?:left|right|top)_(\d{2})[_\-:.](\d{2})[_\-:.](\d{2})/i)
   return {
     name,
-    side: m ? m[1].toLowerCase() : null,
-    time: m ? `${m[2]}:${m[3]}:${m[4]}` : '',
+    side: s ? s[1].toLowerCase() : null,
+    time: m ? `${m[1]}:${m[2]}:${m[3]}` : '',
   }
 }
 
@@ -152,119 +155,176 @@ const normalizeRaw = (tab, rows) =>
 
 /* ─── Small UI pieces ────────────────────────────────────────────────────── */
 
-function Lightbox({ url, label, onClose }) {
-  if (!url) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="relative max-w-5xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-5 py-3">
-          <span className="font-semibold text-base flex items-center gap-2"><FiImage /> {label}</span>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"><FiX className="text-lg" /></button>
-        </div>
-        <div className="flex items-center justify-center bg-slate-50 p-4 overflow-auto" style={{ maxHeight: '85vh' }}>
-          <img src={url} alt={label} className="max-w-full object-contain rounded-lg" style={{ maxHeight: '80vh' }} />
-        </div>
-      </div>
-    </div>
-  )
+// Text shown next to the image: the side when the name has one, otherwise whatever
+// the file name carries (without container no., time and extension).
+const labelOf = (name) => {
+  const base = String(name || '').replace(/\.[a-z0-9]+$/i, '')
+  const words = base.split(/[_\-\s]+/).filter((w) => w && !/^\d+$/.test(w) && !/^[A-Z]{4}\d{7}$/i.test(w))
+  return words.join(' ') || base
 }
 
-// Image card that falls back to a placeholder when the file is missing.
-// One image of the folder. Click = select it, magnifier = zoom.
-function ImageThumb({ file, url, selected, onSelect, onZoom, hideName }) {
-  const [err, setErr] = useState(false)
-  useEffect(() => { setErr(false) }, [url])
-  const { side, time } = parseImageName(file)
-  const ok = !!url && !err
-  return (
-    <div
-      className={`bg-white rounded-xl border-2 overflow-hidden flex flex-col transition-all ${
-        selected ? 'border-emerald-500 shadow-lg ring-2 ring-emerald-200' : 'border-slate-200 hover:border-[#0e4a78]/40'
-      }`}
-    >
-      <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50/70 border-b border-slate-100">
-        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${SIDE_STYLE[side] || 'bg-slate-100 text-slate-500'}`}>
-          {side || 'unknown'}
-        </span>
-        {time && <span className="text-[10px] font-mono text-slate-500 inline-flex items-center gap-1"><FiClock size={9} />{time}</span>}
-        {selected && <FiCheck className="ml-auto text-emerald-600" size={14} />}
-      </div>
-      <div
-        className="group relative aspect-[4/3] w-full flex items-center justify-center overflow-hidden cursor-pointer"
-        style={{ background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px' }}
-        onClick={onSelect}
-      >
-        {ok ? (
-          <img src={url} alt={file} onError={() => setErr(true)} className="max-w-full max-h-full object-contain p-1.5" />
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-slate-300">
-            <FiImage size={24} /><span className="text-[10px] font-semibold text-slate-400">No image available</span>
-          </div>
-        )}
-        {ok && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onZoom(url, file) }}
-            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/90 shadow flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Zoom"
-          >
-            <FiZoomIn className="text-[#0e4a78]" size={14} />
-          </button>
-        )}
-      </div>
-      {!hideName && <div className="px-2.5 py-1.5 text-[10px] font-mono text-slate-400 truncate" title={parseImageName(file).name}>{parseImageName(file).name}</div>}
-    </div>
-  )
-}
-
-// One image of the folder at a time. Swipe (touch), arrow buttons or ← / → keys
-// move to the next one; the image on screen is the one that gets saved.
-function ImageViewer({ files, index, urlFor, onGo, onZoom }) {
+// One image of the folder at a time, with an in-place zoom tool (no popup).
+//   • swipe / ← → / arrow buttons: previous / next image (while not zoomed in)
+//   • mouse wheel, + / − buttons, pinch: zoom   • drag: pan   • double-click: zoom in / out
+//   • Fit = whole image, 1:1 = actual pixels
+// The image on screen is the one that gets saved.
+const MAX_ZOOM = 16
+function ImageViewer({ files, index, urlFor, onGo }) {
   const file = files[index]
   const url = urlFor(file)
   const { side, time, name } = parseImageName(file)
   const [err, setErr] = useState(false)
-  const touchX = React.useRef(null)
-  useEffect(() => { setErr(false) }, [url])
+  const [view, setView] = useState({ s: 1, x: 0, y: 0 })
+  const box = React.useRef(null)
+  const img = React.useRef(null)
+  const pointers = React.useRef(new Map())
+  const gesture = React.useRef(null)
+
+  useEffect(() => { setErr(false); setView({ s: 1, x: 0, y: 0 }) }, [url])
+
+  // Zoom by `factor` keeping the point (cx, cy) — relative to the box centre — fixed.
+  const zoomAt = React.useCallback((factor, cx = 0, cy = 0) => {
+    setView((v) => {
+      const s = Math.min(MAX_ZOOM, Math.max(1, v.s * factor))
+      if (s === 1) return { s: 1, x: 0, y: 0 }
+      const k = s / v.s
+      return { s, x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k }
+    })
+  }, [])
+  const fit = () => setView({ s: 1, x: 0, y: 0 })
+  const actualSize = () => {
+    const el = img.current
+    if (!el || !el.clientWidth) return
+    setView({ s: Math.min(MAX_ZOOM, Math.max(1, el.naturalWidth / el.clientWidth)), x: 0, y: 0 })
+  }
+  const rel = (e) => {
+    const r = box.current.getBoundingClientRect()
+    return { x: e.clientX - r.left - r.width / 2, y: e.clientY - r.top - r.height / 2 }
+  }
+
+  // Wheel zoom needs a non-passive listener so the page does not scroll.
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const onWheel = (e) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect()
+      zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [zoomAt])
+
   useEffect(() => {
     const onKey = (e) => {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return
       if (e.key === 'ArrowLeft') onGo(-1)
       else if (e.key === 'ArrowRight') onGo(1)
+      else if (e.key === '+' || e.key === '=') zoomAt(1.4)
+      else if (e.key === '-') zoomAt(1 / 1.4)
+      else if (e.key === '0') fit()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onGo])
+  }, [onGo, zoomAt])
+
+  const dist = () => {
+    const [a, b] = [...pointers.current.values()]
+    return Math.hypot(a.x - b.x, a.y - b.y)
+  }
+  const onPointerDown = (e) => {
+    box.current.setPointerCapture?.(e.pointerId)
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.current.size === 2) gesture.current = { type: 'pinch', d: dist() }
+    else gesture.current = { type: 'one', sx: e.clientX, sy: e.clientY, ox: view.x, oy: view.y, moved: false }
+  }
+  const onPointerMove = (e) => {
+    if (!pointers.current.has(e.pointerId)) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const g = gesture.current
+    if (!g) return
+    if (g.type === 'pinch' && pointers.current.size === 2) {
+      const d = dist()
+      const [a, b] = [...pointers.current.values()]
+      const r = box.current.getBoundingClientRect()
+      zoomAt(d / g.d, (a.x + b.x) / 2 - r.left - r.width / 2, (a.y + b.y) / 2 - r.top - r.height / 2)
+      g.d = d
+    } else if (g.type === 'one') {
+      const dx = e.clientX - g.sx, dy = e.clientY - g.sy
+      if (Math.abs(dx) + Math.abs(dy) > 4) g.moved = true
+      if (view.s > 1) setView((v) => ({ ...v, x: g.ox + dx, y: g.oy + dy }))
+    }
+  }
+  const onPointerUp = (e) => {
+    const g = gesture.current
+    pointers.current.delete(e.pointerId)
+    if (g?.type === 'one' && view.s === 1) {
+      const dx = e.clientX - g.sx
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - g.sy)) onGo(dx < 0 ? 1 : -1) // swipe
+    }
+    if (pointers.current.size === 0) gesture.current = null
+    else if (pointers.current.size === 1) {
+      const [p] = [...pointers.current.values()]
+      gesture.current = { type: 'one', sx: p.x, sy: p.y, ox: view.x, oy: view.y, moved: true }
+    }
+  }
+  const onDoubleClick = (e) => { view.s > 1 ? fit() : zoomAt(2.5, rel(e).x, rel(e).y) }
+
   const arrow = 'absolute top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-[#0e4a78] hover:bg-white hover:scale-105 transition-all'
+  const tool = 'h-8 min-w-[2rem] px-2 rounded-lg flex items-center justify-center text-xs font-bold text-white hover:bg-white/20 transition-colors'
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50/70 border-b border-slate-100">
-        <span className={`text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full ${SIDE_STYLE[side] || 'bg-slate-100 text-slate-500'}`}>{side || 'unknown side'}</span>
+        <span className={`text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full ${SIDE_STYLE[side] || 'bg-slate-100 text-slate-600'}`}>{side || labelOf(name)}</span>
         {time && <span className="text-xs font-mono text-slate-500 inline-flex items-center gap-1"><FiClock size={11} />{time}</span>}
         <span className="ml-auto text-xs font-bold text-slate-500">{index + 1} / {files.length}</span>
       </div>
       <div
-        className="relative h-[46vh] min-h-[260px] flex items-center justify-center select-none"
-        style={{ background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px' }}
-        onTouchStart={(e) => { touchX.current = e.touches[0].clientX }}
-        onTouchEnd={(e) => {
-          if (touchX.current == null) return
-          const dx = e.changedTouches[0].clientX - touchX.current
-          touchX.current = null
-          if (Math.abs(dx) > 50) onGo(dx < 0 ? 1 : -1)
+        ref={box}
+        className="relative h-[52vh] min-h-[280px] overflow-hidden select-none touch-none"
+        style={{
+          background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px',
+          cursor: view.s > 1 ? (gesture.current ? 'grabbing' : 'grab') : 'zoom-in',
         }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onDoubleClick={onDoubleClick}
       >
-        {url && !err ? (
-          <img src={url} alt={name} onError={() => setErr(true)} draggable={false}
-            className="max-w-full max-h-full object-contain cursor-zoom-in p-2" onClick={() => onZoom(url, name)} />
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-slate-300"><FiImage size={34} /><span className="text-xs font-semibold text-slate-400">Image could not be loaded</span></div>
-        )}
-        {files.length > 1 && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})`, transformOrigin: 'center', transition: gesture.current ? 'none' : 'transform 120ms ease-out' }}
+        >
+          {url && !err ? (
+            <img ref={img} src={url} alt={name} onError={() => setErr(true)} draggable={false}
+              className="max-w-full max-h-full object-contain p-2 pointer-events-none" />
+          ) : (
+            <div className="flex flex-col items-center gap-1 text-slate-300"><FiImage size={34} /><span className="text-xs font-semibold text-slate-400">Image could not be loaded</span></div>
+          )}
+        </div>
+
+        {files.length > 1 && view.s === 1 && (
           <>
-            <button type="button" onClick={() => onGo(-1)} className={`${arrow} left-3`} title="Previous"><FiChevronLeft size={22} /></button>
-            <button type="button" onClick={() => onGo(1)} className={`${arrow} right-3`} title="Next"><FiChevronRight size={22} /></button>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onGo(-1)} className={`${arrow} left-3`} title="Previous (←)"><FiChevronLeft size={22} /></button>
+            <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onGo(1)} className={`${arrow} right-3`} title="Next (→)"><FiChevronRight size={22} /></button>
           </>
+        )}
+
+        {/* Zoom tool */}
+        {url && !err && (
+          <div
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-1.5 py-1 rounded-xl bg-slate-900/80 backdrop-blur shadow-lg"
+            onPointerDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <button type="button" className={tool} onClick={() => zoomAt(1 / 1.4)} disabled={view.s <= 1} title="Zoom out (−)"><FiZoomOut size={15} /></button>
+            <span className="w-12 text-center text-[11px] font-mono font-bold text-white/90">{Math.round(view.s * 100)}%</span>
+            <button type="button" className={tool} onClick={() => zoomAt(1.4)} disabled={view.s >= MAX_ZOOM} title="Zoom in (+)"><FiZoomIn size={15} /></button>
+            <span className="w-px h-5 bg-white/20 mx-1" />
+            <button type="button" className={tool} onClick={fit} title="Fit to window (0)"><FiMinimize size={14} /><span className="ml-1">Fit</span></button>
+            <button type="button" className={tool} onClick={actualSize} title="Actual size">1:1</button>
+          </div>
         )}
       </div>
       <div className="px-4 py-2 text-[11px] font-mono text-slate-400 truncate border-t border-slate-100" title={name}>{name}</div>
@@ -279,15 +339,16 @@ export default function GateDashboard() {
   const [fromDate, setFromDate] = useState(yesterdayStr())
   const [toDate, setToDate] = useState(todayStr())
   const [search, setSearch] = useState('')
-  const [missingOnly, setMissingOnly] = useState(false) // Main Gate In rows always carry a container no. + image, so "missing only" would hide them all
+  const [missingOnly, setMissingOnly] = useState(true) // default: only transactions with a missing left / right / top image
   const [gate, setGate] = useState('all') // Main Gate In only: one gate or 'all'
   const [selectedKey, setSelectedKey] = useState(null)
   const [containerInput, setContainerInput] = useState('')
   const [sideOverride, setSideOverride] = useState(null) // used only when the file name has no side
   const [saved, setSaved] = useState({}) // txn key -> { cn, side, file } (UI only until the backend exists)
-  const [lightbox, setLightbox] = useState(null)
 
-  const [viewIdx, setViewIdx] = useState(0)       // which folder image is on screen (= the one that gets saved)
+  const [sugs, setSugs] = useState([])              // last-24h inventory suggestions for the container box
+  const [sugOpen, setSugOpen] = useState(false)
+  const [viewFile, setViewFile] = useState(null)  // folder image on screen (= the one that gets saved); kept when you change transaction
   const [dateOverride, setDateOverride] = useState(null) // yyyymmdd chosen by the operator
 
   // Exactly the same call as the Main Gate In page (no options), so both share one cache entry.
@@ -295,6 +356,7 @@ export default function GateDashboard() {
   const [fetchRail, railQ] = useLazyGetRailInQuery()
   const [saveGate, { isLoading: saving }] = useSaveGateDashboardMutation()
   const [fetchImgs, imgsQ] = useLazyGetGateDashboardImagesQuery()
+  const [fetchSugs] = useLazySearchGateDashboardContainersQuery()
 
   const loadRail = useCallback(() => fetchRail({ from_date: fromDate, to_date: toDate }), [fetchRail, fromDate, toDate])
   useEffect(() => { if (tab === 'rail') loadRail() }, [tab]) // eslint-disable-line
@@ -390,12 +452,24 @@ export default function GateDashboard() {
   const selected = useMemo(() => txns.find((t) => t.key === selectedKey) || null, [txns, selectedKey])
 
   // Switching tab / transaction resets the entry box.
-  useEffect(() => { setSelectedKey(null); setGate('all') }, [tab])
+  useEffect(() => { setSelectedKey(null); setGate('all'); setDateOverride(null); setViewFile(null) }, [tab])
   // The transaction's own container number is filled in automatically (editable).
   useEffect(() => {
     const cn = selected && !isMissing(selected.containerNo) ? String(selected.containerNo).trim().split(' ')[0].toUpperCase() : ''
-    setContainerInput(cn); setViewIdx(0); setDateOverride(null); setSideOverride(null)
+    setContainerInput(cn); setSideOverride(null) // the viewed image and folder date are kept
   }, [selectedKey]) // eslint-disable-line
+
+  // Suggestions: containers that came in during the last 24 h matching what is typed.
+  useEffect(() => {
+    if (containerInput.length < 2 || containerInput.length >= 11) { setSugs([]); return }
+    let stale = false
+    const h = setTimeout(() => {
+      fetchSugs(containerInput, true).unwrap()
+        .then((res) => { if (!stale) setSugs(Array.isArray(res?.data) ? res.data : []) })
+        .catch(() => { if (!stale) setSugs([]) })
+    }, 250)
+    return () => { stale = true; clearTimeout(h) }
+  }, [containerInput]) // eslint-disable-line
 
   const savedInfo = selected ? saved[selected.key] : null
   // Selected transaction -> every image of <stitching>/<gate>/<date>/00000000000
@@ -407,9 +481,8 @@ export default function GateDashboard() {
       gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER,
       // Only the gate name is sent; the server uses today's date unless the operator picked another day.
       ...(dateOverride ? { date: dateOverride } : {}),
-    })
-    setViewIdx(0)
-  }, [folderMode, selected?.key, dateOverride]) // eslint-disable-line
+    }, true) // load once per gate/date; changing transaction does not reload or move the image
+  }, [folderMode, tab, dateOverride]) // eslint-disable-line
   const serverImgs = folderMode ? imgsQ.currentData : null
   const baseFolder = serverImgs?.folder || folderOf(selected)
   // The transaction knows which sides are missing, so only images of those sides
@@ -428,11 +501,13 @@ export default function GateDashboard() {
   const filtered = !showAllSides && wantedSides.length > 0 && sideFiles.length > 0 && sideFiles.length < allFiles.length
   const files = filtered || (wantedSides.length === 0) ? sideFiles : allFiles
   // The image on screen is the one that gets saved.
-  const picked = files.length ? files[Math.min(viewIdx, files.length - 1)] : null
+  const viewIdx = Math.max(0, files.indexOf(viewFile))
+  const picked = files.length ? files[viewIdx] : null
   useEffect(() => { setSideOverride(null) }, [picked])
-  // Side comes from the file name; when it has none the operator picks it.
-  const pickedSide = picked ? (parseImageName(picked).side || sideOverride) : null
-  const go = (d) => { if (files.length) setViewIdx((i) => (i + d + files.length) % files.length) }
+  // Side comes from the file name (pre-selected); the operator can still change it.
+  const detectedSide = picked ? parseImageName(picked).side : null
+  const pickedSide = picked ? (sideOverride || detectedSide) : null
+  const go = (d) => { if (files.length) setViewFile(files[(viewIdx + d + files.length) % files.length]) }
 
   const urlFor = (file) => imageUrl(baseFolder, file)
 
@@ -451,7 +526,8 @@ export default function GateDashboard() {
       notify.warning('Invalid container no', 'Format: 4 letters + 7 digits (e.g. MSKU1234567)')
       return
     }
-    const done = () => setSaved((s) => ({ ...s, [selected.key]: { cn, side: pickedSide, file: picked } }))
+    // After the move the image lives at <container>/<side>.jpg (res.url); show it from there.
+    const done = (res) => setSaved((s) => ({ ...s, [selected.key]: { cn, side: pickedSide, file: res?.url || picked } }))
     if (!baseFolder) {
       notify.warning('No folder', 'No 00000000000 folder was found for this transaction')
       return
@@ -465,13 +541,17 @@ export default function GateDashboard() {
       detected_time: selected.time,
       // Row to update with the container number (main: ID = SurveyId, rail: TransactionId).
       transaction_id: Number(tab === 'rail' ? (selected.raw.TransactionId ?? selected.raw.ID) : selected.raw.ID) || null,
-      // Only touch the row when the number actually changes; otherwise just the image is saved.
-      update_record: cn !== String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
+      gate_name: selected.place, // used when the survey table has no row yet and one is inserted
+      // Rail: only when the number changes. Main Gate: always, so a missing survey row gets inserted.
+      update_record: tab === 'main' || cn !== String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
     }).unwrap()
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
-        done()
-        notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'added to the existing folder' : 'saved in a new folder'}${res.updated ? ' · transaction updated' : ''}`)
+        done(res)
+        // The image was moved out of 00000000000, so reload that folder's list.
+        setViewFile(null)
+        fetchImgs({ gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER, ...(dateOverride ? { date: dateOverride } : {}) }, false)
+        notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'moved into the existing folder' : 'moved into a new folder'}${res.inserted ? ' · added to the survey table' : res.updated ? ' · transaction updated' : ''}`)
       })
       .catch(() => notify.error('Save failed', 'Server error'))
   }
@@ -558,11 +638,6 @@ export default function GateDashboard() {
               <input type="datetime-local" value={toDate} onChange={(e) => setToDate(e.target.value)}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30" />
             </label>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex-1 min-w-[200px]">
-              <span className="flex items-center gap-1 mb-1"><FiSearch size={11} /> Search</span>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tab === 'main' ? 'Vehicle / gate…' : 'Wagon / rake…'}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30" />
-            </label>
             <button
               onClick={() => setMissingOnly((v) => !v)}
               className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
@@ -587,6 +662,15 @@ export default function GateDashboard() {
                   <p className="font-semibold text-sm">Transactions</p>
                   <p className="text-[11px] text-white/60">{visible.length.toLocaleString()} shown · {missingCount.toLocaleString()} missing of {txns.length.toLocaleString()}</p>
                 </div>
+                <div className="relative w-44">
+                  <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Container / vehicle…"
+                    className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs text-slate-700 bg-white/95 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/40"
+                  />
+                </div>
               </div>
 
               <div className="flex-1 overflow-auto divide-y divide-slate-100">
@@ -602,8 +686,8 @@ export default function GateDashboard() {
                 ) : visible.length === 0 ? (
                   <div className="py-16 text-center text-slate-400">
                     <FiSearch className="mx-auto text-3xl mb-2 text-slate-300" />
-                    <p className="text-sm font-semibold">No transactions</p>
-                    <p className="text-xs mt-1">Try a different date range or filter</p>
+                    <p className="text-sm font-semibold">{txns.some((t) => t.checking) ? 'Checking images…' : 'No transactions'}</p>
+                    <p className="text-xs mt-1">{txns.some((t) => t.checking) ? 'Missing ones appear here as each batch is checked' : 'Try a different date range or filter'}</p>
                   </div>
                 ) : visible.map((t) => {
                   const sel = t.key === selectedKey
@@ -668,18 +752,11 @@ export default function GateDashboard() {
 
                   {savedInfo ? (
                     /* Saved: only the one image, under its new name */
-                    <div className="max-w-md mx-auto w-full space-y-2">
+                    <div className="max-w-3xl mx-auto w-full space-y-2">
                       <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
                         <FiCheck /> Saved as <span className="font-mono">{savedInfo.cn}/{savedInfo.side}.jpg</span>
                       </p>
-                      <ImageThumb
-                        file={savedInfo.file}
-                        url={urlFor(savedInfo.file)}
-                        selected
-                        hideName
-                        onSelect={() => {}}
-                        onZoom={(url, l) => setLightbox({ url, label: `${savedInfo.cn} · ${savedInfo.side}.jpg` })}
-                      />
+                      <ImageViewer files={[savedInfo.file]} index={0} urlFor={urlFor} onGo={() => {}} />
                       <button
                         onClick={() => setSaved((s) => { const n = { ...s }; delete n[selected.key]; return n })}
                         className="text-[11px] font-semibold text-slate-500 hover:text-[#0e4a78] underline"
@@ -730,10 +807,9 @@ export default function GateDashboard() {
                       )}
                       <ImageViewer
                         files={files}
-                        index={Math.min(viewIdx, files.length - 1)}
+                        index={viewIdx}
                         urlFor={urlFor}
                         onGo={go}
-                        onZoom={(url, label) => setLightbox({ url, label })}
                       />
                     </div>
                   )}
@@ -745,13 +821,33 @@ export default function GateDashboard() {
                       <FiHash size={12} className="text-[#0e4a78]" /> Container number
                     </label>
                     <div className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        value={containerInput}
-                        onChange={(e) => setContainerInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                        placeholder="e.g. MSKU1234567"
-                        className="flex-1 border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
-                      />
+                      <div className="relative flex-1">
+                        <input
+                          value={containerInput}
+                          onChange={(e) => { setContainerInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)); setSugOpen(true) }}
+                          onFocus={() => setSugOpen(true)}
+                          onBlur={() => setTimeout(() => setSugOpen(false), 150)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { setSugOpen(false); handleSubmit() } else if (e.key === 'Escape') setSugOpen(false) }}
+                          placeholder="e.g. MSKU1234567"
+                          autoComplete="off"
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
+                        />
+                        {sugOpen && sugs.length > 0 && (
+                          <ul className="absolute z-20 left-0 right-0 bottom-full mb-1 max-h-60 overflow-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
+                            <li className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 sticky top-0">In the yard in the last 24 hours</li>
+                            {sugs.map((s) => (
+                              <li key={s.ContNo}>
+                                <button type="button" onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { setContainerInput(String(s.ContNo).toUpperCase().slice(0, 11)); setSugOpen(false) }}
+                                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50">
+                                  <span className="font-mono font-bold text-sm text-slate-700">{s.ContNo}</span>
+                                  <span className="text-[10px] text-slate-400">{[s.ContainerSize && `${s.ContainerSize}'`, s.Process, s.GateInDate && String(s.GateInDate).slice(5, 16)].filter(Boolean).join(' · ')}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                       <button
                         onClick={handleSubmit}
                         disabled={!inputOk || saving}
@@ -760,13 +856,13 @@ export default function GateDashboard() {
                         <FiCheck size={15} /> Save
                       </button>
                     </div>
-                    {picked && !parseImageName(picked).side && (
+                    {picked && (
                       <div className="flex items-center gap-2 mt-3">
-                        <span className="text-[11px] font-bold text-slate-500">Image side</span>
+                        <span className="text-[11px] font-bold text-slate-500">Image side{detectedSide ? ' (from file name)' : ''}</span>
                         {['left', 'right', 'top'].map((s) => (
                           <button key={s} type="button" onClick={() => setSideOverride(s)}
                             className={`px-3 py-1 rounded-full text-[11px] font-black uppercase border ${
-                              sideOverride === s ? `${SIDE_STYLE[s]} border-current` : 'bg-white text-slate-500 border-slate-200'
+                              pickedSide === s ?`${SIDE_STYLE[s]} border-current` : 'bg-white text-slate-500 border-slate-200'
                             }`}>{s}</button>
                         ))}
                       </div>
@@ -787,7 +883,6 @@ export default function GateDashboard() {
         <Footer />
       </div>
 
-      {lightbox && <Lightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />}
     </div>
   )
 }

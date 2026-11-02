@@ -1,11 +1,11 @@
-"""Gate Dashboard — fix a transaction whose container number was not read.
+﻿"""Gate Dashboard â€” fix a transaction whose container number was not read.
 
 Frontend contract:
   POST /v1/container/gate-dashboard/save
       body: gate ("main" | "rail"), container_no, side (left|right|top),
             folder (folder of the unread images), file (picked image name),
             gate_name, detected_time, transaction_id, update_record
-      -> copies <folder>/<file> to <folder's parent>/<container_no>/<side>.jpg
+      -> MOVES <folder>/<file> to <folder's parent>/<container_no>/<side>.jpg
          (the folder is created if needed, otherwise the image is added to it)
          and, when update_record is true, sets ContainerNo on the transaction:
   main -> UPDATE EKL_TRN_CONTAINER_ESURVEY SET ContainerNo = ? WHERE SurveyId = ?
@@ -18,7 +18,7 @@ import pathlib
 import re
 import shutil
 from datetime import datetime
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -87,6 +87,40 @@ def _day_folder(gate_name: str, date: Optional[str]):
     return None
 
 
+@router.get("/gate-dashboard/containers")
+def suggest_containers(term: str = Query("", max_length=20)):
+    """Container-number suggestions for the entry box: containers that came into the
+    yard in the last 24 hours (EKL_TRN_INVENTORY), newest first."""
+    term = re.sub(r"[^A-Za-z0-9]", "", term).upper()
+    if len(term) < 2:
+        return {"status": "success", "data": []}
+    db = SQLManager()
+    try:
+        result = db.execute_query(
+            """
+            SELECT TOP 15 ContNo, MAX(ContainerSize) AS ContainerSize, MAX(Process) AS Process,
+                   MAX(GateInDate) AS GateInDate
+            FROM EKL_TRN_INVENTORY
+            WHERE ContNo LIKE ? AND GateInDate >= DATEADD(HOUR, -24, GETDATE())
+            GROUP BY ContNo
+            ORDER BY MAX(GateInDate) DESC
+            """,
+            (f"%{term}%",),
+        )
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
+        rows = result.get("data", []) or []
+        for r in rows:
+            if r.get("GateInDate") is not None:
+                r["GateInDate"] = r["GateInDate"].strftime("%Y-%m-%d %H:%M:%S")
+        return {"status": "success", "data": rows}
+    except Exception as e:
+        logger.exception("gate-dashboard containers error")
+        return {"status": "error", "message": f"Server Error: {e}", "data": []}
+    finally:
+        db.close_connection()
+
+
 class SideItem(BaseModel):
     key: str
     container_no: Optional[str] = None
@@ -95,7 +129,7 @@ class SideItem(BaseModel):
 
 class SidesBody(BaseModel):
     gate_name: str
-    items: list[SideItem]
+    items: List[SideItem]
 
 
 _SIDE_RE = re.compile(r"(?:^|[_\-. ])(left|right|top)(?:[_\-. ]|$)", re.IGNORECASE)
@@ -144,7 +178,7 @@ def list_missing_images(gate_name: str, date: Optional[str] = None):
     folder = _day_folder(gate_name, day)
     fallback = False
     if folder is None and days:
-        # No 00000000000 folder for the asked date → show the latest one that exists.
+        # No 00000000000 folder for the asked date â†’ show the latest one that exists.
         folder, day, fallback = gate_dir / days[0] / MISSING_FOLDER, days[0], True
     if folder is None:
         return {"status": "success", "folder": None, "images": [], "dates": [], "date": day,
@@ -200,10 +234,14 @@ def save_container(body: SaveBody):
             return {"status": "error", "message": "Source image not found"}
         dest_dir = folder.parent / container_no
         dest_dir.relative_to(root)
-        existed = dest_dir.is_dir()  # folder already there → the image is added into it
+        existed = dest_dir.is_dir()  # folder already there â†’ the image is added into it
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / f"{body.side}.jpg"
-        shutil.copy2(src, dest)
+        # MOVE (not copy): the image leaves the 00000000000 folder so it is not offered again.
+        if dest.exists():
+            dest.unlink()  # same side saved before â†’ replace it
+        shutil.move(str(src), str(dest))
+        url = "/v1/container/gate-dashboard/img?p=" + dest.resolve().relative_to(root).as_posix()
     except ValueError:
         return {"status": "error", "message": "Folder is outside the allowed image root"}
     except Exception as e:
@@ -211,7 +249,7 @@ def save_container(body: SaveBody):
         return {"status": "error", "message": f"Could not save image: {e}"}
 
     if not body.update_record:
-        return {"status": "success", "path": str(dest), "folder_existed": existed, "updated": False}
+        return {"status": "success", "path": str(dest), "folder_existed": existed, "url": url, "updated": False}
 
     # 2) Update the transaction with the container number.
     db = SQLManager()
@@ -232,20 +270,33 @@ def save_container(body: SaveBody):
             if not result or result.get("status") != "success":
                 return {"status": "error", "message": (result or {}).get("message", "Database update failed")}
         else:
-            if body.transaction_id is None:
-                return {"status": "error", "message": f"Image saved to {dest}, but the transaction has no id to update"}
-            result = db.execute_query(
-                f"UPDATE {MAIN_TABLE} SET ContainerNo = ? WHERE {MAIN_KEY} = ?",
-                (container_no, body.transaction_id),
-                commit=True,
-            )
-            if not result or result.get("status") != "success":
-                return {"status": "error", "message": (result or {}).get("message", "Database update failed")}
-            if not result.get("rows_affected"):
-                return {"status": "error", "message": f"Image saved to {dest}, but no transaction with id {body.transaction_id} was found to update"}
-        return {"status": "success", "path": str(dest), "folder_existed": existed, "updated": True}
+            inserted = False
+            result = None
+            if body.transaction_id is not None:
+                result = db.execute_query(
+                    f"UPDATE {MAIN_TABLE} SET ContainerNo = ? WHERE {MAIN_KEY} = ?",
+                    (container_no, body.transaction_id),
+                    commit=True,
+                )
+                if not result or result.get("status") != "success":
+                    return {"status": "error", "message": (result or {}).get("message", "Database update failed")}
+            if result is None or not result.get("rows_affected"):
+                # The survey table has no row for this transaction → insert it, same columns the
+                # detection service writes.
+                result = db.execute_query(
+                    f"INSERT INTO {MAIN_TABLE} (GateName, SurveyTime, ContainerNo, DetectedTime) VALUES (?, ?, ?, ?)",
+                    ((body.gate_name or "UNKNOWN_GATE").strip().upper(), datetime.now(), container_no, _parse_dt(body.detected_time)),
+                    commit=True,
+                )
+                if not result or result.get("status") != "success":
+                    return {"status": "error", "message": (result or {}).get("message", "Database insert failed")}
+                inserted = True
+            return {"status": "success", "path": str(dest), "folder_existed": existed, "url": url,
+                    "updated": not inserted, "inserted": inserted}
+        return {"status": "success", "path": str(dest), "folder_existed": existed, "url": url, "updated": True}
     except Exception as e:
         logger.exception("gate-dashboard save error")
         return {"status": "error", "message": f"Server Error: {e}"}
     finally:
         db.close_connection()
+

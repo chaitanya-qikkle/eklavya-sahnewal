@@ -1000,6 +1000,10 @@ export const ymsApi = createApi({
       }),
     }),
 
+    searchGateDashboardContainers: builder.query({
+      query: (term) => ({ url: API_ENDPOINTS.CONTAINER.GATE_DASHBOARD_CONTAINERS, method: 'GET', params: { term } }),
+    }),
+
     checkGateDashboardSides: builder.mutation({
       query: (body) => ({ url: API_ENDPOINTS.CONTAINER.GATE_DASHBOARD_SIDES, method: 'POST', body }),
     }),
@@ -1349,6 +1353,7 @@ export const {
   useGetGateNamesQuery,
   useSaveGateDashboardMutation,
   useCheckGateDashboardSidesMutation,
+  useLazySearchGateDashboardContainersQuery,
   useLazyGetGateDashboardImagesQuery,
   useGetVehicleContainerDetectionQuery,
   useLazyGetRailInQuery,
