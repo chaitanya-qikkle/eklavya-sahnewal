@@ -362,7 +362,7 @@ export default function GateDashboard() {
   useEffect(() => { if (tab === 'rail') loadRail() }, [tab]) // eslint-disable-line
 
   const loadMain = useCallback(() => fetchMain({
-    page: 1, page_size: 100000, from_date: fromDate, to_date: toDate, gate_type: 'GATE_IN',
+    page: 1, page_size: 100000, from_date: fromDate, to_date: toDate,
   }), [fetchMain, fromDate, toDate])
   // Reload (after a short pause while typing a date) whenever the range changes.
   useEffect(() => {
