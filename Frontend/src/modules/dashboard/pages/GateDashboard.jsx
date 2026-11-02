@@ -26,7 +26,7 @@ const TABS = [
 // Image folders under the stitching root. A transaction's GateName is a device /
 // gate code (e.g. COM-WB-BK-IN-110), not the folder, so each tab has one fixed folder.
 const MAIN_GATE_FOLDER = 'MAINGATE_IN'
-const RAIL_GATE_FOLDER = 'RAILGATE_IN'
+const RAIL_GATE_FOLDER = 'RAILGATE'
 
 const SIDE_STYLE = {
   left:  'bg-blue-100 text-blue-700',
@@ -303,24 +303,27 @@ export default function GateDashboard() {
 
   const txns = useMemo(() => {
     const rows = Array.isArray(active.data?.data) ? active.data.data : []
-    return normalize(tab, rows)
-  }, [active.data, tab]) // eslint-disable-line
+    const all = normalize(tab, rows)
+    if (tab !== 'main') return all // Rail is already ranged by its SP
+    // Main Gate In SP has no date range, so From / To are applied here (counts, gates and list all follow it).
+    const from = timeOf(fromDate), to = timeOf(toDate)
+    return all.filter((t) => {
+      const tm = timeOf(t.time)
+      return !tm || !((from && tm < from) || (to && tm > to))
+    })
+  }, [active.data, tab, fromDate, toDate]) // eslint-disable-line
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const from = timeOf(fromDate), to = timeOf(toDate)
     return txns
       .filter((t) => {
         if (missingOnly && !t.missing) return false
-        // Main Gate In SP has no date range, so it is filtered here; Rail is already ranged by its SP.
-        const tm = timeOf(t.time)
-        if (tab === 'main' && tm && ((from && tm < from) || (to && tm > to))) return false
         if (tab === 'main' && gate !== 'all' && t.place !== gate) return false
         if (q &&!`${t.containerNo ?? ''} ${t.ref ?? ''} ${t.place ?? ''}`.toLowerCase().includes(q)) return false
         return true
       })
       .sort((a, b) => timeOf(b.time) - timeOf(a.time))
-  }, [txns, missingOnly, search, tab, gate, fromDate, toDate])
+  }, [txns, missingOnly, search, tab, gate])
 
   // Gates = the distinct GateName values of the Main Gate In SP rows (same as
   // the Main Gate In page), shown with their raw names.
@@ -354,7 +357,8 @@ export default function GateDashboard() {
     if (!folderMode) return
     fetchImgs({
       gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER,
-      date: dateOverride || String(selected.time || '').slice(0, 10),
+      // Only the gate name is sent; the server uses today's date unless the operator picked another day.
+      ...(dateOverride ? { date: dateOverride } : {}),
     })
     setViewIdx(0)
   }, [folderMode, selected?.key, dateOverride]) // eslint-disable-line
@@ -399,15 +403,16 @@ export default function GateDashboard() {
       side: pickedSide,
       folder: baseFolder,
       file: parseImageName(picked).name,
-      gate_name: selected.place,
       detected_time: selected.time,
-      // The row already exists when it has a container number → only the image is saved.
-      update_record: isMissing(selected.containerNo),
+      // Row to update with the container number (main: ID = SurveyId, rail: TransactionId).
+      transaction_id: Number(tab === 'rail' ? (selected.raw.TransactionId ?? selected.raw.ID) : selected.raw.ID) || null,
+      // Only touch the row when the number actually changes; otherwise just the image is saved.
+      update_record: cn !== String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
     }).unwrap()
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
         done()
-        notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'added to the existing folder' : 'saved in a new folder'}`)
+        notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'added to the existing folder' : 'saved in a new folder'}${res.updated ? ' · transaction updated' : ''}`)
       })
       .catch(() => notify.error('Save failed', 'Server error'))
   }
