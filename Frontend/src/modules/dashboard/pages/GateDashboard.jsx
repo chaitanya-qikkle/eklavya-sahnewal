@@ -8,7 +8,6 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { notify } from '../../../utils/notify'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid } from '../../../components/ui/StatCard'
 import {
   useLazyGetPreGateSurveyQuery,
   useSaveGateDashboardMutation,
@@ -534,13 +533,6 @@ export default function GateDashboard() {
               </h1>
             </div>
 
-            {/* Summary: top-right corner */}
-            <StatGrid cols="grid-cols-2 sm:grid-cols-4" className="w-full lg:w-auto lg:min-w-[640px]">
-              <StatCard label="Transactions" value={txns.length} icon={FiTruck} tone="slate" />
-              <StatCard label="Need review" value={missingCount} icon={FiAlertCircle} tone="rose" total={txns.length} />
-              <StatCard label="Updated" value={Object.keys(saved).length} icon={FiCheck} tone="emerald" total={missingCount} />
-              <StatCard label="Shown" value={visible.length} icon={FiImage} tone="sky" total={txns.length} />
-            </StatGrid>
           </header>
 
           {/* Tabs */}
