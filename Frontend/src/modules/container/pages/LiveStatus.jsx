@@ -50,8 +50,7 @@ const isSize40 = (r) => String(r.CONTAINER_SIZE || "").trim().toUpperCase().star
 
 // Hazardous = location name starts with "HAZ" (HAZ:B:12:1, HAZ:A:3:2 ...)
 // Only the prefix matters; the rest of the location can be anything.
-const getLocationName = (r) => String(r.LOCATION_NAME || r.MASTERTABLE || r.BLOCK_NAME || "").trim().toUpperCase();
-const isHazardous = (r) => getLocationName(r).startsWith("HAZ");
+const isHazardous = (r) => String(r.CargoType ?? "").trim().toUpperCase() === "HAZ";
 
 const procOf = (r) => String(r.CONTAINER_PROCESS || "").toLowerCase();
 

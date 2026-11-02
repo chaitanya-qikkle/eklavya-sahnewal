@@ -32,9 +32,17 @@ SMTP_USER     = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS  = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
 
+# TO recipients — required
 REPORT_RECIPIENTS: List[str] = [
     e.strip()
-    for e in os.getenv("REPORT_RECIPIENTS", "").split(",")
+    for e in os.getenv("REPORT_RECIPIENTS", "adil.sayyad@qikkle.com").split(",")
+    if e.strip()
+]
+
+# CC recipients — optional (leave blank or don't set in .env to skip CC)
+REPORT_CC: List[str] = [
+    e.strip()
+    for e in os.getenv("REPORT_CC", "").split(",")
     if e.strip()
 ]
 
@@ -376,8 +384,13 @@ def send_container_ageing_report() -> bool:
     msg["Subject"] = subject
     msg["From"]    = SMTP_USER
     msg["To"]      = ", ".join(REPORT_RECIPIENTS)
+    if REPORT_CC:
+        msg["Cc"]  = ", ".join(REPORT_CC)
     msg.attach(MIMEText(plain_text, "plain"))
     msg.attach(MIMEText(html_body, "html"))
+
+    # All addresses that should actually receive the email (TO + CC)
+    all_recipients = REPORT_RECIPIENTS + REPORT_CC
 
     # 4. Send
     try:
@@ -390,12 +403,12 @@ def send_container_ageing_report() -> bool:
             server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
 
         server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, REPORT_RECIPIENTS, msg.as_string())
+        server.sendmail(SMTP_USER, all_recipients, msg.as_string())
         server.quit()
 
-        logger.info(
-            "Report sent successfully to: %s", ", ".join(REPORT_RECIPIENTS)
-        )
+        logger.info("Report sent TO  : %s", ", ".join(REPORT_RECIPIENTS))
+        if REPORT_CC:
+            logger.info("Report sent CC  : %s", ", ".join(REPORT_CC))
         return True
 
     except smtplib.SMTPAuthenticationError:
