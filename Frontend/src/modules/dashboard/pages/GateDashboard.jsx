@@ -113,6 +113,7 @@ const isMissing = (containerNo) => {
 }
 
 const CONTAINER_RE = /^[A-Z]{4}\d{7}$/
+const IMAGE_ONLY_KEY = '__image_only__'
 
 // Both gates reduced to one shape so the list/panel don't care which tab.
 // A transaction is "missing" when one or more of its container images did not
@@ -177,6 +178,7 @@ function ImageViewer({ files, index, urlFor, onGo }) {
   const img = React.useRef(null)
   const pointers = React.useRef(new Map())
   const gesture = React.useRef(null)
+  const [dragging, setDragging] = useState(false) // a finger / mouse button is down (cursor + no transition)
 
   useEffect(() => { setErr(false); setView({ s: 1, x: 0, y: 0 }) }, [url])
 
@@ -233,6 +235,7 @@ function ImageViewer({ files, index, urlFor, onGo }) {
   const onPointerDown = (e) => {
     box.current.setPointerCapture?.(e.pointerId)
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    setDragging(true)
     if (pointers.current.size === 2) gesture.current = { type: 'pinch', d: dist() }
     else gesture.current = { type: 'one', sx: e.clientX, sy: e.clientY, ox: view.x, oy: view.y, moved: false }
   }
@@ -260,7 +263,7 @@ function ImageViewer({ files, index, urlFor, onGo }) {
       const dx = e.clientX - g.sx
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - g.sy)) onGo(dx < 0 ? 1 : -1) // swipe
     }
-    if (pointers.current.size === 0) gesture.current = null
+    if (pointers.current.size === 0) { gesture.current = null; setDragging(false) }
     else if (pointers.current.size === 1) {
       const [p] = [...pointers.current.values()]
       gesture.current = { type: 'one', sx: p.x, sy: p.y, ox: view.x, oy: view.y, moved: true }
@@ -282,7 +285,7 @@ function ImageViewer({ files, index, urlFor, onGo }) {
         className="relative h-[42vh] min-h-[240px] overflow-hidden select-none touch-none"
         style={{
           background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px',
-          cursor: view.s > 1 ? (gesture.current ? 'grabbing' : 'grab') : 'zoom-in',
+          cursor: view.s > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -292,7 +295,7 @@ function ImageViewer({ files, index, urlFor, onGo }) {
       >
         <div
           className="absolute inset-0 flex items-center justify-center"
-          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})`, transformOrigin: 'center', transition: gesture.current ? 'none' : 'transform 120ms ease-out' }}
+          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})`, transformOrigin: 'center', transition: dragging ? 'none' : 'transform 120ms ease-out' }}
         >
           {url && !err ? (
             <img ref={img} src={url} alt={name} onError={() => setErr(true)} draggable={false}
@@ -408,7 +411,13 @@ export default function GateDashboard() {
 
   const missingCount = useMemo(() => txns.filter((t) => t.missing).length, [txns])
 
-  const selected = useMemo(() => txns.find((t) => t.key === selectedKey) || null, [txns, selectedKey])
+  // "Update from image": no transaction is selected; the gate (chip, or the tab's default folder),
+  // the chosen date and the time in the image's file name describe the transaction instead.
+  const imageOnly = selectedKey === IMAGE_ONLY_KEY
+  const freeGate = tab === 'rail' ? RAIL_GATE_FOLDER : (gate !== 'all' ? gate : MAIN_GATE_FOLDER)
+  const selected = useMemo(() => (imageOnly
+    ? { key: IMAGE_ONLY_KEY, imageOnly: true, containerNo: '', refLabel: 'Gate', ref: freeGate, place: freeGate, time: '', missingSides: [], raw: { GateName: freeGate } }
+    : txns.find((t) => t.key === selectedKey) || null), [txns, selectedKey, imageOnly, freeGate])
 
   // Switching tab / transaction resets the entry box.
   useEffect(() => { setSelectedKey(null); setGate('all'); setDateOverride(null); setViewFile(null) }, [tab])
@@ -491,22 +500,34 @@ export default function GateDashboard() {
       notify.warning('No folder', 'No 00000000000 folder was found for this transaction')
       return
     }
+    // Image only: the transaction time is the chosen date + the time in the file name.
+    const imgTime = selected.imageOnly ? `${day} ${parseImageName(picked).time || '00:00:00'}` : null
     saveGate({
       gate: tab,
       container_no: cn,
       side: pickedSide,
       folder: baseFolder,
       file: parseImageName(picked).name,
-      detected_time: selected.time,
-      // Main: the survey row is found by GateName + SurveyTime + its current number.
+      detected_time: imgTime || selected.time,
+      // Main: the survey row is found by GateName + SurveyTime + its current number
+      // (image only: no row yet, so the survey row is inserted).
       gate_name: tab === 'main' ? selected.raw.GateName : undefined,
-      survey_time: tab === 'main' ? selected.raw.SurveyTime : undefined,
+      survey_time: tab === 'main' ? (imgTime || selected.raw.SurveyTime) : undefined,
       old_container_no: String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
       // Rail: only when the number changes.
       update_record: cn !== String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
     }).unwrap()
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
+        const msg = `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'moved into the existing folder' : 'moved into a new folder'}${res.inserted ? ' · added to the survey table' : res.updated ? ' · transaction updated' : ''}`
+        if (selected.imageOnly) {
+          // Stay in image mode for the next image; reload the transactions so the new one shows up.
+          setViewFile(null); setSideOverride(null); setContainerInput('')
+          fetchImgs(imgArgs, false)
+          refresh()
+          notify.success('Saved', msg)
+          return
+        }
         done(res)
         // Move straight on to the next transaction that still needs review.
         const at = visible.findIndex((t) => t.key === selected.key)
@@ -516,7 +537,7 @@ export default function GateDashboard() {
         // The image was moved out of 00000000000, so reload that folder's list.
         setViewFile(null)
         fetchImgs(imgArgs, false)
-        notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'moved into the existing folder' : 'moved into a new folder'}${res.inserted ? ' · added to the survey table' : res.updated ? ' · transaction updated' : ''}`)
+        notify.success('Saved', msg)
       })
       .catch(() => notify.error('Save failed', 'Server error'))
   }
@@ -583,7 +604,7 @@ export default function GateDashboard() {
                   ...gateList.map((g) => ({ key: g, label: g, count: gateCounts[g] || 0 }))].map(({ key, label, count }) => (
                   <button
                     key={key}
-                    onClick={() => { setGate(key); setSelectedKey(null) }}
+                    onClick={() => { setGate(key); if (!imageOnly) setSelectedKey(null) }}
                     className={`inline-flex items-center gap-2 pl-3 pr-1.5 py-1 rounded-full text-xs font-bold border transition-all ${
                       gate === key
                         ? 'bg-gradient-to-r from-[#0e4a78] to-[#0b3e66] text-white border-[#0e4a78] shadow-md'
@@ -673,11 +694,22 @@ export default function GateDashboard() {
 
             {/* Images + entry */}
             <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden xl:sticky xl:top-2 xl:self-start">
-              <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-4 py-3">
-                <p className="font-semibold text-sm">{selected ? 'Transaction images' : 'Select a transaction'}</p>
-                <p className="text-[11px] text-white/60">
-                  {selected ? `${selected.refLabel}: ${selected.ref || '—'} · ${formatDate(selected.time)}` : 'Pick a transaction from the list'}
-                </p>
+              <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-4 py-3 flex items-center gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">{imageOnly ? 'Update from image' : selected ? 'Transaction images' : 'Select a transaction'}</p>
+                  <p className="text-[11px] text-white/60 truncate">
+                    {imageOnly
+                      ? `Gate: ${freeGate} · ${formatDate(`${day} 00:00`).slice(0, 10)} · time is taken from the image`
+                      : selected ? `${selected.refLabel}: ${selected.ref || '—'} · ${formatDate(selected.time)}` : 'Pick a transaction from the list'}
+                  </p>
+                </div>
+                <button type="button" onClick={() => setSelectedKey(imageOnly ? null : IMAGE_ONLY_KEY)}
+                  className={`ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                    imageOnly ? 'bg-white text-[#0e4a78] border-white' : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+                  }`}
+                  title="Save an image to a container without selecting a transaction">
+                  <FiImage size={13} /> {imageOnly ? 'Close image mode' : 'Update from image'}
+                </button>
               </div>
 
               {!selected ? (
@@ -685,6 +717,10 @@ export default function GateDashboard() {
                   <FiImage className="mx-auto text-5xl mb-3 text-slate-300" />
                   <p className="text-sm font-semibold">No transaction selected</p>
                   <p className="text-xs mt-1">All images of its folder appear here once you select one</p>
+                  <button type="button" onClick={() => setSelectedKey(IMAGE_ONLY_KEY)}
+                    className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#0e4a78] text-white hover:bg-[#0b3e66]">
+                    <FiImage size={13} /> Update from image without a transaction
+                  </button>
                 </div>
               ) : (
                 <div className="p-4 space-y-4">
@@ -774,17 +810,6 @@ export default function GateDashboard() {
                   ) : (
                     <div className="space-y-3">
                       {/* Date of the folder: the transaction's date, or any other day that has a 00000000000 folder */}
-                      {false && serverImgs?.dates?.length > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[11px] font-bold text-slate-500 inline-flex items-center gap-1"><FiCalendar size={11} /> Folder date</span>
-                          {serverImgs.dates.slice(0, 8).map((d) => (
-                            <button key={d} type="button" onClick={() => setDateOverride(d)}
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold border transition-all ${
-                                serverImgs.date === d ? 'bg-[#0e4a78] text-white border-[#0e4a78]' : 'bg-white text-slate-500 border-slate-200 hover:border-[#0e4a78]/40'
-                              }`}>{d}</button>
-                          ))}
-                        </div>
-                      )}
                       {serverImgs?.fallback && (
                         <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1.5">
                           <FiAlertCircle size={12} /> No folder for this transaction's date, showing {serverImgs.date} instead.

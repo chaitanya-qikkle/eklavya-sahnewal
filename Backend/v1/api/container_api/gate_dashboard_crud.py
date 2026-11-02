@@ -262,6 +262,16 @@ def save_container(body: SaveBody):
         if updated_rows:
             return {**ok, "updated": True, "inserted": False}
 
+        # Another side of this container was already saved for this gate / time -> the row exists.
+        if body.gate_name and survey:
+            found = db.execute_query(
+                f"SELECT TOP 1 1 AS x FROM {MAIN_TABLE} WHERE UPPER(GateName) = UPPER(?) AND ContainerNo = ? "
+                "AND SurveyTime BETWEEN DATEADD(MINUTE, -30, ?) AND DATEADD(MINUTE, 30, ?)",
+                (body.gate_name.strip(), container_no, survey, survey),
+            )
+            if found and found.get("status") == "success" and found.get("data"):
+                return {**ok, "updated": False, "inserted": False}
+
         # The survey table has no matching row -> insert it, same columns the detection service writes.
         result = db.execute_query(
             f"INSERT INTO {MAIN_TABLE} (GateName, SurveyTime, ContainerNo, DetectedTime) VALUES (?, ?, ?, ?)",
