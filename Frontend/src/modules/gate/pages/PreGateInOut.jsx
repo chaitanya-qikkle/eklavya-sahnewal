@@ -290,7 +290,7 @@ function ImageSlot({ url, label, accent, onZoom }) {
 }
 
 /* ─── Detail Modal — details on top (container | gate/vehicle), 6 images below ── */
-function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
+function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom, showGateOut = true }) {
   if (!row) return null
   const isIn = row.GateType === 'GATE_IN'
 
@@ -415,12 +415,14 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
                   <DetailField icon={FiClock} label="Survey Time" accent="#0284c7">
                     {row.SurveyTime ? formatDate(row.SurveyTime) : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
-                  <DetailField icon={FiLogIn} label="Gate In" accent="#059669">
+                  <DetailField icon={FiLogIn} label="Complex Gate In" accent="#059669">
                     {row.GateInDate ? formatDate(row.GateInDate) : <span className="text-slate-300 font-normal">—</span>}
                   </DetailField>
-                  <DetailField icon={FiLogOut} label="Gate Out" accent="#d97706">
-                    {row.GateOutDate ? formatDate(row.GateOutDate) : <span className="text-slate-300 font-normal">—</span>}
-                  </DetailField>
+                  {showGateOut && (
+                    <DetailField icon={FiLogOut} label="Gate Out" accent="#d97706">
+                      {row.GateOutDate ? formatDate(row.GateOutDate) : <span className="text-slate-300 font-normal">—</span>}
+                    </DetailField>
+                  )}
                 </DetailCard>
               </div>
             </div>
@@ -464,6 +466,19 @@ export default function PreGateInOut() {
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
   const gateOptions = Array.isArray(gateNamesData?.data) ? gateNamesData.data : []
+
+  // ── Column layout depends on the selected gate ──────────────────────────
+  //  Maingate In  : Main Gate In Date → Complex Gate In            (no Gate Out)
+  //  Maingate Out : Complex Gate In   → Main Gate Out Date → Gate Out
+  //  Other / All  : Main Gate In Date → Complex Gate In → Gate Out (default)
+  const gateKey        = prettyGateName(gateName).toLowerCase()
+  const isMainGateIn   = gateKey === 'maingate in'
+  const isMainGateOut  = gateKey === 'maingate out'
+  const showGateOut    = !isMainGateIn
+  const complexFirst   = isMainGateOut
+  const mainDateLabel  = isMainGateOut ? 'Main Gate Out Date' : 'Main Gate In Date'
+  // #, Container, Size, Process, Gate, Main date, Complex In, [Gate Out], Vehicle, Images
+  const colCount       = showGateOut ? 10 : 9
 
   // No pagination — always request everything in a single call.
   const buildArgs = useCallback((gateNameOverride, gateFilterOverride) => {
@@ -545,24 +560,37 @@ export default function PreGateInOut() {
     : processRows.filter(r => sizeOf(r) === sizeFilter)
 
   // Export — saara data pehle se load hai, isliye alag API call ki zaroorat nahi.
+  // Column order / Gate Out visibility table ke saath match karta hai.
   const handleExport = () => {
     if (!rows.length) return
-    const sheetData = rows.map((row, i) => ({
-      '#':              i + 1,
-      'Container No':   row.ContainerNo   || '',
-      'Size':           row.ContSize      || '',
-      'Type':           row.ContType      || '',
-      'Process':        row.Process       || '',
-      'Gate':           row.GateName      || '',
-      'Direction':      row.GateType      || '',
-      'Survey Time':    row.SurveyTime    ? formatDate(row.SurveyTime)  : '',
-      'Gate In Date':   row.GateInDate    ? formatDate(row.GateInDate)  : '',
-      'Gate Out Date':  row.GateOutDate   ? formatDate(row.GateOutDate) : '',
-      'Location':       row.Location      || '',
-      'Vehicle No':     row.VehicleNo     || '',
-      'Document No':    row.DocumentNo    || '',
-      'Status':         row.Status        || '',
-    }))
+    const sheetData = rows.map((row, i) => {
+      const mainDate    = row.SurveyTime  ? formatDate(row.SurveyTime)  : ''
+      const complexIn   = row.GateInDate  ? formatDate(row.GateInDate)  : ''
+      const gateOutDate = row.GateOutDate ? formatDate(row.GateOutDate) : ''
+
+      const out = {
+        '#':              i + 1,
+        'Container No':   row.ContainerNo   || '',
+        'Size':           row.ContSize      || '',
+        'Type':           row.ContType      || '',
+        'Process':        row.Process       || '',
+        'Gate':           row.GateName      || '',
+        'Direction':      row.GateType      || '',
+      }
+      if (complexFirst) {
+        out['Complex Gate In'] = complexIn
+        out[mainDateLabel]     = mainDate
+      } else {
+        out[mainDateLabel]     = mainDate
+        out['Complex Gate In'] = complexIn
+      }
+      if (showGateOut) out['Gate Out'] = gateOutDate
+      out['Location']    = row.Location    || ''
+      out['Vehicle No']  = row.VehicleNo   || ''
+      out['Document No'] = row.DocumentNo  || ''
+      out['Status']      = row.Status      || ''
+      return out
+    })
     const ws = XLSX.utils.json_to_sheet(sheetData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Pre Gate Survey')
@@ -625,7 +653,7 @@ export default function PreGateInOut() {
               total={total}
             />
             <StatCard
-              label="Gate In  (Complex Gate)"
+              label="Complex Gate In"
               value={gate_in_count}
               icon={FiLogIn}
               tone="emerald"
@@ -800,9 +828,21 @@ export default function PreGateInOut() {
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Size / Type</th>
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Process</th>
                       <TH col="GateName">Gate</TH>
-                      <TH col="SurveyTime">Main Gate In Date</TH>
-                      <TH col="GateInDate">Gate In  (Complex Gate)</TH>
-                      <TH col="GateOutDate">Gate Out</TH>
+
+                      {/* Date columns — order depends on selected gate */}
+                      {complexFirst ? (
+                        <>
+                          <TH col="GateInDate">Complex Gate In</TH>
+                          <TH col="SurveyTime">{mainDateLabel}</TH>
+                        </>
+                      ) : (
+                        <>
+                          <TH col="SurveyTime">{mainDateLabel}</TH>
+                          <TH col="GateInDate">Complex Gate In</TH>
+                        </>
+                      )}
+                      {showGateOut && <TH col="GateOutDate">Gate Out</TH>}
+
                       {/* <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th> */}
                       <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Vehicle No</th>
                       <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-52">Images</th>
@@ -812,7 +852,7 @@ export default function PreGateInOut() {
                   <tbody className="divide-y divide-slate-100">
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center">
+                        <td colSpan={colCount} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range and click Search</p>
@@ -821,6 +861,36 @@ export default function PreGateInOut() {
                     ) : rows.map((row, idx) => {
                       const serial = idx + 1
                       const isIn = row.GateType === 'GATE_IN'
+
+                      // Survey Time (Main Gate In / Out date)
+                      const mainDateCell = (
+                        <td key="main" className="px-3 py-2 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <FiClock className="text-sky-400 flex-shrink-0" size={11} />
+                            <DateCell raw={row.SurveyTime} />
+                          </div>
+                        </td>
+                      )
+
+                      // Complex Gate In
+                      const complexInCell = (
+                        <td key="complex" className="px-3 py-2 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <FiLogIn className="text-emerald-400 flex-shrink-0" size={11} />
+                            <DateCell raw={row.GateInDate} highlight={isIn} />
+                          </div>
+                        </td>
+                      )
+
+                      // Gate Out
+                      const gateOutCell = (
+                        <td key="out" className="px-3 py-2 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <FiLogOut className="text-amber-400 flex-shrink-0" size={11} />
+                            <DateCell raw={row.GateOutDate} />
+                          </div>
+                        </td>
+                      )
 
                       return (
                         <tr
@@ -864,27 +934,19 @@ export default function PreGateInOut() {
                             </span>
                           </td>
 
-                          {/* Survey Time — shown before Gate In */}
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <FiClock className="text-sky-400 flex-shrink-0" size={11} />
-                              <DateCell raw={row.SurveyTime} />
-                            </div>
-                          </td>
-
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <FiLogIn className="text-emerald-400 flex-shrink-0" size={11} />
-                              <DateCell raw={row.GateInDate} highlight={isIn} />
-                            </div>
-                          </td>
-
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <FiLogOut className="text-amber-400 flex-shrink-0" size={11} />
-                              <DateCell raw={row.GateOutDate} />
-                            </div>
-                          </td>
+                          {/* Date columns — same order as the header */}
+                          {complexFirst ? (
+                            <>
+                              {complexInCell}
+                              {mainDateCell}
+                            </>
+                          ) : (
+                            <>
+                              {mainDateCell}
+                              {complexInCell}
+                            </>
+                          )}
+                          {showGateOut && gateOutCell}
 
                           {/* <td className="px-3 py-2 text-[11px] text-slate-600 whitespace-nowrap max-w-[140px] truncate">
                             {row.Location
@@ -929,6 +991,7 @@ export default function PreGateInOut() {
           row={rows[detailIdx]}
           index={detailIdx}
           total={rows.length}
+          showGateOut={showGateOut}
           onClose={() => setDetailIdx(null)}
           onPrev={() => setDetailIdx(i => Math.max(0, i - 1))}
           onNext={() => setDetailIdx(i => Math.min(rows.length - 1, i + 1))}
