@@ -12,6 +12,7 @@ import { StatCard, StatGrid } from '../../../components/ui/StatCard'
 import {
   useGetVehicleContainerDetectionQuery,
   useSaveGateDashboardMutation,
+  useCheckGateDashboardSidesMutation,
   useLazyGetGateDashboardImagesQuery,
   useLazyGetRailInQuery,
 } from '../../../store/api/ymsApi'
@@ -114,11 +115,13 @@ const CONTAINER_RE = /^[A-Z]{4}\d{7}$/
 
 // Both gates reduced to one shape so the list/panel don't care which tab.
 // A transaction is "missing" when one or more of its container images did not
-// come through: Main Gate = ContainerImagePath; Rail = Camera1 (left) and
-// Camera2 (right) — either one absent counts. The operator opens it, finds the
-// image in <stitching>/<gate>/<date>/00000000000 and saves it for that container.
+// come through. Rail: Camera1 (left) / Camera2 (right) absent. Main Gate: which
+// of left / right / top exist is looked up on the server per container (see
+// `sidesMap` in the page), so it starts empty here. The operator opens a missing
+// one, finds the image in <stitching>/<gate>/<date>/00000000000 and saves it.
+const ALL_SIDES = ['left', 'right', 'top']
 const missingImages = (tab, r) => tab === 'main'
-  ? (r.ContainerImagePath ? [] : ['container'])
+  ? []
   : [!r.Camera1ImagePath && 'left', !r.Camera2ImagePath && 'right'].filter(Boolean)
 const normalize = (tab, rows) =>
   normalizeRaw(tab, rows).map((t) => {
@@ -301,7 +304,7 @@ export default function GateDashboard() {
   const isError = !!active.isError
   const refresh = () => (tab === 'main' ? mainQ.refetch() : loadRail())
 
-  const txns = useMemo(() => {
+  const baseTxns = useMemo(() => {
     const rows = Array.isArray(active.data?.data) ? active.data.data : []
     const all = normalize(tab, rows)
     if (tab !== 'main') return all // Rail is already ranged by its SP
@@ -312,6 +315,51 @@ export default function GateDashboard() {
       return !tm || !((from && tm < from) || (to && tm > to))
     })
   }, [active.data, tab, fromDate, toDate]) // eslint-disable-line
+
+  // Main Gate In: ask the server which of left / right / top each container already has.
+  const [checkSides] = useCheckGateDashboardSidesMutation()
+  const [sidesMap, setSidesMap] = useState({}) // txn key -> sides present
+  const sidesKey = tab === 'main' ? baseTxns.map((t) => `${t.key}|${t.containerNo}|${String(t.time).slice(0, 10)}`).join(',') : ''
+  // Checked a few at a time, newest first, so the top of the list is ready almost
+  // immediately instead of waiting for every transaction. Results are cached.
+  const sidesCache = React.useRef({})
+  const SIDES_BATCH = 8
+  useEffect(() => {
+    if (tab !== 'main' || !baseTxns.length) { setSidesMap({}); return }
+    let cancelled = false
+    const idOf = (t) => `${t.key}|${t.containerNo}|${String(t.time).slice(0, 10)}`
+    const order = [...baseTxns].sort((a, b) => timeOf(b.time) - timeOf(a.time))
+    const fromCache = {}
+    order.forEach((t) => { if (sidesCache.current[idOf(t)]) fromCache[t.key] = sidesCache.current[idOf(t)] })
+    setSidesMap(fromCache)
+    ;(async () => {
+      const todo = order.filter((t) => !fromCache[t.key])
+      for (let i = 0; i < todo.length && !cancelled; i += SIDES_BATCH) {
+        const part = todo.slice(i, i + SIDES_BATCH)
+        try {
+          const res = await checkSides({
+            gate_name: MAIN_GATE_FOLDER,
+            items: part.map((t) => ({ key: t.key, container_no: String(t.containerNo ?? '').trim().split(' ')[0], date: String(t.time || '').slice(0, 10) })),
+          }).unwrap()
+          if (cancelled) return
+          const got = res?.sides || {}
+          part.forEach((t) => { if (got[t.key]) sidesCache.current[idOf(t)] = got[t.key] })
+          setSidesMap((m) => ({ ...m, ...got }))
+        } catch { return }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [sidesKey]) // eslint-disable-line
+
+  const txns = useMemo(() => {
+    if (tab !== 'main') return baseTxns
+    return baseTxns.map((t) => {
+      const present = sidesMap[t.key]
+      if (!present) return { ...t, checking: true } // not checked yet
+      const miss = ALL_SIDES.filter((s) => !present.includes(s))
+      return { ...t, missing: miss.length > 0, missingSides: miss }
+    })
+  }, [baseTxns, sidesMap, tab])
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -364,10 +412,21 @@ export default function GateDashboard() {
   }, [folderMode, selected?.key, dateOverride]) // eslint-disable-line
   const serverImgs = folderMode ? imgsQ.currentData : null
   const baseFolder = serverImgs?.folder || folderOf(selected)
-  const files = useMemo(
+  // The transaction knows which sides are missing, so only images of those sides
+  // are shown (e.g. missing "left" → only *_left_* files). "Show all" lifts the filter.
+  const [showAllSides, setShowAllSides] = useState(false)
+  useEffect(() => { setShowAllSides(false) }, [selectedKey])
+  const allFiles = useMemo(
     () => (folderMode ? (serverImgs?.images || []).map((i) => i.url) : []),
     [folderMode, serverImgs],
   )
+  const wantedSides = (selected?.missingSides || []).filter((s) => ALL_SIDES.includes(s))
+  const sideFiles = useMemo(
+    () => (wantedSides.length ? allFiles.filter((f) => wantedSides.includes(parseImageName(f).side)) : allFiles),
+    [allFiles, wantedSides.join(',')], // eslint-disable-line
+  )
+  const filtered = !showAllSides && wantedSides.length > 0 && sideFiles.length > 0 && sideFiles.length < allFiles.length
+  const files = filtered || (wantedSides.length === 0) ? sideFiles : allFiles
   // The image on screen is the one that gets saved.
   const picked = files.length ? files[Math.min(viewIdx, files.length - 1)] : null
   useEffect(() => { setSideOverride(null) }, [picked])
@@ -567,6 +626,7 @@ export default function GateDashboard() {
                         <span className="inline-flex items-center gap-1"><FiClock size={10} />{formatDate(t.time)}</span>
                         {t.ref && <span className="inline-flex items-center gap-1"><FiTruck size={10} />{t.refLabel}: <b className="text-slate-700">{t.ref}</b></span>}
                         {tab === 'rail' && t.place && <span>{t.place}</span>}
+                        {t.checking && <span className="text-slate-300 italic">checking images…</span>}
                         {t.missingSides?.length > 0 && !done && (
                           <span className="font-bold text-red-500">Missing: {t.missingSides.join(', ')}</span>
                         )}
@@ -653,6 +713,20 @@ export default function GateDashboard() {
                         <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1.5">
                           <FiAlertCircle size={12} /> No folder for this transaction's date, showing {serverImgs.date} instead.
                         </p>
+                      )}
+                      {wantedSides.length > 0 && allFiles.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                          <span className="font-bold text-slate-500">Missing for this container</span>
+                          {wantedSides.map((s) => (
+                            <span key={s} className={`px-2.5 py-0.5 rounded-full font-black uppercase ${SIDE_STYLE[s]}`}>{s}</span>
+                          ))}
+                          <span className="text-slate-400">·</span>
+                          {sideFiles.length === 0
+                            ? <span className="text-amber-600 font-semibold">No {wantedSides.join(' / ')} image in the folder, showing all {allFiles.length}</span>
+                            : <button type="button" onClick={() => setShowAllSides((v) => !v)} className="font-semibold text-[#0e4a78] underline">
+                                {filtered ? `Showing only ${wantedSides.join(' / ')} (${files.length}) — show all ${allFiles.length}` : `Showing all ${allFiles.length} — only ${wantedSides.join(' / ')}`}
+                              </button>}
+                        </div>
                       )}
                       <ImageViewer
                         files={files}

@@ -87,6 +87,50 @@ def _day_folder(gate_name: str, date: Optional[str]):
     return None
 
 
+class SideItem(BaseModel):
+    key: str
+    container_no: Optional[str] = None
+    date: Optional[str] = None
+
+
+class SidesBody(BaseModel):
+    gate_name: str
+    items: list[SideItem]
+
+
+_SIDE_RE = re.compile(r"(?:^|[_\-. ])(left|right|top)(?:[_\-. ]|$)", re.IGNORECASE)
+
+
+@router.post("/gate-dashboard/sides")
+def present_sides(body: SidesBody):
+    """Which of left / right / top exist for each transaction, i.e. image files
+    inside <root>/<gate>/<yyyymmdd>/<container_no>/ (<side>.jpg, or any file
+    whose name contains left / right / top). No folder = nothing present."""
+    gate_dir = IMG_ROOT / os.path.basename(body.gate_name.strip())
+    cache = {}
+    out = {}
+    for it in body.items:
+        cn = (it.container_no or "").strip().upper()
+        raw = (it.date or "").strip()[:10].replace("-", "")
+        sides = []
+        if re.fullmatch(r"[A-Z0-9]{4,15}", cn) and re.fullmatch(r"\d{8}", raw) and cn.strip("0"):
+            k = (raw, cn)
+            if k not in cache:
+                found = set()
+                try:
+                    for p in (gate_dir / raw / cn).iterdir():
+                        if p.is_file() and p.suffix.lower() in IMG_EXT:
+                            m = _SIDE_RE.search(p.stem)
+                            if m:
+                                found.add(m.group(1).lower())
+                except Exception:
+                    pass
+                cache[k] = sorted(found)
+            sides = cache[k]
+        out[it.key] = sides
+    return {"status": "success", "sides": out}
+
+
 @router.get("/gate-dashboard/images")
 def list_missing_images(gate_name: str, date: Optional[str] = None):
     """All images in <root>/<gate_name>/<today>/<MISSING_FOLDER>, newest first."""
