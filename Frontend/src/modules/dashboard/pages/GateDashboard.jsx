@@ -335,8 +335,10 @@ function ImageViewer({ files, index, urlFor, onGo }) {
 
 export default function GateDashboard() {
   const [tab, setTab] = useState('main')
-  const [fromDate, setFromDate] = useState(yesterdayStr())
-  const [toDate, setToDate] = useState(todayStr())
+  // One date: it filters the transactions (whole day) and picks the <yyyymmdd> image folder.
+  const [day, setDay] = useState(todayStr().slice(0, 10))
+  const fromDate = `${day}T00:00`
+  const toDate = `${day}T23:59`
   const [search, setSearch] = useState('')
   const [missingOnly, setMissingOnly] = useState(true) // default: only transactions with a missing left / right / top image
   const [gate, setGate] = useState('all') // Main Gate In only: one gate or 'all'
@@ -435,7 +437,7 @@ export default function GateDashboard() {
   const folderMode = !!selected
   // Main: the row's own GateName + the day of its SurveyTime. Rail: the fixed RAILGATE folder (today unless changed).
   const imgGate = tab === 'rail' ? RAIL_GATE_FOLDER : (selected?.raw?.GateName || MAIN_GATE_FOLDER)
-  const imgDay = dateOverride || (tab === 'main' ? String(selected?.time || '').slice(0, 10).replace(/-/g, '') : '')
+  const imgDay = day.replace(/-/g, '')
   const imgArgs = { gate_name: imgGate, ...(imgDay ? { date: imgDay } : {}) }
   useEffect(() => {
     if (!folderMode) return
@@ -588,13 +590,8 @@ export default function GateDashboard() {
           {/* Filters */}
           <div className="bg-white/95 rounded-2xl shadow-sm border border-slate-200 p-3 mb-4 flex flex-wrap items-end gap-3">
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              <span className="flex items-center gap-1 mb-1"><FiCalendar size={11} /> From</span>
-              <input type="datetime-local" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30" />
-            </label>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              <span className="flex items-center gap-1 mb-1"><FiCalendar size={11} /> To</span>
-              <input type="datetime-local" value={toDate} onChange={(e) => setToDate(e.target.value)}
+              <span className="flex items-center gap-1 mb-1"><FiCalendar size={11} /> Date</span>
+              <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30" />
             </label>
             <button
@@ -799,7 +796,7 @@ export default function GateDashboard() {
                   ) : (
                     <div className="space-y-3">
                       {/* Date of the folder: the transaction's date, or any other day that has a 00000000000 folder */}
-                      {serverImgs?.dates?.length > 0 && (
+                      {false && serverImgs?.dates?.length > 0 && (
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[11px] font-bold text-slate-500 inline-flex items-center gap-1"><FiCalendar size={11} /> Folder date</span>
                           {serverImgs.dates.slice(0, 8).map((d) => (
