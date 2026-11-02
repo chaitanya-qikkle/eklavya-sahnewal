@@ -508,6 +508,11 @@ export default function GateDashboard() {
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
         done(res)
+        // Move straight on to the next transaction that still needs review.
+        const at = visible.findIndex((t) => t.key === selected.key)
+        const next = visible.slice(at + 1).concat(visible.slice(0, Math.max(at, 0)))
+          .find((t) => t.key !== selected.key && t.missing && !saved[t.key])
+        setSelectedKey(next ? next.key : null)
         // The image was moved out of 00000000000, so reload that folder's list.
         setViewFile(null)
         fetchImgs(imgArgs, false)
@@ -552,29 +557,6 @@ export default function GateDashboard() {
             ))}
           </div>
 
-          {/* Summary */}
-          {/* Gate filter (Main Gate In) */}
-          {tab === 'main' && (
-            <div className="bg-white/95 rounded-2xl border border-slate-200 shadow-sm px-3 py-2 mb-2 flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 mr-1 inline-flex items-center gap-1"><FaDoorOpen size={12} /> Gate</span>
-              {[{ key: 'all', label: 'All gates', count: Object.values(gateCounts).reduce((a, b) => a + b, 0) },
-                ...gateList.map((g) => ({ key: g, label: g, count: gateCounts[g] || 0 }))].map(({ key, label, count }) => (
-                <button
-                  key={key}
-                  onClick={() => { setGate(key); setSelectedKey(null) }}
-                  className={`inline-flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                    gate === key
-                      ? 'bg-gradient-to-r from-[#0e4a78] to-[#0b3e66] text-white border-[#0e4a78] shadow-md scale-[1.03]'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-[#0e4a78]/40 hover:text-[#0e4a78]'
-                  }`}
-                >
-                  {label}
-                  <span className={`min-w-[22px] text-center px-1.5 py-0.5 rounded-full text-[10px] font-black ${gate === key ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>{count}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Filters */}
           <div className="bg-white/95 rounded-2xl shadow-sm border border-slate-200 px-3 py-2 mb-2 flex flex-wrap items-end gap-3">
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -594,6 +576,26 @@ export default function GateDashboard() {
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[#0e4a78] text-white hover:bg-[#0b3e66] transition-colors">
               <FiRefreshCw className={isFetching ? 'animate-spin' : ''} size={14} /> Search
             </button>
+            {tab === 'main' && (
+              <div className="flex items-center gap-1.5 flex-wrap pb-0.5 sm:pl-3 sm:ml-1 sm:border-l sm:border-slate-200">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 mr-1 inline-flex items-center gap-1"><FaDoorOpen size={12} /> Gate</span>
+                {[{ key: 'all', label: 'All gates', count: Object.values(gateCounts).reduce((a, b) => a + b, 0) },
+                  ...gateList.map((g) => ({ key: g, label: g, count: gateCounts[g] || 0 }))].map(({ key, label, count }) => (
+                  <button
+                    key={key}
+                    onClick={() => { setGate(key); setSelectedKey(null) }}
+                    className={`inline-flex items-center gap-2 pl-3 pr-1.5 py-1 rounded-full text-xs font-bold border transition-all ${
+                      gate === key
+                        ? 'bg-gradient-to-r from-[#0e4a78] to-[#0b3e66] text-white border-[#0e4a78] shadow-md'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-[#0e4a78]/40 hover:text-[#0e4a78]'
+                    }`}
+                  >
+                    {label}
+                    <span className={`min-w-[20px] text-center px-1.5 py-0.5 rounded-full text-[10px] font-black ${gate === key ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>{count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Body: transactions | images */}
