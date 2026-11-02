@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +17,7 @@ from modules.auth.router import router as auth_router
 from modules.orders.router import router as orders_router
 from modules.device_ingest.router import router as device_ingest_router
 from app.api.router import api_router
+from scheduler.email_scheduler import start_scheduler, stop_scheduler
 import logging
 import logging.handlers
 
@@ -64,10 +66,21 @@ PORT         = os.getenv("PORT", "5000").strip()
 DEBUG_MODE   = os.getenv("DEBUG", "true").strip().lower() == "true"
 
 
+# ── App lifespan (startup / shutdown hooks) ───────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup ──────────────────────────────────────────────────────────────
+    start_scheduler()          # daily 10 AM container-ageing email
+    yield
+    # ── Shutdown ─────────────────────────────────────────────────────────────
+    stop_scheduler()
+
+
 app = FastAPI(
     title="YMS — Yard Management System",
     description="Enterprise Yard Management System API",
     version=APP_VERSION,
+    lifespan=lifespan,
     docs_url="/api/docs" if DEBUG_MODE else None,
     redoc_url="/api/redoc" if DEBUG_MODE else None,
     openapi_url="/api/openapi.json" if DEBUG_MODE else None,
