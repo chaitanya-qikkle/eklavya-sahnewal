@@ -10,9 +10,8 @@ import { notify } from '../../../utils/notify'
 import { buildAssetUrl } from '../../../config/api'
 import { StatCard, StatGrid } from '../../../components/ui/StatCard'
 import {
-  useGetVehicleContainerDetectionQuery,
+  useLazyGetPreGateSurveyQuery,
   useSaveGateDashboardMutation,
-  useCheckGateDashboardSidesMutation,
   useLazySearchGateDashboardContainersQuery,
   useLazyGetGateDashboardImagesQuery,
   useLazyGetRailInQuery,
@@ -124,7 +123,7 @@ const CONTAINER_RE = /^[A-Z]{4}\d{7}$/
 // one, finds the image in <stitching>/<gate>/<date>/00000000000 and saves it.
 const ALL_SIDES = ['left', 'right', 'top']
 const missingImages = (tab, r) => tab === 'main'
-  ? []
+  ? [!r.IMG_LEFT && 'left', !r.IMG_RIGHT && 'right', !r.IMG_TOP && 'top'].filter(Boolean)
   : [!r.Camera1ImagePath && 'left', !r.Camera2ImagePath && 'right'].filter(Boolean)
 const normalize = (tab, rows) =>
   normalizeRaw(tab, rows).map((t) => {
@@ -135,12 +134,12 @@ const normalize = (tab, rows) =>
 const normalizeRaw = (tab, rows) =>
   rows.map((r, i) => tab === 'main'
     ? {
-        key: `main-${r.ID ?? i}`,
+        key: `main-${r.ContMasterID ?? ''}-${r.ContainerNo ?? ''}-${r.SurveyTime ?? ''}-${i}`,
         containerNo: r.ContainerNo,
         refLabel: 'Vehicle', ref: r.VehicleNo,
         place: r.GateName,
-        time: r.ContainerDetectedTime,
-        size: r.ContainerSize, process: r.Process,
+        time: r.SurveyTime,
+        size: r.ContSize, process: r.Process,
         raw: r,
       }
     : {
@@ -281,7 +280,7 @@ function ImageViewer({ files, index, urlFor, onGo }) {
       </div>
       <div
         ref={box}
-        className="relative h-[52vh] min-h-[280px] overflow-hidden select-none touch-none"
+        className="relative h-[42vh] min-h-[240px] overflow-hidden select-none touch-none"
         style={{
           background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px',
           cursor: view.s > 1 ? (gesture.current ? 'grabbing' : 'grab') : 'zoom-in',
@@ -351,8 +350,8 @@ export default function GateDashboard() {
   const [viewFile, setViewFile] = useState(null)  // folder image on screen (= the one that gets saved); kept when you change transaction
   const [dateOverride, setDateOverride] = useState(null) // yyyymmdd chosen by the operator
 
-  // Exactly the same call as the Main Gate In page (no options), so both share one cache entry.
-  const mainQ = useGetVehicleContainerDetectionQuery()
+  // Main Gate In uses the same data as the Pre Gate In / Out report (GET_ESURVEY_DETAIL).
+  const [fetchMain, mainQ] = useLazyGetPreGateSurveyQuery()
   const [fetchRail, railQ] = useLazyGetRailInQuery()
   const [saveGate, { isLoading: saving }] = useSaveGateDashboardMutation()
   const [fetchImgs, imgsQ] = useLazyGetGateDashboardImagesQuery()
@@ -361,67 +360,26 @@ export default function GateDashboard() {
   const loadRail = useCallback(() => fetchRail({ from_date: fromDate, to_date: toDate }), [fetchRail, fromDate, toDate])
   useEffect(() => { if (tab === 'rail') loadRail() }, [tab]) // eslint-disable-line
 
+  const loadMain = useCallback(() => fetchMain({
+    page: 1, page_size: 100000, from_date: fromDate, to_date: toDate, gate_type: 'GATE_IN',
+  }), [fetchMain, fromDate, toDate])
+  // Reload (after a short pause while typing a date) whenever the range changes.
+  useEffect(() => {
+    if (tab !== 'main') return
+    const h = setTimeout(loadMain, 300)
+    return () => clearTimeout(h)
+  }, [tab, loadMain])
+
   const active = tab === 'main' ? mainQ : railQ
   const isFetching = !!active.isFetching
-  const isError = !!active.isError
-  const refresh = () => (tab === 'main' ? mainQ.refetch() : loadRail())
+  const isError = !!active.isError || active.data?.status === 'error'
+  const refresh = () => (tab === 'main' ? loadMain() : loadRail())
 
-  const baseTxns = useMemo(() => {
-    const rows = Array.isArray(active.data?.data) ? active.data.data : []
-    const all = normalize(tab, rows)
-    if (tab !== 'main') return all // Rail is already ranged by its SP
-    // Main Gate In SP has no date range, so From / To are applied here (counts, gates and list all follow it).
-    const from = timeOf(fromDate), to = timeOf(toDate)
-    return all.filter((t) => {
-      const tm = timeOf(t.time)
-      return !tm || !((from && tm < from) || (to && tm > to))
-    })
-  }, [active.data, tab, fromDate, toDate]) // eslint-disable-line
-
-  // Main Gate In: ask the server which of left / right / top each container already has.
-  const [checkSides] = useCheckGateDashboardSidesMutation()
-  const [sidesMap, setSidesMap] = useState({}) // txn key -> sides present
-  const sidesKey = tab === 'main' ? baseTxns.map((t) => `${t.key}|${t.containerNo}|${String(t.time).slice(0, 10)}`).join(',') : ''
-  // Checked a few at a time, newest first, so the top of the list is ready almost
-  // immediately instead of waiting for every transaction. Results are cached.
-  const sidesCache = React.useRef({})
-  const SIDES_BATCH = 8
-  useEffect(() => {
-    if (tab !== 'main' || !baseTxns.length) { setSidesMap({}); return }
-    let cancelled = false
-    const idOf = (t) => `${t.key}|${t.containerNo}|${String(t.time).slice(0, 10)}`
-    const order = [...baseTxns].sort((a, b) => timeOf(b.time) - timeOf(a.time))
-    const fromCache = {}
-    order.forEach((t) => { if (sidesCache.current[idOf(t)]) fromCache[t.key] = sidesCache.current[idOf(t)] })
-    setSidesMap(fromCache)
-    ;(async () => {
-      const todo = order.filter((t) => !fromCache[t.key])
-      for (let i = 0; i < todo.length && !cancelled; i += SIDES_BATCH) {
-        const part = todo.slice(i, i + SIDES_BATCH)
-        try {
-          const res = await checkSides({
-            gate_name: MAIN_GATE_FOLDER,
-            items: part.map((t) => ({ key: t.key, container_no: String(t.containerNo ?? '').trim().split(' ')[0], date: String(t.time || '').slice(0, 10) })),
-          }).unwrap()
-          if (cancelled) return
-          const got = res?.sides || {}
-          part.forEach((t) => { if (got[t.key]) sidesCache.current[idOf(t)] = got[t.key] })
-          setSidesMap((m) => ({ ...m, ...got }))
-        } catch { return }
-      }
-    })()
-    return () => { cancelled = true }
-  }, [sidesKey]) // eslint-disable-line
-
+  // Missing sides come straight from the row (IMG_LEFT / IMG_RIGHT / IMG_TOP are empty when the file is absent).
   const txns = useMemo(() => {
-    if (tab !== 'main') return baseTxns
-    return baseTxns.map((t) => {
-      const present = sidesMap[t.key]
-      if (!present) return { ...t, checking: true } // not checked yet
-      const miss = ALL_SIDES.filter((s) => !present.includes(s))
-      return { ...t, missing: miss.length > 0, missingSides: miss }
-    })
-  }, [baseTxns, sidesMap, tab])
+    const rows = Array.isArray(active.data?.data) ? active.data.data : []
+    return normalize(tab, rows)
+  }, [active.data, tab])
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -475,14 +433,14 @@ export default function GateDashboard() {
   // Selected transaction -> every image of <stitching>/<gate>/<date>/00000000000
   // on the server (listed by the backend), shown one at a time.
   const folderMode = !!selected
+  // Main: the row's own GateName + the day of its SurveyTime. Rail: the fixed RAILGATE folder (today unless changed).
+  const imgGate = tab === 'rail' ? RAIL_GATE_FOLDER : (selected?.raw?.GateName || MAIN_GATE_FOLDER)
+  const imgDay = dateOverride || (tab === 'main' ? String(selected?.time || '').slice(0, 10).replace(/-/g, '') : '')
+  const imgArgs = { gate_name: imgGate, ...(imgDay ? { date: imgDay } : {}) }
   useEffect(() => {
     if (!folderMode) return
-    fetchImgs({
-      gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER,
-      // Only the gate name is sent; the server uses today's date unless the operator picked another day.
-      ...(dateOverride ? { date: dateOverride } : {}),
-    }, true) // load once per gate/date; changing transaction does not reload or move the image
-  }, [folderMode, tab, dateOverride]) // eslint-disable-line
+    fetchImgs(imgArgs, true) // cached per gate/date; the image on screen is kept when it is still in the list
+  }, [folderMode, tab, imgGate, imgDay]) // eslint-disable-line
   const serverImgs = folderMode ? imgsQ.currentData : null
   const baseFolder = serverImgs?.folder || folderOf(selected)
   // The transaction knows which sides are missing, so only images of those sides
@@ -539,18 +497,19 @@ export default function GateDashboard() {
       folder: baseFolder,
       file: parseImageName(picked).name,
       detected_time: selected.time,
-      // Row to update with the container number (main: ID = SurveyId, rail: TransactionId).
-      transaction_id: Number(tab === 'rail' ? (selected.raw.TransactionId ?? selected.raw.ID) : selected.raw.ID) || null,
-      gate_name: selected.place, // used when the survey table has no row yet and one is inserted
-      // Rail: only when the number changes. Main Gate: always, so a missing survey row gets inserted.
-      update_record: tab === 'main' || cn !== String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
+      // Main: the survey row is found by GateName + SurveyTime + its current number.
+      gate_name: tab === 'main' ? selected.raw.GateName : undefined,
+      survey_time: tab === 'main' ? selected.raw.SurveyTime : undefined,
+      old_container_no: String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
+      // Rail: only when the number changes.
+      update_record: cn !== String(selected.containerNo ?? '').trim().split(' ')[0].toUpperCase(),
     }).unwrap()
       .then((res) => {
         if (res?.status !== 'success') { notify.error('Save failed', res?.message || 'Could not save'); return }
         done(res)
         // The image was moved out of 00000000000, so reload that folder's list.
         setViewFile(null)
-        fetchImgs({ gate_name: tab === 'rail' ? RAIL_GATE_FOLDER : MAIN_GATE_FOLDER, ...(dateOverride ? { date: dateOverride } : {}) }, false)
+        fetchImgs(imgArgs, false)
         notify.success('Saved', `${cn}/${pickedSide}.jpg ${res.folder_existed ? 'moved into the existing folder' : 'moved into a new folder'}${res.inserted ? ' · added to the survey table' : res.updated ? ' · transaction updated' : ''}`)
       })
       .catch(() => notify.error('Save failed', 'Server error'))
@@ -663,12 +622,12 @@ export default function GateDashboard() {
                   <p className="text-[11px] text-white/60">{visible.length.toLocaleString()} shown · {missingCount.toLocaleString()} missing of {txns.length.toLocaleString()}</p>
                 </div>
                 <div className="relative w-44">
-                  <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60" />
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Container / vehicle…"
-                    className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs text-slate-700 bg-white/95 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-white/40"
+                    className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs text-white bg-white/10 border border-white/25 placeholder:text-white/50 focus:outline-none focus:bg-white/15 focus:border-white/50"
                   />
                 </div>
               </div>
@@ -677,6 +636,11 @@ export default function GateDashboard() {
                 {isError ? (
                   <div className="px-5 py-10 text-center text-red-600 text-sm font-medium flex flex-col items-center gap-2">
                     <FiAlertCircle size={24} /> Failed to load transactions
+                    <span className="text-[11px] font-mono text-red-400 break-all">
+                      {active.error?.status ? `HTTP ${active.error.status} ` : ''}
+                      {typeof active.error?.data === 'string' ? active.error.data.slice(0, 160) : (active.error?.data?.detail || active.error?.data?.message || active.error?.error || active.data?.message || '')}
+                    </span>
+                    <button onClick={refresh} className="mt-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 border border-red-200 hover:bg-red-100">Retry</button>
                   </div>
                 ) : isFetching && !txns.length ? (
                   <div className="py-16 flex flex-col items-center gap-3 text-slate-500">
@@ -686,8 +650,8 @@ export default function GateDashboard() {
                 ) : visible.length === 0 ? (
                   <div className="py-16 text-center text-slate-400">
                     <FiSearch className="mx-auto text-3xl mb-2 text-slate-300" />
-                    <p className="text-sm font-semibold">{txns.some((t) => t.checking) ? 'Checking images…' : 'No transactions'}</p>
-                    <p className="text-xs mt-1">{txns.some((t) => t.checking) ? 'Missing ones appear here as each batch is checked' : 'Try a different date range or filter'}</p>
+                    <p className="text-sm font-semibold">{isFetching ? 'Loading transactions…' : 'No transactions'}</p>
+                    <p className="text-xs mt-1">{isFetching ? 'Please wait' : 'Try a different date range or filter'}</p>
                   </div>
                 ) : visible.map((t) => {
                   const sel = t.key === selectedKey
@@ -710,7 +674,6 @@ export default function GateDashboard() {
                         <span className="inline-flex items-center gap-1"><FiClock size={10} />{formatDate(t.time)}</span>
                         {t.ref && <span className="inline-flex items-center gap-1"><FiTruck size={10} />{t.refLabel}: <b className="text-slate-700">{t.ref}</b></span>}
                         {tab === 'rail' && t.place && <span>{t.place}</span>}
-                        {t.checking && <span className="text-slate-300 italic">checking images…</span>}
                         {t.missingSides?.length > 0 && !done && (
                           <span className="font-bold text-red-500">Missing: {t.missingSides.join(', ')}</span>
                         )}
@@ -722,7 +685,7 @@ export default function GateDashboard() {
             </section>
 
             {/* Images + entry */}
-            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
+            <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden xl:sticky xl:top-2 xl:self-start">
               <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-4 py-3">
                 <p className="font-semibold text-sm">{selected ? 'Transaction images' : 'Select a transaction'}</p>
                 <p className="text-[11px] text-white/60">
@@ -749,6 +712,67 @@ export default function GateDashboard() {
                     </span>
                     {!savedInfo && baseFolder && <span className="ml-auto text-[10px] font-bold text-slate-500 whitespace-nowrap">{files.length} images</span>}
                   </div>
+
+                  {/* Container number + side + Save: always at the top so no scrolling is needed */}
+                  {!savedInfo && (
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-3 space-y-1.5">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <FiHash size={12} className="text-[#0e4a78]" /> Container no.
+                      </span>
+                      <div className="relative flex-1 min-w-[180px]">
+                        <input
+                          value={containerInput}
+                          onChange={(e) => { setContainerInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)); setSugOpen(true) }}
+                          onFocus={() => setSugOpen(true)}
+                          onBlur={() => setTimeout(() => setSugOpen(false), 150)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { setSugOpen(false); handleSubmit() } else if (e.key === 'Escape') setSugOpen(false) }}
+                          placeholder="e.g. MSKU1234567"
+                          autoComplete="off"
+                          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold tracking-wider text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
+                        />
+                        {sugOpen && sugs.length > 0 && (
+                          <ul className="absolute z-20 left-0 right-0 top-full mt-1 max-h-60 overflow-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
+                            <li className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 sticky top-0">In the yard in the last 24 hours</li>
+                            {sugs.map((s) => (
+                              <li key={s.ContNo}>
+                                <button type="button" onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => { setContainerInput(String(s.ContNo).toUpperCase().slice(0, 11)); setSugOpen(false) }}
+                                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50">
+                                  <span className="font-mono font-bold text-sm text-slate-700">{s.ContNo}</span>
+                                  <span className="text-[10px] text-slate-400">{[s.ContainerSize && `${s.ContainerSize}'`, s.Process, s.GateInDate && String(s.GateInDate).slice(5, 16)].filter(Boolean).join(' · ')}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      {picked && (
+                        <div className="flex items-center gap-1.5" title={detectedSide ? 'Side taken from the file name' : 'Pick the side'}>
+                          {['left', 'right', 'top'].map((s) => (
+                            <button key={s} type="button" onClick={() => setSideOverride(s)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-black uppercase border ${
+                                pickedSide === s ? `${SIDE_STYLE[s]} border-current` : 'bg-white text-slate-500 border-slate-200'
+                              }`}>{s}</button>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        onClick={handleSubmit}
+                        disabled={!inputOk || saving}
+                        className="inline-flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <FiCheck size={15} /> Save
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {picked
+                        ? <>The image below is saved into folder <b>{containerInput || '<container no>'}</b> as <b>{pickedSide || '?'}.jpg</b>.</>
+                        : 'Container number is filled from the transaction.'}
+                      {containerInput && !CONTAINER_RE.test(containerInput) && <span className="text-red-500 font-semibold"> · Needs 4 letters + 7 digits</span>}
+                    </p>
+                  </div>
+                  )}
 
                   {savedInfo ? (
                     /* Saved: only the one image, under its new name */
@@ -797,12 +821,9 @@ export default function GateDashboard() {
                           {wantedSides.map((s) => (
                             <span key={s} className={`px-2.5 py-0.5 rounded-full font-black uppercase ${SIDE_STYLE[s]}`}>{s}</span>
                           ))}
-                          <span className="text-slate-400">·</span>
-                          {sideFiles.length === 0
-                            ? <span className="text-amber-600 font-semibold">No {wantedSides.join(' / ')} image in the folder, showing all {allFiles.length}</span>
-                            : <button type="button" onClick={() => setShowAllSides((v) => !v)} className="font-semibold text-[#0e4a78] underline">
-                                {filtered ? `Showing only ${wantedSides.join(' / ')} (${files.length}) — show all ${allFiles.length}` : `Showing all ${allFiles.length} — only ${wantedSides.join(' / ')}`}
-                              </button>}
+                          {sideFiles.length === 0 && (
+                            <span className="text-amber-600 font-semibold">· No {wantedSides.join(' / ')} image in the folder, showing all {allFiles.length}</span>
+                          )}
                         </div>
                       )}
                       <ImageViewer
@@ -812,68 +833,6 @@ export default function GateDashboard() {
                         onGo={go}
                       />
                     </div>
-                  )}
-
-                  {/* Container number entry */}
-                  {!savedInfo && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5 mb-2">
-                      <FiHash size={12} className="text-[#0e4a78]" /> Container number
-                    </label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="relative flex-1">
-                        <input
-                          value={containerInput}
-                          onChange={(e) => { setContainerInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)); setSugOpen(true) }}
-                          onFocus={() => setSugOpen(true)}
-                          onBlur={() => setTimeout(() => setSugOpen(false), 150)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { setSugOpen(false); handleSubmit() } else if (e.key === 'Escape') setSugOpen(false) }}
-                          placeholder="e.g. MSKU1234567"
-                          autoComplete="off"
-                          className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-mono font-bold tracking-wider text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78]"
-                        />
-                        {sugOpen && sugs.length > 0 && (
-                          <ul className="absolute z-20 left-0 right-0 bottom-full mb-1 max-h-60 overflow-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
-                            <li className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 sticky top-0">In the yard in the last 24 hours</li>
-                            {sugs.map((s) => (
-                              <li key={s.ContNo}>
-                                <button type="button" onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => { setContainerInput(String(s.ContNo).toUpperCase().slice(0, 11)); setSugOpen(false) }}
-                                  className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-blue-50">
-                                  <span className="font-mono font-bold text-sm text-slate-700">{s.ContNo}</span>
-                                  <span className="text-[10px] text-slate-400">{[s.ContainerSize && `${s.ContainerSize}'`, s.Process, s.GateInDate && String(s.GateInDate).slice(5, 16)].filter(Boolean).join(' · ')}</span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      <button
-                        onClick={handleSubmit}
-                        disabled={!inputOk || saving}
-                        className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <FiCheck size={15} /> Save
-                      </button>
-                    </div>
-                    {picked && (
-                      <div className="flex items-center gap-2 mt-3">
-                        <span className="text-[11px] font-bold text-slate-500">Image side{detectedSide ? ' (from file name)' : ''}</span>
-                        {['left', 'right', 'top'].map((s) => (
-                          <button key={s} type="button" onClick={() => setSideOverride(s)}
-                            className={`px-3 py-1 rounded-full text-[11px] font-black uppercase border ${
-                              pickedSide === s ?`${SIDE_STYLE[s]} border-current` : 'bg-white text-slate-500 border-slate-200'
-                            }`}>{s}</button>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[11px] text-slate-400 mt-2">
-                      {picked
-                        ? <>Saving creates folder <b>{containerInput || '<container no>'}</b> with the selected image as <b>{pickedSide || '?'}.jpg</b>.</>
-                        : 'Select the missing image above first. The container number is filled from the transaction.'}
-                      {containerInput && !CONTAINER_RE.test(containerInput) && <span className="text-red-500 font-semibold"> · Needs 4 letters + 7 digits</span>}
-                    </p>
-                  </div>
                   )}
                 </div>
               )}
