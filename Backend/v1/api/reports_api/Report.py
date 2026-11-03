@@ -18,10 +18,9 @@ RAIL_OUT_IMG_ROOT = _pathlib.Path(os.getenv("RAIL_IN_IMG_ROOT", r"D:\Application
 
 
 def _rail_out_img_url(abs_path):
-    """Convert absolute Windows disk path → servable /v1/reports/rail-out-report/img?p=... URL.
-    Returns None if the path is empty.
-    NOTE: File existence check is intentionally skipped — path is returned as-is
-    so the frontend probe (useImageStatus) determines if the file is actually available.
+    """Convert absolute Windows disk path → servable API URL.
+    Reuses the existing /v1/container/rail-in/img endpoint — same stitching
+    folder on disk, no need for a separate endpoint.
     """
     if not abs_path:
         return None
@@ -33,18 +32,17 @@ def _rail_out_img_url(abs_path):
     try:
         rel = _pathlib.PureWindowsPath(abs_str).relative_to(RAIL_OUT_IMG_ROOT)
     except Exception:
-        # Path not under root — strip everything up to and including "stitching/"
         p = abs_str.replace("\\", "/")
         idx = p.lower().find("stitching/")
         if idx != -1:
             rel = _pathlib.PurePosixPath(p[idx + len("stitching/"):])
         else:
-            # Last resort: use the full path as-is, just normalize slashes
             rel = _pathlib.PurePosixPath(p.lstrip("/"))
 
     rel_slash = str(rel).replace("\\", "/")
     logger.debug("rail-out img: abs=%s  rel=%s", abs_str, rel_slash)
-    return f"/v1/reports/rail-out-report/img?p={rel_slash}"
+    # Reuse rail-in img endpoint (same physical folder on disk)
+    return f"/v1/container/rail-in/img?p={rel_slash}"
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1008,21 +1006,6 @@ def get_rail_out_report(
             db.close_connection()
         except Exception:
             pass
-
-
-@router.get("/rail-out-report/img", include_in_schema=False)
-def serve_rail_out_image(p: str = Query(...)):
-    """Serve a rail-out camera image by its relative path under RAIL_OUT_IMG_ROOT."""
-    try:
-        target = (RAIL_OUT_IMG_ROOT / p).resolve()
-        target.relative_to(RAIL_OUT_IMG_ROOT.resolve())
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid path")
-    if not target.is_file():
-        raise HTTPException(status_code=404, detail="Image not found")
-    suffix = target.suffix.lower()
-    media = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png" if suffix == ".png" else "application/octet-stream"
-    return FileResponse(str(target), media_type=media, headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/mismatch-handling")
