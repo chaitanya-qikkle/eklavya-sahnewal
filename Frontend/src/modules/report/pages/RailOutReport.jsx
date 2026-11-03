@@ -26,18 +26,11 @@ const RAIL_IMAGES = [
   { key: 'right', label: 'Right', short: 'R', field: 'Camera2ImagePath' },
 ]
 
-// DB mein full disk path aata hai (D:/Application/.../stitching/RAILGATE/.../left.jpg).
-// Browser ko disk path nahi chalta, isliye "stitching/" se pehle ka hissa hata kar
-// sirf relative path buildAssetUrl ko dete hain.
-const normalizeImagePath = (raw) => {
-  const p = String(raw).replace(/\\/g, '/')
-  const i = p.toLowerCase().indexOf('stitching/')
-  return i !== -1 ? p.slice(i) : p
-}
-
+// DB se ab API already /v1/reports/rail-out-report/img?p=... format mein path bhejta hai
+// (rail-in jaisi same pattern) — buildAssetUrl directly use karo.
 const getRailImageUrl = (row, field) => {
   const raw = row?.[field]
-  return raw ? buildAssetUrl(normalizeImagePath(raw)) : null
+  return raw ? buildAssetUrl(raw) : null
 }
 
 function formatDateParts(raw) {

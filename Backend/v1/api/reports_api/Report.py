@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from utils.db_utils import SQLManager
 from middleware.auth_middleware import get_current_user
@@ -8,7 +9,33 @@ import traceback
 import logging
 import logging.handlers
 import json
+import os
 from typing import Optional
+
+# ── Rail-out image root (same stitching folder as rail-in) ────────────────────
+import pathlib as _pathlib
+RAIL_OUT_IMG_ROOT = _pathlib.Path(os.getenv("RAIL_IN_IMG_ROOT", r"D:\Application\eklavya-budget-main\stitching"))
+
+
+def _rail_out_img_url(abs_path):
+    """Convert absolute Windows disk path → servable /v1/reports/rail-out-report/img?p=... URL.
+    Returns None if the path is empty or the file does not exist on disk."""
+    if not abs_path:
+        return None
+    try:
+        rel = _pathlib.PureWindowsPath(abs_path).relative_to(RAIL_OUT_IMG_ROOT)
+    except Exception:
+        # Path is not under the root — try stripping the stitching/ portion directly
+        p = str(abs_path).replace("\\", "/")
+        idx = p.lower().find("stitching/")
+        if idx == -1:
+            return None
+        rel = _pathlib.PurePosixPath(p[idx + len("stitching/"):])
+    target = RAIL_OUT_IMG_ROOT / rel
+    if not target.is_file():
+        return None
+    rel_slash = str(rel).replace("\\", "/")
+    return f"/v1/reports/rail-out-report/img?p={rel_slash}"
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -940,6 +967,11 @@ def get_rail_out_report(
         if isinstance(data, list) and data and isinstance(data[0], list):
             data = data[0]
 
+        # Convert absolute disk paths → servable API URLs (same as rail-in)
+        for row in data:
+            row["Camera1ImagePath"] = _rail_out_img_url(row.get("Camera1ImagePath"))
+            row["Camera2ImagePath"] = _rail_out_img_url(row.get("Camera2ImagePath"))
+
         logger.info(
             f"Rail out report success: {len(data)} records"
         )
@@ -967,7 +999,23 @@ def get_rail_out_report(
             db.close_connection()
         except Exception:
             pass
-            
+
+
+@router.get("/rail-out-report/img", include_in_schema=False)
+def serve_rail_out_image(p: str = Query(...)):
+    """Serve a rail-out camera image by its relative path under RAIL_OUT_IMG_ROOT."""
+    try:
+        target = (RAIL_OUT_IMG_ROOT / p).resolve()
+        target.relative_to(RAIL_OUT_IMG_ROOT.resolve())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+    suffix = target.suffix.lower()
+    media = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png" if suffix == ".png" else "application/octet-stream"
+    return FileResponse(str(target), media_type=media, headers={"Cache-Control": "public, max-age=3600"})
+
+
 @router.get("/mismatch-handling")
 def get_mismatch_handling(
     current_user: dict = Depends(get_current_user),
