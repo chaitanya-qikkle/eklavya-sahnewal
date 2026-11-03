@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   FiSearch, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiPackage, FiLayers, FiCalendar, FiDownload,
-  FiHash, FiMapPin, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
+  FiHash, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
   FiChevronLeft, FiChevronRight, FiTruck, FiBox, FiHome,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
@@ -689,8 +689,6 @@ const RailOutReport = () => {
                       <TH col="WagonNo">Wagon No</TH>
                       <TH col="RakeNo">Rake No</TH>
                       <TH col={DATE_FIELD}>{DATE_LABEL}</TH>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
-                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Equipment</th>
                       <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-24">Images</th>
                     </tr>
                   </thead>
@@ -698,7 +696,7 @@ const RailOutReport = () => {
                   <tbody className="divide-y divide-slate-100">
                     {pageRows.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center">
+                        <td colSpan={8} className="py-16 text-center">
                           <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
                           <p className="font-semibold text-slate-400 text-sm">No records found</p>
                           <p className="text-xs text-slate-300 mt-1">Adjust the date range or search a container no</p>
@@ -744,16 +742,6 @@ const RailOutReport = () => {
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row[DATE_FIELD]} /></td>
-                          <td className="px-3 py-2 text-[11px] whitespace-nowrap max-w-[160px] truncate">
-                            {row.ContainerLocation
-                              ? <span className="inline-flex items-center gap-1 text-violet-700 font-semibold"><FiMapPin size={10} className="text-violet-400 flex-shrink-0" />{row.ContainerLocation}</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="px-3 py-2 text-[11px] whitespace-nowrap">
-                            {row.EquipmentName
-                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"><FiTruck size={10} className="text-emerald-500 flex-shrink-0" />{row.EquipmentName}</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
                           <td className="px-2 py-1.5 w-24" onClick={e => e.stopPropagation()}>
                             <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
                           </td>
