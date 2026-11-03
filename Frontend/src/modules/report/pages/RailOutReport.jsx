@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   FiSearch, FiChevronUp, FiChevronDown,
   FiImage, FiX, FiPackage, FiLayers, FiCalendar, FiDownload,
-  FiHash, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
+  FiHash, FiMapPin, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
   FiChevronLeft, FiChevronRight, FiTruck, FiBox, FiHome,
 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
@@ -420,7 +420,13 @@ const yesterdayStr = () => {
   return toLocalInputValue(d)
 }
 
-const sizeOf = (r) => String(r.ContainerSize ?? '').trim()
+const sizeOf = (r) => {
+  const s = String(r.ContainerSize ?? '').trim().toUpperCase()
+  // Normalise: 20HQ → '20',  40HQ → '40'
+  if (s.startsWith('20')) return '20'
+  if (s.startsWith('40')) return '40'
+  return s
+}
 const procOf = (r) => String(r.Process ?? '').trim().toUpperCase()
 
 const RailOutReport = () => {
