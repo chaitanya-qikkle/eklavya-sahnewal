@@ -19,22 +19,31 @@ RAIL_OUT_IMG_ROOT = _pathlib.Path(os.getenv("RAIL_IN_IMG_ROOT", r"D:\Application
 
 def _rail_out_img_url(abs_path):
     """Convert absolute Windows disk path → servable /v1/reports/rail-out-report/img?p=... URL.
-    Returns None if the path is empty or the file does not exist on disk."""
+    Returns None if the path is empty.
+    NOTE: File existence check is intentionally skipped — path is returned as-is
+    so the frontend probe (useImageStatus) determines if the file is actually available.
+    """
     if not abs_path:
         return None
-    try:
-        rel = _pathlib.PureWindowsPath(abs_path).relative_to(RAIL_OUT_IMG_ROOT)
-    except Exception:
-        # Path is not under the root — try stripping the stitching/ portion directly
-        p = str(abs_path).replace("\\", "/")
-        idx = p.lower().find("stitching/")
-        if idx == -1:
-            return None
-        rel = _pathlib.PurePosixPath(p[idx + len("stitching/"):])
-    target = RAIL_OUT_IMG_ROOT / rel
-    if not target.is_file():
+
+    abs_str = str(abs_path).strip()
+    if not abs_str:
         return None
+
+    try:
+        rel = _pathlib.PureWindowsPath(abs_str).relative_to(RAIL_OUT_IMG_ROOT)
+    except Exception:
+        # Path not under root — strip everything up to and including "stitching/"
+        p = abs_str.replace("\\", "/")
+        idx = p.lower().find("stitching/")
+        if idx != -1:
+            rel = _pathlib.PurePosixPath(p[idx + len("stitching/"):])
+        else:
+            # Last resort: use the full path as-is, just normalize slashes
+            rel = _pathlib.PurePosixPath(p.lstrip("/"))
+
     rel_slash = str(rel).replace("\\", "/")
+    logger.debug("rail-out img: abs=%s  rel=%s", abs_str, rel_slash)
     return f"/v1/reports/rail-out-report/img?p={rel_slash}"
 
 logger = logging.getLogger(__name__)
