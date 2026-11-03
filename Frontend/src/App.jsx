@@ -106,6 +106,7 @@ const routeDefinitions = [
   { path: '/reports/device-data-report', Component: lazyPage(() => import('./modules/report/pages/DeviceDataReport')) },
   { path: '/reports/equipment-breakdown-report', Component: lazyPage(() => import('./modules/report/pages/EquipmentBreakdownReport')) },
   { path: '/reports/rail-in-report', Component: lazyPage(() => import('./modules/report/pages/RailInReport')) },
+  { path: '/reports/rail-out-report', Component: lazyPage(() => import('./modules/report/pages/RailOutReport')) },
   { path: '/reports/device-transaction-summary', Component: lazyPage(() => import('./modules/report/pages/DeviceTransactionSummary')) },
   { path: '/reports/rail-journey', Component: lazyPage(() => import('./modules/report/pages/RailJourney')) },
   { path: '/reports/rail-plan-report', Component: lazyPage(() => import('./modules/report/pages/RailPlanReport')) },

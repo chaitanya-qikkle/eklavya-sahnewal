@@ -235,6 +235,7 @@ export const API_ENDPOINTS = {
     RAIL_PLAN_NAME_LIST: buildUrl('/v1/reports/rail-plan-name-list'),
     ACTUAL_VS_PROPOSED_PLAN: buildUrl('/v1/reports/actual-vs-proposed-plan'),
     RAIL_IN_REPORT: buildUrl('/v1/reports/rail-in-report'),
+    RAIL_OUT_REPORT : buildUrl("/v1/reports/rail-out-report"),
     DEVICE_LOCK_REPORT: buildUrl('/v1/reports/device-lock-report'),
     SERVICE_DASHBOARD: buildUrl('/v1/reports/service-dashboard'),
     UPDATE_DEVICE_DATA_CONTAINER: buildUrl('/v1/reports/update-device-container'),

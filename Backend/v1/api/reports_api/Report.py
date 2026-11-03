@@ -898,6 +898,76 @@ def get_rail_in_report(
             pass
 
 
+@router.get("/rail-out-report")
+def get_rail_out_report(
+    container_no: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Rail-out container detail — GET_RPT_RAIL_OUT."""
+
+    db = SQLManager()
+
+    try:
+        cont_no = (container_no or '').strip().upper()
+
+        f_date = _to_proc_datetime(from_date)
+        t_date = _to_proc_datetime(to_date)
+
+        # Default: Last 24 hours
+        if not cont_no and not f_date:
+            now = datetime.now()
+            f_date = now - timedelta(days=1)
+            t_date = now
+
+        # Execute Stored Procedure
+        result = db.execute_query(
+            "EXEC dbo.GET_RPT_RAIL_OUT ?, ?, ?",
+            (f_date, t_date, cont_no),
+            fetch_all=True,
+        )
+
+        if result.get("status") != "success":
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("message", "Database error")
+            )
+
+        data = result.get("data") or []
+
+        # Handle multiple result-set structure
+        if isinstance(data, list) and data and isinstance(data[0], list):
+            data = data[0]
+
+        logger.info(
+            f"Rail out report success: {len(data)} records"
+        )
+
+        return {
+            "status": "success",
+            "message": f"Found {len(data)} record(s).",
+            "total_records": len(data),
+            "data": data
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"Rail out report error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass
+            
 @router.get("/mismatch-handling")
 def get_mismatch_handling(
     current_user: dict = Depends(get_current_user),

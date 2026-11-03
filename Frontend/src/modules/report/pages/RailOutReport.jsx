@@ -1,0 +1,852 @@
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import {
+  FiSearch, FiChevronUp, FiChevronDown,
+  FiImage, FiX, FiPackage, FiLayers, FiCalendar, FiDownload,
+  FiHash, FiMapPin, FiClock, FiZoomIn, FiDownload as FiDownloadIcon,
+  FiChevronLeft, FiChevronRight, FiTruck, FiBox, FiHome,
+} from 'react-icons/fi'
+import * as XLSX from 'xlsx'
+import { writeXlsx } from '../../../utils/excelDates'
+import { FaTrain } from 'react-icons/fa'
+import Navbar from '../../../components/layout/Navbar'
+import Footer from '../../../components/layout/Footer'
+import { useLazyGetRailOutReportQuery } from '../../../store/api/ymsApi'
+import { buildAssetUrl } from '../../../config/api'
+import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
+import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
+
+/* ─── Field config ────────────────────────────────────────────────────────────
+   API ke response ke field names alag ho to sirf yahan badalna hai. */
+const DATE_FIELD = 'NAVDateTime'
+const DATE_LABEL = 'Rail Out'
+
+/* Camera1 = Left, Camera2 = Right */
+const RAIL_IMAGES = [
+  { key: 'left',  label: 'Left',  short: 'L', field: 'Camera1ImagePath' },
+  { key: 'right', label: 'Right', short: 'R', field: 'Camera2ImagePath' },
+]
+
+// DB mein full disk path aata hai (D:/Application/.../stitching/RAILGATE/.../left.jpg).
+// Browser ko disk path nahi chalta, isliye "stitching/" se pehle ka hissa hata kar
+// sirf relative path buildAssetUrl ko dete hain.
+const normalizeImagePath = (raw) => {
+  const p = String(raw).replace(/\\/g, '/')
+  const i = p.toLowerCase().indexOf('stitching/')
+  return i !== -1 ? p.slice(i) : p
+}
+
+const getRailImageUrl = (row, field) => {
+  const raw = row?.[field]
+  return raw ? buildAssetUrl(normalizeImagePath(raw)) : null
+}
+
+function formatDateParts(raw) {
+  if (!raw) return null
+  try {
+    const d = new Date(String(raw).replace(' ', 'T'))
+    if (isNaN(d.getTime())) return null
+    const p = (n) => String(n).padStart(2, '0')
+    return {
+      date: `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`,
+      time: `${p(d.getHours())}:${p(d.getMinutes())}`,
+    }
+  } catch { return null }
+}
+
+function formatDate(raw) {
+  const parts = formatDateParts(raw)
+  return parts ? `${parts.date} ${parts.time}` : ''
+}
+
+function DateCell({ raw }) {
+  const parts = formatDateParts(raw)
+  if (!parts) return <span className="text-slate-300 text-xs">—</span>
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-slate-700">{parts.date}</p>
+      <p className="text-[10px] text-slate-400">{parts.time}</p>
+    </div>
+  )
+}
+
+/* ─── Image existence probe (cached) ──────────────────────────────────────── */
+const imgProbeCache = new Map()
+
+function useImageStatus(url) {
+  const [status, setStatus] = useState(() => (!url ? 'missing' : imgProbeCache.get(url) || 'loading'))
+  useEffect(() => {
+    if (!url) { setStatus('missing'); return }
+    const cached = imgProbeCache.get(url)
+    if (cached) { setStatus(cached); return }
+    setStatus('loading')
+    let cancelled = false
+    const img = new Image()
+    img.onload  = () => { imgProbeCache.set(url, 'ok');      if (!cancelled) setStatus('ok') }
+    img.onerror = () => { imgProbeCache.set(url, 'missing'); if (!cancelled) setStatus('missing') }
+    img.src = url
+    return () => { cancelled = true }
+  }, [url])
+  return status
+}
+
+/* ─── Lightbox ───────────────────────────────────────────────────────────── */
+function ImageLightbox({ url, label, onClose }) {
+  if (!url) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-5xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-5 py-3">
+          <span className="font-semibold capitalize text-base flex items-center gap-2">
+            <FiImage /> {label}
+          </span>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 transition-colors">
+            <FiX className="text-lg" />
+          </button>
+        </div>
+        <div className="flex items-center justify-center bg-slate-50 p-4 overflow-auto" style={{ maxHeight: '85vh' }}>
+          <img src={url} alt={label} className="max-w-full object-contain rounded-lg" style={{ maxHeight: '80vh' }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Detail field row ───────────────────────────────────────────────────── */
+const Dash = () => <span className="text-slate-300 font-normal">—</span>
+
+function DetailField({ icon: Icon, label, children, accent = '#0e4a78' }) {
+  return (
+    <div className="flex items-start gap-2.5 py-1.5 border-b border-slate-100 last:border-b-0">
+      <span
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
+        style={{ background: `${accent}12`, color: accent }}
+      >
+        {Icon && <Icon size={12} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 leading-tight">{label}</p>
+        <div className="text-[13px] font-semibold text-slate-800 break-words leading-tight">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Detail Modal ───────────────────────────────────────────────────────── */
+function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
+  const leftUrl  = getRailImageUrl(row, 'Camera1ImagePath')
+  const rightUrl = getRailImageUrl(row, 'Camera2ImagePath')
+  const leftStatus  = useImageStatus(leftUrl)
+  const rightStatus = useImageStatus(rightUrl)
+  const [activeTab, setActiveTab] = useState('left')
+
+  useEffect(() => {
+    if (leftStatus === 'ok') setActiveTab('left')
+    else if (rightStatus === 'ok') setActiveTab('right')
+    else setActiveTab('left')
+  }, [row, leftStatus, rightStatus])
+
+  if (!row) return null
+
+  const tabs = [
+    { key: 'left',  label: 'Left',  url: leftUrl,  status: leftStatus },
+    { key: 'right', label: 'Right', url: rightUrl, status: rightStatus },
+  ]
+  const current = tabs.find(t => t.key === activeTab) || tabs[0]
+  const url = current.status === 'ok' ? current.url : null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[1600px] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col ring-1 ring-black/5"
+        style={{ height: '95vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="relative flex items-center justify-between text-white px-7 py-5 shrink-0 overflow-hidden"
+          style={{ background: 'linear-gradient(120deg,#0e4a78 0%,#0b3e66 45%,#072c4a 100%)' }}
+        >
+          <div
+            className="absolute inset-0 opacity-[0.07] pointer-events-none"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
+              backgroundSize: '18px 18px',
+            }}
+          />
+          <div className="relative flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
+              <FaTrain size={20} />
+            </div>
+            <div>
+              <p className="font-black text-xl leading-tight tracking-tight">Rail Out Detail</p>
+              <p className="text-xs text-white/60 font-medium mt-0.5">
+                {row.ContainerNo || 'Record'} <span className="mx-1.5 opacity-40">·</span> {index + 1} of {total}
+              </p>
+            </div>
+          </div>
+          <div className="relative flex items-center gap-2">
+            <button
+              onClick={onPrev}
+              disabled={index <= 0}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+              title="Previous record"
+            >
+              <FiChevronLeft size={19} />
+            </button>
+            <button
+              onClick={onNext}
+              disabled={index >= total - 1}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed transition-all"
+              title="Next record"
+            >
+              <FiChevronRight size={19} />
+            </button>
+            <div className="w-px h-7 bg-white/20 mx-2" />
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 hover:bg-red-500/80 transition-all"
+              title="Close"
+            >
+              <FiX size={19} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 min-h-0 flex flex-col bg-slate-100">
+
+          {/* Top — details */}
+          <div className="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
+            <div className="px-6 py-4">
+              <div className="mb-3 flex flex-wrap gap-2.5">
+                {row.ContainerNo && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-[#1364a4] to-[#0a3b61] text-white font-black font-mono text-base shadow-lg shadow-[#0e4a78]/25">
+                    <FiPackage size={15} /> {row.ContainerNo}
+                  </span>
+                )}
+                {row.WagonNo && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white font-black font-mono text-base shadow-lg shadow-slate-900/20">
+                    <FaTrain size={13} /> {row.WagonNo}
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 px-5 shadow-sm grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 sm:divide-x sm:divide-slate-100">
+                <div className="sm:pr-5">
+                  <DetailField icon={FiPackage} label="Container No" accent="#0e4a78">
+                    {row.ContainerNo || <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiBox} label="Size / Type" accent="#0e4a78">
+                    {(row.ContainerSize || row.ContainerType)
+                      ? `${row.ContainerSize || '—'} ${row.ContainerType || ''}`.trim()
+                      : <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Booking No" accent="#64748b">
+                    {row.BookingNo || <Dash />}
+                  </DetailField>
+                  <DetailField icon={FaTrain} label="Wagon No" accent="#d97706">
+                    {row.WagonNo || <Dash />}
+                  </DetailField>
+                  <DetailField icon={FaTrain} label="Rake No" accent="#d97706">
+                    {row.RakeNo || <Dash />}
+                  </DetailField>
+                </div>
+                <div className="sm:px-5">
+                  <DetailField icon={FiClock} label={`${DATE_LABEL} Date/Time`} accent="#059669">
+                    {row[DATE_FIELD] ? formatDate(row[DATE_FIELD]) : <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiMapPin} label="Container Location" accent="#7c3aed">
+                    {row.ContainerLocation || <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiTruck} label="Equipment" accent="#0e4a78">
+                    {row.EquipmentName || <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="Document No" accent="#64748b">
+                    {row.DocumentNo || <Dash />}
+                  </DetailField>
+                </div>
+                <div className="sm:pl-5">
+                  <DetailField icon={FiHome} label="Terminal / Mode" accent="#d97706">
+                    {(row.Terminal || row.Mode)
+                      ? `${row.Terminal || '—'} ${row.Mode ? `· ${row.Mode}` : ''}`.trim()
+                      : <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiClock} label="Process / Status" accent="#059669">
+                    {(row.Process || row.ContainerStatus)
+                      ? `${row.Process || '—'} ${row.ContainerStatus ? `· ${row.ContainerStatus}` : ''}`.trim()
+                      : <Dash />}
+                  </DetailField>
+                  <DetailField icon={FiHash} label="No. of Moves" accent="#64748b">
+                    {row.NoOfMoves ?? <Dash />}
+                  </DetailField>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom — Left / Right image tabs */}
+          <div className="flex-1 min-h-0">
+            <div className="p-4 h-full max-w-4xl mx-auto">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden flex flex-col min-h-0 h-full">
+
+                <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/60">
+                  <div className="flex items-center gap-1.5">
+                    {tabs.map(t => {
+                      const enabled = t.status === 'ok'
+                      const active = t.key === activeTab
+                      return (
+                        <button
+                          key={t.key}
+                          type="button"
+                          disabled={!enabled}
+                          onClick={() => setActiveTab(t.key)}
+                          title={enabled ? `View ${t.label}` : t.status === 'loading' ? `Checking ${t.label}…` : `No ${t.label} image`}
+                          className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider border transition-all
+                            ${!enabled
+                              ? `bg-slate-100 text-slate-300 border-slate-200 opacity-60 cursor-not-allowed ${t.status === 'loading' ? 'animate-pulse' : ''}`
+                              : active
+                                ? 'bg-[#0e4a78] text-white border-[#0e4a78] shadow'
+                                : 'bg-white text-[#0e4a78] border-[#0e4a78]/30 hover:bg-[#0e4a78]/10'}`}
+                        >
+                          <FiImage size={12} /> {t.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {url && (
+                    <a
+                      href={url}
+                      download
+                      onClick={e => e.stopPropagation()}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0e4a78] hover:bg-[#0e4a78]/10 transition-colors"
+                      title="Download image"
+                    >
+                      <FiDownloadIcon size={13} />
+                    </a>
+                  )}
+                </div>
+
+                {url ? (
+                  <button
+                    onClick={() => onZoom(url, current.label)}
+                    className="group relative flex-1 min-h-0 flex items-center justify-center overflow-hidden w-full"
+                    style={{ background: 'repeating-conic-gradient(#f8fafc 0% 25%, #f1f5f9 0% 50%) 50% / 24px 24px' }}
+                  >
+                    <img src={url} alt={current.label} className="max-w-full max-h-full object-contain p-2" />
+                    <span className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center">
+                      <span className="w-14 h-14 rounded-full bg-white/90 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all flex items-center justify-center shadow-xl">
+                        <FiZoomIn className="text-[#0e4a78]" size={24} />
+                      </span>
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2.5 text-slate-300 bg-slate-50/50 w-full">
+                    <span className={`w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center ${current.status === 'loading' ? 'animate-pulse' : ''}`}>
+                      <FiImage size={28} />
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      {current.status === 'loading' ? 'Checking…' : 'No image available'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Table thumb button (L / R) ──────────────────────────────────────────── */
+function ThumbBtn({ url, label, short, onOpen }) {
+  const status = useImageStatus(url)
+
+  if (status !== 'ok') {
+    return (
+      <button
+        type="button"
+        disabled
+        title={status === 'loading' ? `Checking ${label}…` : `No ${label} image`}
+        className={`w-7 h-7 rounded-lg border border-slate-200 bg-slate-100 text-slate-300 opacity-50 cursor-not-allowed flex items-center justify-center text-[10px] font-bold ${status === 'loading' ? 'animate-pulse' : ''}`}
+      >
+        {short}
+      </button>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(url, label)}
+      title={`View ${label}`}
+      className="w-7 h-7 rounded-lg border border-[#0e4a78]/30 bg-[#0e4a78]/10 text-[#0e4a78] hover:bg-[#0e4a78] hover:text-white flex items-center justify-center text-[10px] font-bold transition-all"
+    >
+      {short}
+    </button>
+  )
+}
+
+function ImagesCell({ row, onOpen }) {
+  return (
+    <div className="flex items-center gap-1.5 justify-center">
+      {RAIL_IMAGES.map(({ key, label, short, field }) => (
+        <ThumbBtn key={key} url={getRailImageUrl(row, field)} label={label} short={short} onOpen={onOpen} />
+      ))}
+    </div>
+  )
+}
+
+function SortIcon({ col, sortCol, sortDir }) {
+  if (sortCol !== col) return <span className="opacity-30 ml-1"><FiChevronUp size={10} /></span>
+  return sortDir === 'asc'
+    ? <FiChevronUp className="ml-1 text-blue-200" size={11} />
+    : <FiChevronDown className="ml-1 text-blue-200" size={11} />
+}
+
+const PAGE_SIZE = 20
+const SIZE_KEYS = ['20', '40']
+
+const toLocalInputValue = (d) => {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const todayStr = () => toLocalInputValue(new Date())
+const yesterdayStr = () => {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toLocalInputValue(d)
+}
+
+const sizeOf = (r) => String(r.ContainerSize ?? '').trim()
+const procOf = (r) => String(r.Process ?? '').trim().toUpperCase()
+
+const RailOutReport = () => {
+  const [fromDate, setFromDate] = useState(yesterdayStr())
+  const [toDate, setToDate] = useState(todayStr())
+  const [containerNo, setContainerNo] = useState('')
+  const [sortCol, setSortCol] = useState(DATE_FIELD)
+  const [sortDir, setSortDir] = useState('desc')
+  const [page, setPage] = useState(1)
+  const [pageInput, setPageInput] = useState('1')
+  const [lightbox, setLightbox] = useState(null)
+  const [detailIdx, setDetailIdx] = useState(null)
+  // 'all' | '20' | '40' | 'EXPORT' | 'IMPORT' | 'EMPTY' | 'DOMESTIC'
+  const [cardFilter, setCardFilter] = useState('all')
+
+  useEffect(() => { setPageInput(String(page)) }, [page])
+
+  const [fetchRailOut, { data, isFetching, isError }] = useLazyGetRailOutReportQuery()
+
+  const buildArgs = useCallback(() => {
+    const cn = containerNo.trim()
+    if (cn) return { container_no: cn }
+    return { from_date: fromDate, to_date: toDate }
+  }, [containerNo, fromDate, toDate])
+
+  useEffect(() => { fetchRailOut(buildArgs()) }, []) // eslint-disable-line
+
+  const handleSearch = () => {
+    setPage(1)
+    setCardFilter('all')
+    setDetailIdx(null)
+    fetchRailOut(buildArgs())
+  }
+  const handleClear = () => {
+    setFromDate(yesterdayStr()); setToDate(todayStr()); setContainerNo(''); setPage(1)
+    setCardFilter('all')
+    setDetailIdx(null)
+    fetchRailOut({ from_date: yesterdayStr(), to_date: todayStr() })
+  }
+
+  const rowsAll = Array.isArray(data?.data) ? data.data : []
+
+  const sorted = useMemo(() => {
+    return [...rowsAll].sort((a, b) => {
+      const av = a[sortCol], bv = b[sortCol]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      const as = String(av), bs = String(bv)
+      return sortDir === 'asc' ? as.localeCompare(bs) : bs.localeCompare(as)
+    })
+  }, [rowsAll, sortCol, sortDir])
+
+  const counts = useMemo(() => ({
+    total: rowsAll.length,
+    '20': rowsAll.filter(r => sizeOf(r) === '20').length,
+    '40': rowsAll.filter(r => sizeOf(r) === '40').length,
+    EXPORT: rowsAll.filter(r => procOf(r) === 'EXPORT').length,
+    IMPORT: rowsAll.filter(r => procOf(r) === 'IMPORT').length,
+    EMPTY: rowsAll.filter(r => procOf(r) === 'EMPTY').length,
+    DOMESTIC: rowsAll.filter(r => procOf(r) === 'DOMESTIC').length,
+  }), [rowsAll])
+
+  const filtered = useMemo(() => {
+    if (cardFilter === 'all') return sorted
+    return SIZE_KEYS.includes(cardFilter)
+      ? sorted.filter(r => sizeOf(r) === cardFilter)
+      : sorted.filter(r => procOf(r) === cardFilter)
+  }, [sorted, cardFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const toggleSort = (col) => {
+    setSortCol(col)
+    setSortDir(prev => (sortCol === col && prev === 'asc') ? 'desc' : 'asc')
+    setPage(1)
+  }
+
+  const handleCard = (val) => {
+    setCardFilter(prev => (prev === val ? 'all' : val))
+    setPage(1)
+    setDetailIdx(null)
+  }
+
+  const handleExport = () => {
+    const sheetData = filtered.map((row, i) => ({
+      '#': i + 1,
+      'Container No': row.ContainerNo || '',
+      'Size': row.ContainerSize || '',
+      'Type': row.ContainerType || '',
+      'Booking No': row.BookingNo || '',
+      'Wagon No': row.WagonNo || '',
+      'Rake No': row.RakeNo || '',
+      [`${DATE_LABEL} Date/Time`]: row[DATE_FIELD] ? formatDate(row[DATE_FIELD]) : '',
+      'Location': row.ContainerLocation || '',
+      'Equipment': row.EquipmentName || '',
+      'Document No': row.DocumentNo || '',
+      'Terminal': row.Terminal || '',
+      'Mode': row.Mode || '',
+      'Process': row.Process || '',
+      'Status': row.ContainerStatus || '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(sheetData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Rail Out Report')
+    writeXlsx(wb, `RailOutReport_${fromDate.replace(/:/g, '')}_${toDate.replace(/:/g, '')}.xlsx`)
+  }
+
+  const TH = ({ col, children }) => (
+    <th
+      onClick={() => toggleSort(col)}
+      className="px-3 py-2 text-left font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap hover:bg-white/10 transition-colors"
+    >
+      <span className="flex items-center gap-0.5">
+        {children}
+        <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />
+      </span>
+    </th>
+  )
+
+  return (
+    <div
+      className="w-full min-h-screen relative overflow-hidden bg-cover bg-center"
+      style={{ backgroundImage: "url('/Images/bgimageold.png')" }}
+    >
+      <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px]" />
+
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <Navbar />
+
+        <main className="flex-1 px-4 sm:px-6 pb-10">
+
+          {/* ── Header ── */}
+          <header className="pt-6 pb-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">Reports</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0e4a78] flex items-center gap-2 mt-0.5">
+              <FaTrain /> Rail Out Report
+            </h1>
+            <p className="text-slate-500 mt-0.5 text-sm">
+              {rowsAll.length.toLocaleString()} total records
+            </p>
+          </header>
+
+          {/* ── Stats + Filter ── */}
+          <FilterCard>
+            <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
+              <StatCard
+                label="Total" value={counts.total} icon={FiLayers} tone="slate"
+                isActive={cardFilter === 'all'}
+                onClick={() => { setCardFilter('all'); setPage(1); setDetailIdx(null) }}
+                total={counts.total}
+              />
+              <StatCard
+                label="20 ft" value={counts['20']} icon={FiBox} tone="emerald"
+                isActive={cardFilter === '20'} onClick={() => handleCard('20')} total={counts.total}
+              />
+              <StatCard
+                label="40 ft" value={counts['40']} icon={FiBox} tone="amber"
+                isActive={cardFilter === '40'} onClick={() => handleCard('40')} total={counts.total}
+              />
+              <StatCard
+                label="Export" value={counts.EXPORT} icon={FiDownload} tone="amber"
+                isActive={cardFilter === 'EXPORT'} onClick={() => handleCard('EXPORT')} total={counts.total}
+              />
+              <StatCard
+                label="Import" value={counts.IMPORT} icon={FiDownloadIcon} tone="emerald"
+                isActive={cardFilter === 'IMPORT'} onClick={() => handleCard('IMPORT')} total={counts.total}
+              />
+              <StatCard
+                label="Empty" value={counts.EMPTY} icon={FiPackage} tone="violet"
+                isActive={cardFilter === 'EMPTY'} onClick={() => handleCard('EMPTY')} total={counts.total}
+              />
+              <StatCard
+                label="Domestic" value={counts.DOMESTIC} icon={FiTruck} tone="rose"
+                isActive={cardFilter === 'DOMESTIC'} onClick={() => handleCard('DOMESTIC')} total={counts.total}
+              />
+            </StatGrid>
+
+            <FilterBar bare>
+              <FilterField label="From Date" icon={FiCalendar}>
+                <input
+                  type="datetime-local" value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  disabled={!!containerNo.trim()}
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all disabled:opacity-50 disabled:bg-slate-50"
+                />
+              </FilterField>
+
+              <FilterField label="To Date" icon={FiCalendar}>
+                <input
+                  type="datetime-local" value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                  disabled={!!containerNo.trim()}
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all disabled:opacity-50 disabled:bg-slate-50"
+                />
+              </FilterField>
+
+              <FilterField label="Container No" icon={FiSearch} className="flex-1 min-w-[220px]">
+                <div className="relative">
+                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                  <input
+                    value={containerNo}
+                    onChange={e => setContainerNo(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    placeholder="Search by container no (overrides date range)…"
+                    className="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e4a78]/30 focus:border-[#0e4a78] transition-all"
+                  />
+                </div>
+              </FilterField>
+
+              <div className="flex gap-2">
+                <FilterClearBtn onClick={handleClear} />
+                <FilterSearchBtn onClick={handleSearch} loading={isFetching} />
+                <FilterExportBtn onClick={handleExport} disabled={!filtered.length} />
+              </div>
+            </FilterBar>
+          </FilterCard>
+
+          {/* ── Table ── */}
+          <section className="bg-white/95 rounded-2xl shadow-xl border border-slate-300 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#0e4a78] via-[#0b3e66] to-[#072c4a] text-white px-4 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center">
+                  <FaTrain />
+                </div>
+                <div>
+                  <p className="font-semibold text-base">Rail Out Report</p>
+                  <p className="text-xs text-white/60">
+                    Page {page} of {totalPages} · {filtered.length.toLocaleString()} total · {PAGE_SIZE} per page
+                  </p>
+                </div>
+              </div>
+              <span className="hidden sm:flex items-center gap-1.5 text-xs text-white/50 bg-white/10 px-2.5 py-1 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live
+              </span>
+            </div>
+
+            {isError && (
+              <div className="px-6 py-10 text-center text-red-600 font-medium text-sm">
+                Failed to load data. Please try again.
+              </div>
+            )}
+
+            {isFetching && (
+              <div className="py-20 flex flex-col items-center gap-3 text-slate-500">
+                <div className="w-10 h-10 rounded-full border-4 border-[#0e4a78]/20 border-t-[#0e4a78] animate-spin" />
+                <span className="text-sm font-medium">Loading…</span>
+              </div>
+            )}
+
+            {!isFetching && !isError && (
+              <div className="overflow-x-auto">
+                <table className="text-sm border-collapse" style={{ width: 'max-content', minWidth: '100%' }}>
+                  <thead>
+                    <tr className="bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white text-xs">
+                      <th className="px-2 py-2 text-left font-semibold uppercase tracking-wider border-r border-white/10 w-8">#</th>
+                      <TH col="ContainerNo">Container No</TH>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Size / Type</th>
+                      <TH col="BookingNo">Booking No</TH>
+                      <TH col="WagonNo">Wagon No</TH>
+                      <TH col="RakeNo">Rake No</TH>
+                      <TH col={DATE_FIELD}>{DATE_LABEL}</TH>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Location</th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap">Equipment</th>
+                      <th className="px-2 py-2 text-center font-semibold uppercase tracking-wider w-24">Images</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {pageRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="py-16 text-center">
+                          <FiSearch className="mx-auto text-4xl text-slate-300 mb-3" />
+                          <p className="font-semibold text-slate-400 text-sm">No records found</p>
+                          <p className="text-xs text-slate-300 mt-1">Adjust the date range or search a container no</p>
+                        </td>
+                      </tr>
+                    ) : pageRows.map((row, idx) => {
+                      const globalIdx = (page - 1) * PAGE_SIZE + idx
+                      return (
+                        <tr
+                          key={`${row.ContainerNo}-${row.DocumentNo}-${globalIdx}`}
+                          onClick={() => setDetailIdx(globalIdx)}
+                          className={`border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}
+                        >
+                          <td className="px-2 py-2 text-[10px] text-slate-400 font-medium border-r border-slate-100 w-8">
+                            {globalIdx + 1}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.ContainerNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-[#0e4a78] font-black font-mono text-xs">{row.ContainerNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.ContainerSize || row.ContainerType ? (
+                              <>
+                                <p className="text-xs font-bold text-slate-700">{row.ContainerSize || '—'}</p>
+                                <p className="text-[10px] text-slate-400">{row.ContainerType || ''}</p>
+                              </>
+                            ) : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.BookingNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 font-bold font-mono text-xs">{row.BookingNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.WagonNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-black font-mono text-xs">{row.WagonNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {row.RakeNo
+                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-black font-mono text-xs">{row.RakeNo}</span>
+                              : <span className="text-slate-300 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap"><DateCell raw={row[DATE_FIELD]} /></td>
+                          <td className="px-3 py-2 text-[11px] whitespace-nowrap max-w-[160px] truncate">
+                            {row.ContainerLocation
+                              ? <span className="inline-flex items-center gap-1 text-violet-700 font-semibold"><FiMapPin size={10} className="text-violet-400 flex-shrink-0" />{row.ContainerLocation}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+                            {row.EquipmentName
+                              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"><FiTruck size={10} className="text-emerald-500 flex-shrink-0" />{row.EquipmentName}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-2 py-1.5 w-24" onClick={e => e.stopPropagation()}>
+                            <ImagesCell row={row} onOpen={(u, l) => setLightbox({ url: u, label: l })} />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!isFetching && totalPages > 0 && (
+              <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <span className="text-xs text-slate-500">
+                  Showing{' '}
+                  <strong className="text-[#0e4a78]">{filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</strong>–<strong className="text-[#0e4a78]">{Math.min(page * PAGE_SIZE, filtered.length)}</strong>
+                  {' '}of{' '}
+                  <strong className="text-[#0e4a78]">{filtered.length.toLocaleString()}</strong> records
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${page === 1 ? 'text-slate-400 cursor-not-allowed bg-slate-100' : 'text-[#0e4a78] hover:bg-blue-50'}`}
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-600">Page</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onBlur={() => {
+                        const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
+                        setPage(pg)
+                        setPageInput(String(pg))
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return
+                        const pg = Math.max(1, Math.min(totalPages, Number(pageInput) || 1))
+                        setPage(pg)
+                        e.currentTarget.blur()
+                      }}
+                      className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0e4a78]"
+                    />
+                    <span className="text-slate-600">of {totalPages}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className={`px-4 py-2 rounded-lg border border-slate-300 font-semibold transition ${page === totalPages ? 'text-slate-400 cursor-not-allowed bg-slate-100' : 'text-[#0e4a78] hover:bg-blue-50'}`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+        </main>
+        <Footer />
+      </div>
+
+      {detailIdx != null && filtered[detailIdx] && (
+        <DetailModal
+          row={filtered[detailIdx]}
+          index={detailIdx}
+          total={filtered.length}
+          onClose={() => setDetailIdx(null)}
+          onPrev={() => setDetailIdx(i => Math.max(0, i - 1))}
+          onNext={() => setDetailIdx(i => Math.min(filtered.length - 1, i + 1))}
+          onZoom={(u, l) => setLightbox({ url: u, label: l })}
+        />
+      )}
+
+      {/* Lightbox after DetailModal so it stacks on top */}
+      {lightbox && (
+        <ImageLightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />
+      )}
+    </div>
+  )
+}
+
+export default RailOutReport

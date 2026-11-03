@@ -771,7 +771,24 @@ export const ymsApi = createApi({
         }
       },
     }),
+    getRailOutReport: builder.query({
+      query: ({ container_no, from_date, to_date } = {}) => {
+        const params = new URLSearchParams()
 
+        if (container_no) params.set('container_no', container_no)
+        if (from_date) params.set('from_date', from_date)
+        if (to_date) params.set('to_date', to_date)
+
+        const qs = params.toString()
+
+        return {
+          url: qs
+            ? `${API_ENDPOINTS.REPORTS.RAIL_OUT_REPORT}?${qs}`
+            : API_ENDPOINTS.REPORTS.RAIL_OUT_REPORT,
+          method: 'GET',
+        }
+      },
+    }),
     getInventoryEntryBlockList: builder.query({
       query: () => ({
         url: API_ENDPOINTS.MASTER.INVENTORY_ENTRY_BLOCK_LIST,
@@ -1303,6 +1320,7 @@ export const {
   useLazyGetRailPlanNameListQuery,
   useLazyGetActualVsProposedPlanQuery,
   useLazyGetRailInReportQuery,
+  useLazyGetRailOutReportQuery,
   useLazyGetRailJourneyQuery,
   useLazyGetRailJourneyByDocumentQuery,
   useLazyGetMismatchHandlingQuery,
