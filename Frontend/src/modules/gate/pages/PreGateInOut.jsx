@@ -639,7 +639,7 @@ export default function PreGateInOut() {
 
           {/* ── Stats + Filter — merged into one card ── */}
           <FilterCard>
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-9" bare>
+          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" bare>
             <StatCard
               label="Total"
               value={total}
@@ -652,8 +652,9 @@ export default function PreGateInOut() {
               }}
               total={total}
             />
+            {!isMainGateOut && (
             <StatCard
-              label="Complex Gate In"
+              label={isMainGateIn ? 'Gate In' : 'Complex Gate In'}
               value={gate_in_count}
               icon={FiLogIn}
               tone="emerald"
@@ -661,6 +662,8 @@ export default function PreGateInOut() {
               onClick={() => { setGateFilter('GATE_IN'); fetchSurvey(buildArgs(undefined, 'GATE_IN')) }}
               total={total}
             />
+            )}
+            {!isMainGateIn && (
             <StatCard
               label="Gate Out"
               value={gate_out_count}
@@ -670,6 +673,7 @@ export default function PreGateInOut() {
               onClick={() => { setGateFilter('GATE_OUT'); fetchSurvey(buildArgs(undefined, 'GATE_OUT')) }}
               total={total}
             />
+            )}
             <StatCard
               label="Export"
               value={processStats.exportCount}
@@ -753,7 +757,7 @@ export default function PreGateInOut() {
             >
               <option value="">All Gates</option>
               {gateOptions
-                .filter(g => !['complexgate', 'railgate'].includes(prettyGateName(g).toLowerCase()))
+                .filter(g => !['complexgate', 'railgate', 'unknown gate'].includes(prettyGateName(g).toLowerCase()))
                 .map(g => (
                   <option key={g} value={g}>{prettyGateName(g)}</option>
                 ))}
