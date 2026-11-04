@@ -63,7 +63,7 @@ def get_gate_names():
         if not result or result.get("status") != "success":
             return {"status": "error", "message": (result or {}).get("message", "Query failed"), "data": []}
 
-        names = sorted({(r.get("GateName") or "").strip() for r in (result.get("data") or [])} - {""})
+        names = sorted({(r.get("GateName") or "").strip() for r in (result.get("data") or [])} - {"", "Unknown Gate"})
         return {"status": "success", "data": names}
     except Exception as e:
         logger.exception("gate-names error")
