@@ -41,7 +41,6 @@ const StatusBadge = ({ val }) => {
 }
 
 const TYPE_OPTIONS = [
-  { value: 'All',     label: 'All' },
   { value: 'GateIn',  label: 'Gate In' },
   { value: 'GateOut', label: 'Gate Out' },
 ]
@@ -55,7 +54,7 @@ const EMPTY_COL_FILTERS = {
 
 const GateInOutReport = () => {
   const [searchContainer, setSearchContainer] = useState('')
-  const [gateType,        setGateType]        = useState('All')          // ← NEW
+  const [gateType,        setGateType]        = useState('')          // ← NEW
   const [dateFrom,        setDateFrom]        = useState(yesterdayLocalDT())
   const [dateTo,          setDateTo]          = useState(todayLocalDT())
   const [records,         setRecords]         = useState([])
@@ -102,7 +101,7 @@ const GateInOutReport = () => {
 
   const handleClear = () => {
     setSearchContainer('')
-    setGateType('All')                                                     // ← NEW
+    setGateType('')                                                     // ← NEW
     setDateFrom(yesterdayLocalDT())
     setDateTo(todayLocalDT())
     setRecords([])

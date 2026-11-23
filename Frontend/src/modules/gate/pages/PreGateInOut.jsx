@@ -13,7 +13,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetPreGateSurveyQuery, useGetGateNamesQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
+import { StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSelect, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 function prettyGateName(name) {
@@ -470,6 +470,60 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom, isMai
   )
 }
 
+/* ─── Stat card with 20 ft / 40 ft / TEU breakdown ───────────────────────── */
+const CARD_TONES = {
+  emerald: { card: 'bg-emerald-100 border-emerald-300', iconBox: 'text-emerald-600', bar: 'bg-emerald-500', ring: 'ring-emerald-600', pct: 'text-emerald-700' },
+  amber:   { card: 'bg-amber-100 border-amber-300',     iconBox: 'text-amber-600',   bar: 'bg-amber-500',   ring: 'ring-amber-600',   pct: 'text-amber-700' },
+  violet:  { card: 'bg-violet-100 border-violet-300',   iconBox: 'text-violet-600',  bar: 'bg-violet-500',  ring: 'ring-violet-600',  pct: 'text-violet-700' },
+  rose:    { card: 'bg-rose-100 border-rose-300',       iconBox: 'text-rose-600',    bar: 'bg-rose-500',    ring: 'ring-rose-600',    pct: 'text-rose-700' },
+  // Total card ke liye alag colour (blue) — text poora black
+  sky:     { card: 'bg-sky-100 border-sky-300',         iconBox: 'text-sky-700',     bar: 'bg-sky-600',     ring: 'ring-sky-700',     pct: 'text-sky-800',
+             label: 'text-black', value: 'text-black', subLabel: 'text-black', subValue: 'text-black', teu: 'text-black' },
+}
+
+function SizeStatCard({ label, icon: Icon, tone = 'emerald', stat, total, isActive, onClick }) {
+  const t = CARD_TONES[tone] || CARD_TONES.emerald
+  const pct = total ? Math.round((stat.count / total) * 100) : null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative text-left rounded-xl border px-3 pt-3 pb-3 overflow-hidden transition-all hover:shadow-md ${t.card} ${isActive ? `ring-2 ${t.ring} shadow-md` : ''}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={`w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center flex-shrink-0 ${t.iconBox}`}>
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[10px] font-bold uppercase tracking-[0.12em] leading-tight truncate ${t.label || 'text-slate-500'}`}>{label}</p>
+          <p className={`text-2xl font-black leading-tight ${t.value || 'text-slate-800'}`}>{stat.count.toLocaleString()}</p>
+        </div>
+        {pct !== null && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white ${t.pct}`}>{pct}%</span>
+        )}
+      </div>
+
+      {/* 20 ft / 40 ft / TEU */}
+      <div className="mt-2.5 grid grid-cols-3">
+        <div className="px-1.5 text-center">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>20 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || 'text-slate-700'}`}>{stat.c20.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>40 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || 'text-slate-700'}`}>{stat.c40.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>TEU</p>
+          <p className={`text-sm font-black leading-tight ${t.teu || 'text-[#0e4a78]'}`}>{stat.teu.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <span className={`absolute left-0 bottom-0 h-[3px] ${t.bar}`} style={{ width: `${pct ?? 100}%` }} />
+    </button>
+  )
+}
+
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 export default function PreGateInOut() {
   const [fromDate,    setFromDate]    = useState('')
@@ -483,7 +537,6 @@ export default function PreGateInOut() {
   const [lightbox,    setLightbox]    = useState(null)
   const [detailIdx,   setDetailIdx]   = useState(null) // index into `rows`
   const [processFilter, setProcessFilter] = useState('all') // client-side filter
-  const [sizeFilter,    setSizeFilter]    = useState('all') // 'all' | '20' | '40' — client-side
 
   const [fetchSurvey, { data, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
   const { data: gateNamesData, isSuccess: gateNamesLoaded, isError: gateNamesFailed } = useGetGateNamesQuery()
@@ -504,8 +557,9 @@ export default function PreGateInOut() {
   //  Fallback     : Maingate In wala layout
   const gateKey        = prettyGateName(appliedGate).toLowerCase()
   const isMainGateOut  = gateKey === 'maingate out'
-  const isMainGateIn   = !isMainGateOut
   const mainDateLabel  = isMainGateOut ? 'Main Gate Out Date' : 'Main Gate In Date'
+  // Pehle card ka label — Maingate In pe "Total Gate In", Maingate Out pe "Total Gate Out"
+  const totalCardLabel = isMainGateOut ? 'Total Gate Out' : 'Total Gate In'
   // #, Container, Size, Process, Gate, 3 date columns, Vehicle, Images
   const colCount       = 10
 
@@ -545,14 +599,13 @@ export default function PreGateInOut() {
   const handleSearch = () => {
     setGateFilter('ALL')
     setProcessFilter('all')
-    setSizeFilter('all')
     runFetch(undefined, 'ALL')
   }
 
   const handleClear = () => {
     setFromDate(''); setToDate('')
     setContainerNo(''); setGateFilter('ALL')
-    setProcessFilter('all'); setSizeFilter('all')
+    setProcessFilter('all')
     setGateName(defaultGate)
     setAppliedGate(defaultGate)
     const args = { page: 1, page_size: ALL_PAGE_SIZE }
@@ -566,40 +619,46 @@ export default function PreGateInOut() {
   }
 
   const allRowsSorted = (() => {
-    const raw = Array.isArray(data?.data) ? [...data.data] : []
+    // Kuch records me GateName khali aata hai aur GateType galat/missing hota hai.
+    // Jo gate Search me applied hai (Maingate In / Out) wahi har row ka Gate aur IN/OUT maana jaata hai,
+    // taaki table, modal, export aur upar ke card ki count hamesha match kare.
+    const raw = Array.isArray(data?.data)
+      ? data.data.map(r => appliedGate
+          ? {
+              ...r,
+              GateName: prettyGateName(appliedGate),
+              GateType: isMainGateOut ? 'GATE_OUT' : 'GATE_IN',
+            }
+          : r)
+      : []
     return raw.sort((a, b) => {
       const av = String(a[sortCol] ?? ''), bv = String(b[sortCol] ?? '')
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
   })()
 
-  const processStats = {
-    total: allRowsSorted.length,
-    exportCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'EXPORT').length,
-    importCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'IMPORT').length,
-    emptyCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'EMPTY').length,
-    domesticCount: allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === 'DOMESTIC').length,
-  }
-
   const sizeOf = (r) => {
     const s = String(r.ContSize || '').trim()
     return s.startsWith('20') ? '20' : s.startsWith('40') ? '40' : ''
   }
 
-  const processRows = processFilter === 'all'
+  // Count + 20ft + 40ft + TEU (20ft = 1 TEU, 40ft = 2 TEU) for a list of rows
+  const breakdown = (list) => {
+    const c20 = list.filter(r => sizeOf(r) === '20').length
+    const c40 = list.filter(r => sizeOf(r) === '40').length
+    return { count: list.length, c20, c40, teu: c20 + c40 * 2 }
+  }
+  const byProcess = (p) => allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === p)
+
+  const totalStat    = breakdown(allRowsSorted)
+  const exportStat   = breakdown(byProcess('EXPORT'))
+  const importStat   = breakdown(byProcess('IMPORT'))
+  const emptyStat    = breakdown(byProcess('EMPTY'))
+  const domesticStat = breakdown(byProcess('DOMESTIC'))
+
+  const rows = processFilter === 'all'
     ? allRowsSorted
     : allRowsSorted.filter(r => String(r.Process || '').toUpperCase() === processFilter)
-
-  // 20/40 ft counts follow the active process filter (Export/Import/Empty/Domestic).
-  const sizeStats = {
-    total: processRows.length,
-    size20: processRows.filter(r => sizeOf(r) === '20').length,
-    size40: processRows.filter(r => sizeOf(r) === '40').length,
-  }
-
-  const rows = sizeFilter === 'all'
-    ? processRows
-    : processRows.filter(r => sizeOf(r) === sizeFilter)
 
   // Export — saara data pehle se load hai, alag API call ki zaroorat nahi.
   // Column order table ke saath match karta hai.
@@ -641,9 +700,7 @@ export default function PreGateInOut() {
     writeXlsx(wb, `PreGateSurvey_${fromDate || 'today'}_${toDate || 'today'}.xlsx`)
   }
 
-  const total          = data?.total          ?? allRowsSorted.length
-  const gate_in_count  = data?.gate_in_count   ?? 0
-  const gate_out_count = data?.gate_out_count  ?? 0
+  const total = data?.total ?? allRowsSorted.length
 
   const TH = ({ col, children }) => (
     <th
@@ -683,94 +740,54 @@ export default function PreGateInOut() {
 
           {/* ── Stats + Filter — merged into one card ── */}
           <FilterCard>
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" bare>
-            <StatCard
-              label="Total"
-              value={total}
-              icon={FiPackage}
-              tone="slate"
-              isActive={gateFilter === 'ALL' && processFilter === 'all'}
+          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
+            {/* Total card — Maingate In pe "Total Gate In", Maingate Out pe "Total Gate Out" */}
+            <SizeStatCard
+              label={totalCardLabel}
+              icon={isMainGateOut ? FiLogOut : FiLogIn}
+              tone="sky"
+              stat={totalStat}
+              isActive={processFilter === 'all'}
               onClick={() => {
-                setGateFilter('ALL'); setProcessFilter('all'); setSizeFilter('all')
+                setGateFilter('ALL'); setProcessFilter('all')
                 runFetch(appliedGate, 'ALL')
               }}
-              total={total}
             />
-            {isMainGateIn && (
-            <StatCard
-              label="Gate In"
-              value={gate_in_count}
-              icon={FiLogIn}
-              tone="emerald"
-              isActive={gateFilter === 'GATE_IN'}
-              onClick={() => { setGateFilter('GATE_IN'); runFetch(appliedGate, 'GATE_IN') }}
-              total={total}
-            />
-            )}
-            {isMainGateOut && (
-            <StatCard
-              label="Gate Out"
-              value={gate_out_count}
-              icon={FiLogOut}
-              tone="amber"
-              isActive={gateFilter === 'GATE_OUT'}
-              onClick={() => { setGateFilter('GATE_OUT'); runFetch(appliedGate, 'GATE_OUT') }}
-              total={total}
-            />
-            )}
-            <StatCard
+            <SizeStatCard
               label="Export"
-              value={processStats.exportCount}
               icon={FiDownloadIcon}
               tone="amber"
+              stat={exportStat}
+              total={totalStat.count}
               isActive={processFilter === 'EXPORT'}
               onClick={() => setProcessFilter('EXPORT')}
-              total={processStats.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Import"
-              value={processStats.importCount}
               icon={FiTruckIcon}
               tone="emerald"
+              stat={importStat}
+              total={totalStat.count}
               isActive={processFilter === 'IMPORT'}
               onClick={() => setProcessFilter('IMPORT')}
-              total={processStats.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Empty"
-              value={processStats.emptyCount}
               icon={FiBox}
               tone="violet"
+              stat={emptyStat}
+              total={totalStat.count}
               isActive={processFilter === 'EMPTY'}
               onClick={() => setProcessFilter('EMPTY')}
-              total={processStats.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Domestic"
-              value={processStats.domesticCount}
               icon={FiHome}
               tone="rose"
+              stat={domesticStat}
+              total={totalStat.count}
               isActive={processFilter === 'DOMESTIC'}
               onClick={() => setProcessFilter('DOMESTIC')}
-              total={processStats.total}
-            />
-            <StatCard
-              label="20 ft"
-              value={sizeStats.size20}
-              icon={FiPackage}
-              tone="emerald"
-              isActive={sizeFilter === '20'}
-              onClick={() => setSizeFilter(sizeFilter === '20' ? 'all' : '20')}
-              total={sizeStats.total}
-            />
-            <StatCard
-              label="40 ft"
-              value={sizeStats.size40}
-              icon={FiPackage}
-              tone="amber"
-              isActive={sizeFilter === '40'}
-              onClick={() => setSizeFilter(sizeFilter === '40' ? 'all' : '40')}
-              total={sizeStats.total}
             />
           </StatGrid>
 

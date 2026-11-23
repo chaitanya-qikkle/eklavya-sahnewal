@@ -1,24 +1,18 @@
-"""
-Email Report Service
---------------------
-Fetches data from two stored procedures and sends a daily HTML email:
 
-  Table 1 — Warehouse Container Details
-      Procedure : GET_DASHBOARD_CONTAINERAGEING
-      Columns   : (dynamic — first result set)
-
-  Table 2 — Yard Inventory
-      Procedure : GET_DASHBOARD_YARDINVENTORY_AUTOMAIL
-      Columns   : YARDNAME, SIZE20, SIZE40, TOTAL, TEUS
-"""
-
+import io
 import os
+import re
 import smtplib
 import logging
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 from utils.db_utils import SQLManager
 
@@ -39,12 +33,24 @@ REPORT_RECIPIENTS: List[str] = [
     if e.strip()
 ]
 
-# CC recipients — optional (leave blank or don't set in .env to skip CC)
 REPORT_CC: List[str] = [
     e.strip()
     for e in os.getenv("REPORT_CC", "").split(",")
     if e.strip()
 ]
+
+# ── Excel / procedure config ──────────────────────────────────────────────────
+EXCEL_FILE_NAME = os.getenv("REPORT_EXCEL_NAME", "Automailer_report_in_OCR.xlsx")
+
+PROC_WAREHOUSE_SUMMARY = "GET_DASHBOARD_WAREHOUSE_AUTOMAIL"   # YARDNAME, SIZE20, SIZE40, TOTAL, TEUS
+PROC_YARD_SUMMARY      = "GET_DASHBOARD_YARDINVENTORY_AUTOMAIL"
+PROC_YARD_DETAILS      = "GET_DASHBOARD_YARDINVENTORY_DETAILS_AUTOMAIL"
+
+PROC_WAREHOUSE_DETAILS = os.getenv(
+    "WAREHOUSE_DETAILS_PROC", "GET_DASHBOARD_WAREHOUSE_DETAILS_AUTOMAIL"
+)
+
+WAREHOUSE_BLOCK_ORDER = ["EXP-EX", "OWH"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -79,17 +85,223 @@ def _exec_proc(proc_name: str, fetch_all: bool = False) -> List[Dict[str, Any]]:
 
 
 def fetch_container_ageing_data() -> List[Dict[str, Any]]:
-    """Warehouse Container Details from GET_DASHBOARD_CONTAINERAGEING."""
-    rows = _exec_proc("GET_DASHBOARD_CONTAINERAGEING", fetch_all=True)
+    """Warehouse summary (EXP-EX / OWH) from GET_DASHBOARD_WAREHOUSE_AUTOMAIL."""
+    rows = _exec_proc(PROC_WAREHOUSE_SUMMARY, fetch_all=False)
     logger.info("Container ageing rows fetched: %d", len(rows))
     return rows
 
 
 def fetch_yard_inventory_data() -> List[Dict[str, Any]]:
-    """Yard Inventory from GET_DASHBOARD_YARDINVENTORY_AUTOMAIL."""
-    rows = _exec_proc("GET_DASHBOARD_YARDINVENTORY_AUTOMAIL", fetch_all=False)
+    """Yard Inventory summary from GET_DASHBOARD_YARDINVENTORY_AUTOMAIL."""
+    rows = _exec_proc(PROC_YARD_SUMMARY, fetch_all=False)
     logger.info("Yard inventory rows fetched: %d", len(rows))
     return rows
+
+
+def fetch_yard_details_data() -> List[Dict[str, Any]]:
+    """Yard container list (for Excel) from GET_DASHBOARD_YARDINVENTORY_DETAILS_AUTOMAIL."""
+    rows = _exec_proc(PROC_YARD_DETAILS, fetch_all=False)
+    logger.info("Yard detail rows fetched: %d", len(rows))
+    return rows
+
+
+def fetch_warehouse_details_data() -> List[Dict[str, Any]]:
+    """Warehouse container list (for Excel) from the warehouse details procedure."""
+    rows = _exec_proc(PROC_WAREHOUSE_DETAILS, fetch_all=False)
+    logger.info("Warehouse detail rows fetched: %d", len(rows))
+    return rows
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EXCEL BUILDER
+# ══════════════════════════════════════════════════════════════════════════════
+
+_XL_HEADER_FILL = PatternFill("solid", fgColor="7F7F7F")
+_XL_HEADER_FONT = Font(bold=True, color="FFFFFF")
+_XL_TITLE_FILL  = PatternFill("solid", fgColor="7F7F7F")
+_XL_THIN        = Side(style="thin", color="000000")
+_XL_BORDER      = Border(left=_XL_THIN, right=_XL_THIN, top=_XL_THIN, bottom=_XL_THIN)
+_XL_CENTER      = Alignment(horizontal="center", vertical="center")
+
+
+def _get(row: Dict[str, Any], *names: str) -> Any:
+    """Case-insensitive column lookup (ContNo / CONTNO / contno all work)."""
+    lowered = {str(k).lower(): v for k, v in row.items()}
+    for n in names:
+        if n.lower() in lowered:
+            return lowered[n.lower()]
+    return None
+
+
+def _size_int(value: Any) -> int:
+    """'20', '20HQ', 20 → 20 ;  '40', '40HQ' → 40 ;  anything else → 0."""
+    m = re.match(r"\s*(\d+)", str(value or ""))
+    return int(m.group(1)) if m else 0
+
+
+def _fmt_dt(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%d-%m-%Y %H:%M")
+    return str(value)
+
+
+def _to_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalise_details(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Convert raw SP rows to clean dicts used by the Excel sheets."""
+    out = []
+    for r in rows:
+        out.append({
+            "cont":    _get(r, "ContNo") or "",
+            "process": _get(r, "Process") or "",
+            "size":    _size_int(_get(r, "ContainerSize", "Size")),
+            "gate_in": _fmt_dt(_get(r, "GateInDate")),
+            "loc":     _get(r, "Location") or "—",
+            "block":   _get(r, "BlockName") or "—",
+        })
+    return out
+
+
+def _style_title(ws, row: int, text: str, ncols: int) -> None:
+    c = ws.cell(row=row, column=1, value=text)
+    c.font = Font(bold=True)
+
+
+def _write_summary(ws, start_row: int, title: str, last_header: str,
+                   data: List[tuple]) -> int:
+    """
+    Writes:   title row / header row / data rows / Grand Total row.
+    data = [(label, n20, n40, total, teus), ...]
+    Returns the row number of the Grand Total row.
+    """
+    _style_title(ws, start_row, title, 5)
+
+    hdr_row = start_row + 1
+    for i, h in enumerate(["Row Labels", 20, 40, "Grand Total", last_header], start=1):
+        c = ws.cell(row=hdr_row, column=i, value=h)
+        c.fill, c.font, c.alignment, c.border = (
+            _XL_HEADER_FILL, _XL_HEADER_FONT, _XL_CENTER, _XL_BORDER)
+
+    r = hdr_row
+    for label, n20, n40, total, teus in data:
+        r += 1
+        for i, v in enumerate([label, n20, n40, total, teus], start=1):
+            c = ws.cell(row=r, column=i, value=v)
+            c.alignment, c.border = _XL_CENTER, _XL_BORDER
+
+    r += 1
+    totals = [
+        "Grand Total",
+        sum(d[1] for d in data),
+        sum(d[2] for d in data),
+        sum(d[3] for d in data),
+        sum(d[4] for d in data),
+    ]
+    for i, v in enumerate(totals, start=1):
+        c = ws.cell(row=r, column=i, value=v)
+        c.font, c.alignment, c.border = Font(bold=True), _XL_CENTER, _XL_BORDER
+    return r
+
+
+def _write_detail_table(ws, header_row: int, details: List[Dict[str, Any]],
+                        with_block_col: bool) -> None:
+    headers = ["Container No", "Process", "Size", "Location", "Gate In"]
+    if with_block_col:
+        headers.append("Location")          # BlockName (EXP-EX / OWH …)
+
+    for i, h in enumerate(headers, start=1):
+        c = ws.cell(row=header_row, column=i, value=h)
+        c.fill, c.font, c.alignment, c.border = (
+            _XL_HEADER_FILL, _XL_HEADER_FONT, _XL_CENTER, _XL_BORDER)
+
+    r = header_row
+    for d in details:
+        r += 1
+        vals = [d["cont"], d["process"], d["size"], d["loc"], d["gate_in"]]
+        if with_block_col:
+            vals.append(d["block"])
+        for i, v in enumerate(vals, start=1):
+            c = ws.cell(row=r, column=i, value=v)
+            c.alignment, c.border = _XL_CENTER, _XL_BORDER
+
+    if details:
+        ws.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{r}"
+
+
+def _set_widths(ws, widths: List[float]) -> None:
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+
+def build_excel_report(
+    yard_summary_rows: List[Dict[str, Any]],
+    yard_detail_rows: List[Dict[str, Any]],
+    warehouse_detail_rows: List[Dict[str, Any]],
+) -> bytes:
+    """
+    Builds Automailer_report_in_OCR.xlsx in memory and returns the bytes.
+
+    Sheet 1 'Yard Inventory'     : summary (row 3-…) + container list
+    Sheet 2 'Warehouse Location' : summary per block (row 3-…) + container list
+    TEUs = (20ft × 1) + (40ft × 2)
+    """
+    wb = Workbook()
+
+    # ── Sheet 1 : Yard Inventory ──────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Yard Inventory"
+
+    yard_data = []
+    for r in yard_summary_rows:
+        n20 = _to_int(_get(r, "SIZE20"))
+        n40 = _to_int(_get(r, "SIZE40"))
+        total = _to_int(_get(r, "TOTAL")) or (n20 + n40)
+        teus = _to_int(_get(r, "TEUS")) or (n20 + 2 * n40)
+        label = _get(r, "PROCESS", "YARDNAME") or ""
+        yard_data.append((label, n20, n40, total, teus))
+
+    total_row = _write_summary(ws1, 3, "Count of Container No", "Tues", yard_data)
+    _write_detail_table(ws1, total_row + 2, _normalise_details(yard_detail_rows),
+                        with_block_col=False)
+    _set_widths(ws1, [20.4, 14.8, 8, 22, 18])
+
+    # ── Sheet 2 : Warehouse Location ──────────────────────────────────────────
+    ws2 = wb.create_sheet("Warehouse Location")
+    wh = _normalise_details(warehouse_detail_rows)
+
+    # summary = count per block, computed from the same rows as the list below
+    blocks: Dict[str, List[int]] = {}
+    for d in wh:
+        b = blocks.setdefault(d["block"], [0, 0])
+        if d["size"] == 20:
+            b[0] += 1
+        elif d["size"] == 40:
+            b[1] += 1
+
+    def _block_sort(name: str):
+        return (WAREHOUSE_BLOCK_ORDER.index(name), "") if name in WAREHOUSE_BLOCK_ORDER \
+            else (len(WAREHOUSE_BLOCK_ORDER), name)
+
+    wh_data = [
+        (name, c20, c40, c20 + c40, c20 + 2 * c40)
+        for name, (c20, c40) in sorted(blocks.items(), key=lambda kv: _block_sort(kv[0]))
+    ]
+
+    total_row = _write_summary(ws2, 3, "Warehouse Container Details.", "Total Tues", wh_data)
+    # sample file me header row 12 hai (2 blocks ke saath) → total_row + 5
+    _write_detail_table(ws2, max(12, total_row + 5), wh, with_block_col=True)
+    _set_widths(ws2, [20.4, 14.8, 8, 22, 18, 12])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -115,43 +327,47 @@ def _is_total_row(row: Dict[str, Any]) -> bool:
     return False
 
 
-def build_warehouse_table(rows: List[Dict[str, Any]]) -> str:
-    """
-    Table 1 — Warehouse Container Details.
-    Columns are taken dynamically from the stored procedure result set.
-    Grand Total row is bolded with a highlighted background.
-    Header colour: dark green (#1b4332).
-    """
+def _build_summary_table(rows, empty_msg, head_bg, row_a, row_total, border, text_color):
+    """Common builder for the fixed-column summary tables (warehouse + yard)."""
     if not rows:
-        return "<p style='color:#888;font-style:italic;'>No warehouse data available.</p>"
+        return f"<p style='color:#888;font-style:italic;'>{empty_msg}</p>"
 
-    columns = list(rows[0].keys())
+    # Procedure first column: PROCESS / YARDNAME (case-insensitive)
+    keys = {str(k).upper(): k for k in rows[0].keys()}
+    first_key = next((keys[n] for n in ("YARDNAME", "PROCESS", "BLOCKNAME") if n in keys),
+                     list(rows[0].keys())[0])
+    num_keys = [keys[n] for n in ("SIZE20", "SIZE40", "TOTAL", "TEUS") if n in keys]
+    labels = {"SIZE20": "20", "SIZE40": "40", "TOTAL": "Grand Total", "TEUS": "Tues"}
+    columns = [first_key] + num_keys
 
-    # ── Header ──
+    display_rows = list(rows)
+    if not any(_is_total_row(r) for r in rows):
+        gt = {first_key: "Grand Total"}
+        for k in num_keys:
+            gt[k] = sum(_to_int(r.get(k)) for r in rows)
+        display_rows.append(gt)
+
     header_cells = ""
     for i, col in enumerate(columns):
-        align  = "left" if i == 0 else "center"
-        label  = col.replace("_", " ").title()
+        align = "left" if i == 0 else "center"
+        label = "Row Labels" if i == 0 else labels[str(col).upper()]
         header_cells += (
             f'<th style="{_TH_BASE.format(align=align)}'
-            f'background:#1b4332;color:#ffffff;">{label}</th>'
+            f'background:{head_bg};color:#ffffff;">{label}</th>'
         )
 
-    # ── Rows ──
     body_rows = ""
-    for idx, row in enumerate(rows):
+    for idx, row in enumerate(display_rows):
         is_total = _is_total_row(row)
-        row_bg   = "#d8f3dc" if is_total else ("#f0f7f4" if idx % 2 == 0 else "#ffffff")
-        border   = "#b7e4c7"
-        fw       = "font-weight:700;" if is_total else ""
-
+        row_bg = row_total if is_total else (row_a if idx % 2 == 0 else "#ffffff")
+        fw = "font-weight:700;" if is_total else ""
         cells = ""
         for i, col in enumerate(columns):
-            val   = "" if row.get(col) is None else str(row[col])
+            val = "" if row.get(col) is None else str(row[col])
             align = "left" if i == 0 else "center"
             cells += (
                 f'<td style="{_TD_BASE.format(align=align, border=border)}'
-                f'color:#1b4332;{fw}">{val}</td>'
+                f'color:{text_color};{fw}">{val}</td>'
             )
         body_rows += f'<tr style="background:{row_bg};">{cells}</tr>'
 
@@ -163,60 +379,21 @@ def build_warehouse_table(rows: List[Dict[str, Any]]) -> str:
     )
 
 
+def build_warehouse_table(rows: List[Dict[str, Any]]) -> str:
+    """Table 1 — Warehouse Container Details (EXP-EX / OWH). Header: dark green."""
+    return _build_summary_table(
+        rows, "No warehouse data available.",
+        head_bg="#1b4332", row_a="#f0f7f4", row_total="#d8f3dc",
+        border="#b7e4c7", text_color="#1b4332",
+    )
+
+
 def build_yard_inventory_table(rows: List[Dict[str, Any]]) -> str:
-    """
-    Table 2 — Yard Inventory.
-    Fixed columns: YARDNAME → Row Labels, SIZE20 → 20, SIZE40 → 40,
-                   TOTAL → Grand Total, TEUS → Tues.
-    Header colour: dark teal (#0d6e6e).
-    """
-    if not rows:
-        return "<p style='color:#888;font-style:italic;'>No yard inventory data available.</p>"
-
-    # Display names matching the image exactly
-    col_map = {
-        "YARDNAME": "Row Labels",
-        "SIZE20":   "20",
-        "SIZE40":   "40",
-        "TOTAL":    "Grand Total",
-        "TEUS":     "Tues",
-    }
-    # Only show columns that exist in the result (safe fallback)
-    columns = [c for c in col_map.keys() if c in rows[0]]
-
-    # ── Header ──
-    header_cells = ""
-    for i, col in enumerate(columns):
-        align  = "left" if i == 0 else "center"
-        label  = col_map[col]
-        header_cells += (
-            f'<th style="{_TH_BASE.format(align=align)}'
-            f'background:#0d6e6e;color:#ffffff;">{label}</th>'
-        )
-
-    # ── Rows ──
-    body_rows = ""
-    for idx, row in enumerate(rows):
-        is_total = _is_total_row(row)
-        row_bg   = "#e6f7f7" if is_total else ("#f0fbfb" if idx % 2 == 0 else "#ffffff")
-        border   = "#b2dfdb"
-        fw       = "font-weight:700;" if is_total else ""
-
-        cells = ""
-        for i, col in enumerate(columns):
-            val   = "" if row.get(col) is None else str(row[col])
-            align = "left" if i == 0 else "center"
-            cells += (
-                f'<td style="{_TD_BASE.format(align=align, border=border)}'
-                f'color:#0d3b3b;{fw}">{val}</td>'
-            )
-        body_rows += f'<tr style="background:{row_bg};">{cells}</tr>'
-
-    return (
-        f'<table cellpadding="0" cellspacing="0" border="0" style="{_TABLE_WRAP}">'
-        f'<thead><tr>{header_cells}</tr></thead>'
-        f'<tbody>{body_rows}</tbody>'
-        f'</table>'
+    """Table 2 — Yard Inventory (PROCESS / YARDNAME). Header: dark teal."""
+    return _build_summary_table(
+        rows, "No yard inventory data available.",
+        head_bg="#0d6e6e", row_a="#f0fbfb", row_total="#e6f7f7",
+        border="#b2dfdb", text_color="#0d3b3b",
     )
 
 
@@ -228,7 +405,7 @@ def _section_label(text: str, color: str, border_color: str) -> str:
     return (
         f'<div style="display:inline-block;background:{color};'
         f'border-left:4px solid {border_color};'
-        f'padding:7px 14px;border-radius:4px;margin-bottom:10px;">'
+        f'padding:7px 14px;border-radius:4px;">'
         f'<span style="font-size:14px;font-weight:700;color:{border_color};">'
         f'{text}</span></div>'
     )
@@ -237,6 +414,7 @@ def _section_label(text: str, color: str, border_color: str) -> str:
 def build_full_email_html(
     warehouse_rows: List[Dict[str, Any]],
     yard_rows: List[Dict[str, Any]],
+    has_attachment: bool = False,
 ) -> str:
     today_str   = datetime.now().strftime("%d %B %Y")
     report_time = datetime.now().strftime("%I:%M %p")
@@ -246,6 +424,16 @@ def build_full_email_html(
 
     wh_label   = _section_label("Warehouse Container Details", "#d8f3dc", "#1b4332")
     yard_label = _section_label("Yard Inventory",              "#e0f2f1", "#0d6e6e")
+
+    attach_note = ""
+    if has_attachment:
+        attach_note = (
+            '<tr><td style="padding:0 32px 24px;">'
+            '<p style="margin:0;font-size:13px;color:#444;">'
+            f'📎 Detailed container list attached: <strong>{EXCEL_FILE_NAME}</strong> '
+            '(sheets: Yard Inventory, Warehouse Location)'
+            '</p></td></tr>'
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -267,29 +455,10 @@ def build_full_email_html(
                     box-shadow:0 4px 16px rgba(0,0,0,0.10);
                     overflow:hidden;max-width:720px;width:100%;">
 
-        <!-- Header Banner -->
-        <tr>
-          <td style="background:linear-gradient(135deg,#1b4332 0%,#40916c 100%);
-                     padding:26px 32px;">
-            <h1 style="margin:0;color:#ffffff;font-size:21px;font-weight:700;
-                       letter-spacing:0.4px;">
-              📦 Container Ageing &amp; Yard Inventory Report
-            </h1>
-            <p style="margin:6px 0 0;color:#d8f3dc;font-size:13px;">
-              Automated Daily Report &nbsp;·&nbsp; {today_str}
-              &nbsp;·&nbsp; {report_time}
-            </p>
-          </td>
-        </tr>
-
         <!-- ── Table 1: Warehouse Container Details ── -->
         <tr>
-          <td style="padding:24px 32px 8px;">
+          <td style="padding:24px 32px 12px;">
             {wh_label}
-            <p style="margin:4px 0 12px;color:#555;font-size:12px;">
-              Report timing: 10:00 AM &nbsp;|&nbsp;
-              Source: GET_DASHBOARD_CONTAINERAGEING
-            </p>
           </td>
         </tr>
         <tr>
@@ -307,12 +476,8 @@ def build_full_email_html(
 
         <!-- ── Table 2: Yard Inventory ── -->
         <tr>
-          <td style="padding:24px 32px 8px;">
+          <td style="padding:24px 32px 12px;">
             {yard_label}
-            <p style="margin:4px 0 12px;color:#555;font-size:12px;">
-              Report timing: 10:00 AM &nbsp;|&nbsp;
-              Source: GET_DASHBOARD_YARDINVENTORY_AUTOMAIL
-            </p>
           </td>
         </tr>
         <tr>
@@ -320,6 +485,9 @@ def build_full_email_html(
             {yard_table}
           </td>
         </tr>
+
+        <!-- Attachment note -->
+        {attach_note}
 
         <!-- Footer -->
         <tr>
@@ -349,7 +517,7 @@ def build_full_email_html(
 
 def send_container_ageing_report() -> bool:
     """
-    Fetches both data sets, builds the HTML email, and sends it.
+    Fetches all data sets, builds the HTML email + Excel attachment, sends it.
     Returns True on success, False on any failure.
     """
     if not REPORT_RECIPIENTS:
@@ -363,36 +531,64 @@ def send_container_ageing_report() -> bool:
         logger.error("SMTP credentials missing. Set SMTP_USER and SMTP_PASSWORD in .env")
         return False
 
-    # 1. Fetch data
+    # 1. Fetch data (email tables)
     warehouse_rows = fetch_container_ageing_data()
     yard_rows      = fetch_yard_inventory_data()
 
-    # 2. Build email
+    # 1b. Fetch data (Excel sheets)
+    yard_detail_rows      = fetch_yard_details_data()
+    warehouse_detail_rows = fetch_warehouse_details_data()
+
+    # 2. Build Excel (failure should not stop the email itself)
+    excel_bytes: Optional[bytes] = None
+    try:
+        excel_bytes = build_excel_report(yard_rows, yard_detail_rows, warehouse_detail_rows)
+        logger.info("Excel built: %s (%d bytes)", EXCEL_FILE_NAME, len(excel_bytes))
+    except Exception as exc:
+        logger.exception("Excel generation failed — email will be sent without attachment: %s", exc)
+
+    # 3. Build email
     today_str = datetime.now().strftime("%d %B %Y")
     subject   = f"Container Ageing & Yard Inventory Report — {today_str}"
-    html_body = build_full_email_html(warehouse_rows, yard_rows)
+    html_body = build_full_email_html(
+        warehouse_rows, yard_rows, has_attachment=excel_bytes is not None
+    )
 
     plain_text = (
         f"Container Ageing & Yard Inventory Report — {today_str}\n\n"
-        f"Warehouse rows : {len(warehouse_rows)}\n"
-        f"Yard rows      : {len(yard_rows)}\n\n"
+        f"Warehouse rows       : {len(warehouse_rows)}\n"
+        f"Yard rows            : {len(yard_rows)}\n"
+        f"Yard containers      : {len(yard_detail_rows)}\n"
+        f"Warehouse containers : {len(warehouse_detail_rows)}\n\n"
         "Please view this email in an HTML-capable mail client for the full report."
     )
 
-    # 3. Compose MIME
-    msg = MIMEMultipart("alternative")
+    # 4. Compose MIME  (mixed → [alternative(plain+html), attachment])
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"]    = SMTP_USER
     msg["To"]      = ", ".join(REPORT_RECIPIENTS)
     if REPORT_CC:
         msg["Cc"]  = ", ".join(REPORT_CC)
-    msg.attach(MIMEText(plain_text, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
+
+    body = MIMEMultipart("alternative")
+    body.attach(MIMEText(plain_text, "plain"))
+    body.attach(MIMEText(html_body, "html"))
+    msg.attach(body)
+
+    if excel_bytes:
+        part = MIMEApplication(
+            excel_bytes,
+            _subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Name=EXCEL_FILE_NAME,
+        )
+        part.add_header("Content-Disposition", "attachment", filename=EXCEL_FILE_NAME)
+        msg.attach(part)
 
     # All addresses that should actually receive the email (TO + CC)
     all_recipients = REPORT_RECIPIENTS + REPORT_CC
 
-    # 4. Send
+    # 5. Send
     try:
         if SMTP_USE_TLS:
             server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)

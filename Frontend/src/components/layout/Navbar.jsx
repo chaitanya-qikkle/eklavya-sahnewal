@@ -217,6 +217,8 @@ const Navbar = ({ brand = "Qikkle" }) => {
     "Identity/RoleMenuMapping/Index":            "/user-settings/role-menu-mapping",
     "Identity/Role/Index":                       "/user-settings/role",
     "Identity/User/Index":                       "/user-settings/users",
+    "gate/gate/wb-in-survey":                    "/gate/wb-in-survey",
+    "gate/wb-in-survey":                         "/gate/wb-in-survey",
   };
 
   const normalizeMenuPath = (path) => {

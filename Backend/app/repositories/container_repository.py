@@ -39,6 +39,18 @@ class ContainerRepository(BaseRepository):
     def get_container_info(self, container_no: str) -> dict:
         return self._exec("EXEC dbo.SP_CONTAINER_INFO ?", (container_no,))
 
+    def get_wbin_survey(
+        self,
+        plant_id: Optional[int],
+        from_date: Optional[str],
+        to_date: Optional[str],
+        container_no: Optional[str],
+    ) -> dict:
+        return self._exec(
+            "EXEC dbo.GET_ESURVEY_WBIN_DETAIL @PlantID=?, @FromDate=?, @ToDate=?, @ContainerNo=?",
+            (plant_id, from_date, to_date, container_no),
+        )
+
     def update_physical_location(self, container_no: str, location: str) -> dict:
         return self._exec(
             "EXEC dbo.UPD_PHYSICAL_CONTAINER_LOCATION ?, ?",
@@ -94,6 +106,18 @@ class ContainerRepository(BaseRepository):
         return self._exec(
             "EXEC dbo.GET_24HR_TRAILER_OUT_DETAIL @PlantID = ?, @GateType = ?, @UserID = ?",
             (plant_id, gate_type, user_id),
+        )
+
+    def get_wbin_survey(
+        self,
+        plant_id,
+        from_date,
+        to_date,
+        container_no,
+    ) -> dict:
+        return self._exec(
+            "EXEC dbo.GET_ESURVEY_WBIN_DETAIL @PlantID=?, @FromDate=?, @ToDate=?, @ContainerNo=?",
+            (plant_id, from_date, to_date, container_no),
         )
 
     def find_trailer_containers(self, trailer_no: str) -> dict:

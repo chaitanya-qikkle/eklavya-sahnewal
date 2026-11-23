@@ -15,6 +15,7 @@ import {
 import Navbar from "../../../components/layout/Navbar";
 import {
   useGetEquipmentQuery,
+  useGetCurrentEquipmentStatusQuery,
   useGetContainerLiveStatusQuery,
   useGetDeviceDataLatestQuery,
   useGetDeviceDataLiveLocationsQuery,
@@ -425,6 +426,37 @@ const ShipTip = ({ active, payload }) => {
       <ShipTipRow label="TEUs" v={d.teus} color={T.emerald} />
       <ShipTipRow label="Total" v={d.total} />
       <ShipTipRow label="Share" v={`${d.pct}%`} />
+    </div>
+  );
+};
+
+// ─── Process Mix tooltip — 20ft · 40ft · Total · TEUs ────────────────────────
+const ProcessTip = ({ active, payload }) => {
+  const d = payload?.[0]?.payload;
+  if (!active || !d) return null;
+  const color = d.color || payload[0].color || payload[0].fill || T.blue;
+  const s20 = Number(d.size20 ?? 0);
+  const s40 = Number(d.size40 ?? 0);
+  // Pie ki inner ring (size-wise slice) me sirf count + teus aata hai
+  const isSizeSlice = d.isSizeSlice === true;
+  const total = Number(d.value ?? s20 + s40);
+  const teus = Number(d.teus ?? s20 + s40 * 2);
+  return (
+    <div className="rounded-xl px-3 py-2 text-xs"
+      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text, minWidth: 170 }}>
+      <div className="flex items-center gap-1.5 font-black text-[11px] mb-1.5" style={{ color: T.text }}>
+        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+        {d.name}
+      </div>
+      {!isSizeSlice && (
+        <>
+          <ShipTipRow label="20ft" v={s20} color={T.cyan} />
+          <ShipTipRow label="40ft" v={s40} color={T.indigo} />
+          <div className="border-t my-1" style={{ borderColor: T.border }} />
+        </>
+      )}
+      <ShipTipRow label={isSizeSlice ? "Count" : "Total"} v={total} />
+      <ShipTipRow label="TEUs" v={teus} color={T.emerald} />
     </div>
   );
 };
@@ -853,6 +885,9 @@ const _localDate = (offset = 0) => {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 };
 
+// "2026-11-22" -> "22-11-2026"
+const fmtYmd = (s) => (s ? String(s).split("-").reverse().join("-") : "—");
+
 // "018:04" -> 1084 minutes
 const hmToMin = (s) => {
   const p = String(s ?? "0:00").split(":").map(Number);
@@ -889,8 +924,10 @@ const UtilTooltip = ({ active, payload, label }) => {
   );
 };
 
-const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoading, allEquipment }) => {
-  const [selDate, setSelDate] = useState(() => _localDate(-1));
+const UtilizationSection = ({
+  fetchUtilization, utilizationApi, utilizationLoading, allEquipment,
+  selDate, setSelDate, onFetched,
+}) => {
   const [chartType, setChartType] = useState("composed"); // table | bar | composed
 
   const rows = useMemo(() => Array.isArray(utilizationApi?.data) ? utilizationApi.data : [], [utilizationApi]);
@@ -918,7 +955,8 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
     const eqpNames = equipment.map((e) => e.name).filter(Boolean).join(",");
     if (!eqpNames) return;
     fetchUtilization({ eqp_no: eqpNames, from_date: from, to_date: to });
-  }, [fetchUtilization]);
+    onFetched?.(from);   // niche wale chart ko batao kaun si date fetch hui
+  }, [fetchUtilization, onFetched]);
 
   // Auto-fetch yesterday on mount once equipment list is ready
   const hasFetched = useRef(false);
@@ -1163,7 +1201,7 @@ const UtilizationSection = ({ fetchUtilization, utilizationApi, utilizationLoadi
 };
 
 // ─── Daily Equipment Moves Count (bars = moves, line = utilization %) ────────
-const MovesCountChart = ({ utilizationApi }) => {
+const MovesCountChart = ({ utilizationApi, date }) => {
   const [view, setView] = useState("chart"); // chart | table
 
   const chartData = useMemo(() => {
@@ -1197,25 +1235,40 @@ const MovesCountChart = ({ utilizationApi }) => {
   };
 
   return (
-    <Panel title="Daily Equipment Moves Count" subtitle="Moves per machine · utilization overlay" icon={FiBarChart2}
+    <Panel
+      title="Daily Equipment Moves Count"
+      subtitle={`Moves per machine · utilization overlay · ${fmtYmd(date)}`}
+      icon={FiBarChart2}
       accent={T.blue} className="xl:col-span-6 h-[320px]"
-      right={chartData.length > 0 && (
+      right={
         <div className="flex items-center gap-2">
-          <ViewSwitch value={view} onChange={setView}
-            options={[
-              { value: "chart", label: "Chart", icon: FiBarChart2 },
-              { value: "table", label: "Table", icon: FiList },
-            ]}
-          />
-          <ExportBtn
-            onClick={() => exportToExcel(
-              chartData.map((r) => ({ Equipment: r.name, Moves: r.moves, "Utilization %": r.utilPct })),
-              "Moves", "DailyEquipmentMoves",
-            )}
-            disabled={!chartData.length}
-          />
+          {/* Date badge — upar Fetch ki hui date */}
+          <span
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tabular-nums"
+            style={{ background: `${T.blue}12`, color: T.blue, border: `1px solid ${T.blue}30` }}
+            title="Equipment Daily Utilization me fetch ki hui date"
+          >
+            <FiClock className="w-3 h-3" /> {fmtYmd(date)}
+          </span>
+          {chartData.length > 0 && (
+            <>
+              <ViewSwitch value={view} onChange={setView}
+                options={[
+                  { value: "chart", label: "Chart", icon: FiBarChart2 },
+                  { value: "table", label: "Table", icon: FiList },
+                ]}
+              />
+              <ExportBtn
+                onClick={() => exportToExcel(
+                  chartData.map((r) => ({ Date: fmtYmd(date), Equipment: r.name, Moves: r.moves, "Utilization %": r.utilPct })),
+                  "Moves", `DailyEquipmentMoves_${date}`,
+                )}
+                disabled={!chartData.length}
+              />
+            </>
+          )}
         </div>
-      )}
+      }
     >
       {!chartData.length ? (
         <div className="flex-1 flex items-center justify-center text-xs" style={{ color: T.textMute }}>
@@ -1295,18 +1348,24 @@ const AdminDashboard = () => {
   const [eqpSort, setEqpSort] = useState({ key: "status", dir: "asc" });
   const [eqpSearch, setEqpSearch] = useState("");
 
+  // Utilization date: picker value + jis date ka data actually fetch hua
+  const [utilDate, setUtilDate] = useState(() => _localDate(-1));
+  const [utilFetchedDate, setUtilFetchedDate] = useState(() => _localDate(-1));
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(id);
   }, []);
 
   // ─── API ─────────────────────────────────────────────────────────────────
+  // Live equipment status (STATUS / TAT / lat-long / last handle) — GET_CURRENTEQUIPMENT_STATUS.
+  // Yehi ab equipment list + Active Equipment KPI ka single source hai (purani get-equipment API hata di).
   const {
-    data: equipmentApi,
+    data: currentStatusApi,
     isLoading: equipmentLoading,
     isFetching: equipmentFetching,
     refetch: refetchEquipment,
-  } = useGetEquipmentQuery(undefined, { pollingInterval: 15000, refetchOnFocus: true });
+  } = useGetCurrentEquipmentStatusQuery(undefined, { pollingInterval: 15000, refetchOnFocus: true });
 
   const {
     data: liveStatusApi,
@@ -1363,6 +1422,10 @@ const AdminDashboard = () => {
     { pollingInterval: 60000 }
   );
 
+  // Sirf Equipment Daily Utilization ke liye: utilization SP ko Equipment_Code chahiye (KalmarNo nahi).
+  // Active Equipment / counts ke liye ye use NAHI hota — wo current-status API se hi aate hain.
+  const { data: equipmentMasterApi } = useGetEquipmentQuery(undefined, { refetchOnFocus: true });
+
   const { data: latestTxApi } = useGetDeviceDataLatestQuery(undefined, { pollingInterval: 15000 });
   const { data: liveLocApi } = useGetDeviceDataLiveLocationsQuery(undefined, { pollingInterval: 15000 });
   const { data: latestEqpTxApi } = useGetEquipmentTransactionLatestQuery(undefined, { pollingInterval: 20000 });
@@ -1374,23 +1437,44 @@ const AdminDashboard = () => {
     useLazyGetEquipmentDailyUtilizationQuery();
 
   // ─── Derived ─────────────────────────────────────────────────────────────
+  // KalmarNo = device id = equipment name (current-equipment-status API)
   const allEquipment = useMemo(() => {
-    const list = Array.isArray(equipmentApi?.data) ? equipmentApi.data : [];
+    const list = Array.isArray(currentStatusApi?.data) ? currentStatusApi.data : [];
     return list.map((item, i) => {
-      const name = get(item, "Equipment_Code", "equipment_code", "EQUIPMENT_CODE",
-                       "Equipment_Name", "equipment_name", "EQUIPMENT_NAME") || `EQP-${i + 1}`;
-      const deviceId = get(item, "Device_ID", "device_id", "DEVICE_ID");
-      const status = String(get(item, "Status", "status", "STATUS") || "").toLowerCase();
-      const owner = get(item, "Owner_Name", "owner_name", "OWNER_NAME");
+      const name = String(get(item, "KalmarNo", "kalmarno", "KALMARNO") || `EQP-${i + 1}`).trim();
+      const statusText = String(get(item, "STATUS", "Status", "status") || "").trim();
+      const st = statusText.toLowerCase();
       return {
-        id: get(item, "Eqp_ID", "eqp_id") || i + 1,
-        name: String(name).trim(),
-        deviceId: deviceId ? String(deviceId).trim().toUpperCase() : null,
-        owner,
-        isBreakdown: status === "breakdown" || status === "break" || status === "fault",
+        id: name || i + 1,
+        name,
+        deviceId: name.toUpperCase(),
+        owner: null,
+        statusText,
+        isWorking: st === "working",
+        isIdle: st === "idle",
+        isBreakdown: st === "breakdown" || st === "break" || st === "fault",
+        dateTime: parseDateTime(get(item, "Date_Time", "date_time")),
+        lastHandle: parseDateTime(get(item, "LastHandleDate", "lasthandledate")),
+        tat: get(item, "TAT", "tat"),
       };
     }).filter((e) => e.name);
-  }, [equipmentApi]);
+  }, [currentStatusApi]);
+
+  // Utilization ke liye equipment list: Device_ID == KalmarNo se match karke Equipment_Code lo.
+  // (match na mile to KalmarNo fallback.)
+  const utilEquipment = useMemo(() => {
+    const master = Array.isArray(equipmentMasterApi?.data) ? equipmentMasterApi.data : [];
+    const codeByDevice = new Map();
+    master.forEach((item) => {
+      const dev = get(item, "Device_ID", "device_id", "DEVICE_ID");
+      const code = get(item, "Equipment_Code", "equipment_code", "EQUIPMENT_CODE",
+                       "Equipment_Name", "equipment_name", "EQUIPMENT_NAME");
+      if (dev && code) codeByDevice.set(String(dev).trim().toUpperCase(), String(code).trim());
+    });
+    // master abhi load nahi hua to khali list do, taaki galat naam se fetch na ho
+    if (!master.length) return [];
+    return allEquipment.map((e) => ({ ...e, name: codeByDevice.get(e.deviceId) || e.name }));
+  }, [allEquipment, equipmentMasterApi]);
 
   // Debounced re-fetch of OCR whenever date range OR equipment selection changes.
   useEffect(() => {
@@ -1452,53 +1536,25 @@ const AdminDashboard = () => {
     return { fromMs: fromD.getTime(), toMs: toD.getTime() };
   }, [filters.from, filters.to]);
 
+  // Active Equipment — directly from get-current-equipment-status (STATUS field).
+  // Active = Working + Idle (Equipment Status page ke "Active" filter jaisa), Breakdown alag, baaki Offline.
   const equipmentStats = useMemo(() => {
     const total = filteredEquipment.length;
+    const working = filteredEquipment.filter((e) => e.isWorking).length;
+    const idle = filteredEquipment.filter((e) => e.isIdle).length;
     const breakdown = filteredEquipment.filter((e) => e.isBreakdown).length;
-
-    // Build DEVICE_ID → last transaction Date from SP_MOVEMENT_TRANSACTION_LATEST
-    const lastTxByDevice = new Map();
-    const txRows = Array.isArray(latestEqpTxApi?.data) ? latestEqpTxApi.data : [];
-    txRows.forEach((r) => {
-      const dev = String(get(r, "DEVICE_ID", "device_id", "DEVICE_IMEI", "device_imei") || "").trim().toUpperCase();
-      if (!dev) return;
-      const dt = parseDateTime(get(r, "LAST_TRANSACTION_DATE", "last_transaction_date", "TRANSACTION_DATE", "transaction_date"));
-      if (dt) lastTxByDevice.set(dev, dt);
-    });
-    // Merge latestTxMap (device-data) as additional source
-    latestTxMap.forEach((dateStr, dev) => {
-      if (!lastTxByDevice.has(dev)) {
-        const dt = parseDateTime(dateStr);
-        if (dt) lastTxByDevice.set(dev, dt);
-      }
-    });
-    // Merge liveLocMap (GPS live-location pings) as additional source
-    liveLocMap.forEach((loc, dev) => {
-      const dt = parseDateTime(loc?.lastAt);
-      if (!dt) return;
-      const existing = lastTxByDevice.get(dev);
-      if (!existing || dt.getTime() > existing.getTime()) lastTxByDevice.set(dev, dt);
-    });
-
-    // Active = last tx within 8 hours of NOW
-    const ACTIVE_WINDOW_MS = 8 * 60 * 60 * 1000;
-    const nowMs = now.getTime();
-
-    let active = 0;
-    const perMachine = filteredEquipment.map((e) => {
-      const devUp = String(e.deviceId || "").trim().toUpperCase();
-      const lastTx = devUp ? lastTxByDevice.get(devUp) : null;
-      const isActive = !e.isBreakdown && !!lastTx &&
-        (nowMs - lastTx.getTime()) <= ACTIVE_WINDOW_MS;
-      if (isActive) active++;
-      const lastTxStr = lastTx ? lastTx.toLocaleString() : null;
-      return { name: e.name, deviceId: devUp, isActive, isBreakdown: e.isBreakdown, lastTx: lastTxStr };
-    });
-
-    const idle = Math.max(total - active - breakdown, 0);
+    const active = working + idle;
+    const offline = Math.max(total - active - breakdown, 0);
     const utilization = total > 0 ? (active / total) * 100 : 0;
-    return { total, active, idle, breakdown, utilization, perMachine };
-  }, [filteredEquipment, latestEqpTxApi, latestTxMap, liveLocMap, now]);
+    const perMachine = filteredEquipment.map((e) => ({
+      name: e.name,
+      deviceId: e.deviceId,
+      isActive: e.isWorking || e.isIdle,
+      isBreakdown: e.isBreakdown,
+      lastTx: e.lastHandle ? e.lastHandle.toLocaleString() : null,
+    }));
+    return { total, active, working, idle, breakdown, offline, utilization, perMachine };
+  }, [filteredEquipment]);
 
   const containersAll = useMemo(
     () => (Array.isArray(liveStatusApi?.data) ? liveStatusApi.data : []),
@@ -1748,28 +1804,24 @@ const AdminDashboard = () => {
   }, [lockReportApi]);
 
   const liveEquipment = useMemo(() => {
-    const perMachineMap = new Map(
-      (equipmentStats.perMachine || []).map((m) => [m.name, m])
-    );
     return filteredEquipment.map((e) => {
       const loc = e.deviceId ? liveLocMap.get(e.deviceId) : null;
       const lastTxAt = parseDateTime(e.deviceId ? latestTxMap.get(e.deviceId) : null);
       const lastSeenAt = parseDateTime(loc?.lastAt);
-      const effective = lastSeenAt || lastTxAt;
-      const pm = perMachineMap.get(e.name) || { isActive: false, lastTx: null };
+      const effective = e.dateTime || lastSeenAt || lastTxAt;
       let status = "offline";
       if (e.isBreakdown) status = "breakdown";
-      else if (pm.isActive) status = "active";
-      else if (effective && now.getTime() - effective.getTime() < 60 * 60 * 1000) status = "idle";
+      else if (e.isWorking) status = "active";
+      else if (e.isIdle) status = "idle";
       return {
         ...e,
         status,
         lastAt: effective,
         container: loc?.container ? String(loc.container).split(" ")[0] : "",
-        lastTx: pm.lastTx,
+        lastTx: e.lastHandle ? e.lastHandle.toLocaleString() : null,
       };
     });
-  }, [filteredEquipment, liveLocMap, latestTxMap, equipmentStats.perMachine, now]);
+  }, [filteredEquipment, liveLocMap, latestTxMap]);
 
   // Set of equipment-code names allowed by filter (null = no restriction)
   const allowedEqpNames = useMemo(() => {
@@ -1962,7 +2014,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const online = !!(equipmentApi || liveStatusApi);
+  const online = !!(currentStatusApi || liveStatusApi);
 
   // ─── KPI configs (for cards + drill-down) ─────────────────────────────────
   const kpis = useMemo(() => {
@@ -2039,10 +2091,10 @@ const AdminDashboard = () => {
         loading: equipmentLoading,
         history: history.active,
         breakdown: [
-          { name: "Active", value: equipmentStats.active, color: T.emerald },
+          { name: "Working", value: equipmentStats.working, color: T.emerald },
           { name: "Idle", value: equipmentStats.idle, color: T.amber },
           { name: "Breakdown", value: equipmentStats.breakdown, color: T.red },
-          { name: "Offline", value: Math.max(equipmentStats.total - equipmentStats.active - equipmentStats.idle - equipmentStats.breakdown, 0), color: T.textMute },
+          { name: "Offline", value: equipmentStats.offline, color: T.textMute },
         ],
       },
       {
@@ -2459,7 +2511,7 @@ const AdminDashboard = () => {
 
           {/* Process Mix + Yard Inventory */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 md:gap-4">
-            <Panel title="Process Mix" subtitle="By process · 20ft vs 40ft" icon={FiPieChart} accent={T.blue} className="xl:col-span-4 h-[340px]"
+            <Panel title="Process Mix" subtitle="By process · 20ft vs 40ft · TEUs" icon={FiPieChart} accent={T.blue} className="xl:col-span-4 h-[340px]"
               right={
                 <div className="flex items-center gap-2">
                   <ViewSwitch
@@ -2511,22 +2563,25 @@ const AdminDashboard = () => {
               ) : processView === "bar" ? (
                 <div className="flex-1 min-h-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={processData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                    <ComposedChart data={processData} margin={{ top: 20, right: 12, left: -8, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
                       <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textDim, fontWeight: 700 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} width={28} />
-                      <Tooltip content={<Tip />} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: T.textMute }} width={32} />
+                      <Tooltip content={<ProcessTip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
                       <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                       <Bar dataKey="size20" name="20ft" stackId="a" fill={T.cyan} barSize={26} />
                       <Bar dataKey="size40" name="40ft" stackId="a" fill={T.indigo} radius={[4, 4, 0, 0]} barSize={26} />
-                    </BarChart>
+                      <Line type="monotone" dataKey="teus" name="TEUs" stroke={T.emerald} strokeWidth={2.5}
+                        dot={{ r: 4, fill: T.emerald, strokeWidth: 2, stroke: "white" }}
+                        label={{ position: "top", fontSize: 10, fontWeight: 800, fill: T.emerald, formatter: (v) => fmtNumber(v) }} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
                 <div className="flex-1 min-h-0 flex items-center gap-2">
                   <ResponsiveContainer width="60%" height="100%">
                     <PieChart>
-                      <Tooltip content={<Tip />} />
+                      <Tooltip content={<ProcessTip />} />
                       {/* Outer ring — process totals */}
                       <Pie
                         data={processData}
@@ -2541,8 +2596,8 @@ const AdminDashboard = () => {
                       {/* Inner ring — per-process 20ft/40ft split */}
                       <Pie
                         data={processData.flatMap((d) => [
-                          { name: `${d.name} 20ft`, value: d.size20, color: T.cyan },
-                          { name: `${d.name} 40ft`, value: d.size40, color: T.indigo },
+                          { name: `${d.name} 20ft`, value: d.size20, teus: d.size20, color: T.cyan, isSizeSlice: true },
+                          { name: `${d.name} 40ft`, value: d.size40, teus: d.size40 * 2, color: T.indigo, isSizeSlice: true },
                         ])}
                         dataKey="value"
                         nameKey="name"
@@ -2565,7 +2620,7 @@ const AdminDashboard = () => {
                           <span className="font-bold truncate" style={{ color: T.textDim }}>{d.name}</span>
                           <span className="ml-auto font-black tabular-nums" style={{ color: T.text }}>{fmtNumber(d.value)}</span>
                         </div>
-                        <div className="flex items-center gap-3 pl-4 text-[10px]" style={{ color: T.textMute }}>
+                        <div className="flex items-center gap-3 pl-4 text-[10px] flex-wrap" style={{ color: T.textMute }}>
                           <span className="flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: T.cyan }} />
                             20': <b style={{ color: T.textDim }}>{fmtNumber(d.size20)}</b>
@@ -2573,6 +2628,10 @@ const AdminDashboard = () => {
                           <span className="flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: T.indigo }} />
                             40': <b style={{ color: T.textDim }}>{fmtNumber(d.size40)}</b>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: T.emerald }} />
+                            TEUs: <b style={{ color: T.emerald }}>{fmtNumber(d.teus)}</b>
                           </span>
                         </div>
                       </div>
@@ -2673,7 +2732,10 @@ const AdminDashboard = () => {
             fetchUtilization={fetchUtilization}
             utilizationApi={utilizationApi}
             utilizationLoading={utilizationLoading}
-            allEquipment={allEquipment}
+            allEquipment={utilEquipment}
+            selDate={utilDate}
+            setSelDate={setUtilDate}
+            onFetched={setUtilFetchedDate}
           />
 
           {/* Ageing + Moves Count side by side */}
@@ -2790,7 +2852,7 @@ const AdminDashboard = () => {
             </Panel>
 
             {/* Daily Equipment Moves Count */}
-            <MovesCountChart utilizationApi={utilizationApi} />
+            <MovesCountChart utilizationApi={utilizationApi} date={utilFetchedDate} />
           </div>
 
           {/* Shipping Line */}

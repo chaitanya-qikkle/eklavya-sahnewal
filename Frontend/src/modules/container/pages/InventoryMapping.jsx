@@ -27,87 +27,142 @@ const ROWLESS_BLOCKS = ['EMR']
 // per the real GET_BLOCK_LIST output. OWH's Row/Column were swapped in the
 // source data (Row numeric, Column letters) and have been corrected here to
 // match every other block's convention (Row = letters, Column = numbers).
-const FALLBACK_BLOCKS =  [
-    {
-      "Block": "EMR",
-      "MinRow": "EMR",
-      "MaxRow": "EMR",
-      "MinColumn": 1,
-      "MaxColumn": 14
-    },
-    {
-      "Block": "EMT",
-      "MinRow": "A",
-      "MaxRow": "V",
-      "MinColumn": 1,
-      "MaxColumn": 60
-    },
-    {
-      "Block": "EXP",
-      "MinRow": "A",
-      "MaxRow": "G",
-      "MinColumn": 1,
-      "MaxColumn": 28
-    },
-    {
-      "Block": "EXP-EX",
-      "MinRow": "A",
-      "MaxRow": "L",
-      "MinColumn": 1,
-      "MaxColumn": 63
-    },
-    {
-      "Block": "HAZ",
-      "MinRow": "A",
-      "MaxRow": "B",
-      "MinColumn": 1,
-      "MaxColumn": 13
-    },
-    {
-      "Block": "IMP",
-      "MinRow": "A",
-      "MaxRow": "H",
-      "MinColumn": 1,
-      "MaxColumn": 72
-    },
-    {
-      "Block": "IMP-EX",
-      "MinRow": "A",
-      "MaxRow": "R",
-      "MinColumn": 1,
-      "MaxColumn": 30
-    },
-    {
-      "Block": "OWH",
-      "MinRow": "A",
-      "MaxRow": "H",
-      "MinColumn": 1,
-      "MaxColumn": 41
-    },
-    {
-      "Block": "RAIL",
-      "MinRow": "A",
-      "MaxRow": "C",
-      "MinColumn": 1,
-      "MaxColumn": 129
-    },
-    {
-      "Block": "TG",
-      "MinRow": "A",
-      "MaxRow": "D",
-      "MinColumn": 1,
-      "MaxColumn": 12
-    }
-  ]
+const FALLBACK_BLOCKS =[
+  {
+    "Block": "EMR",
+    "MinRow": "EMR",
+    "MaxRow": "EMR",
+    "MinColumn": 1,
+    "MaxColumn": 14
+  },
+  {
+    "Block": "EMT",
+    "MinRow": "A",
+    "MaxRow": "V",
+    "MinColumn": 1,
+    "MaxColumn": 60,
+    "ExtraMinRow": "EX",
+    "ExtraMaxRow": "PX",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 60
+  },
+  {
+    "Block": "EXP",
+    "MinRow": "A",
+    "MaxRow": "G",
+    "MinColumn": 1,
+    "MaxColumn": 28,
+    "ExtraMinRow": "Cx",
+    "ExtraMaxRow": "Gx",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 28
+  },
+  {
+    "Block": "EXP-EX",
+    "MinRow": "A",
+    "MaxRow": "L",
+    "MinColumn": 1,
+    "MaxColumn": 63,
+    "ExtraMinRow": "AX",
+    "ExtraMaxRow": "FX",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 12
+  },
+  {
+    "Block": "HAZ",
+    "MinRow": "A",
+    "MaxRow": "B",
+    "MinColumn": 1,
+    "MaxColumn": 13
+  },
+  {
+    "Block": "IMP",
+    "MinRow": "A",
+    "MaxRow": "H",
+    "MinColumn": 1,
+    "MaxColumn": 72,
+    "ExtraMinRow": "Dx",
+    "ExtraMaxRow": "Hx",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 72
+  },
+  {
+    "Block": "IMP-EX",
+    "MinRow": "A",
+    "MaxRow": "R",
+    "MinColumn": 1,
+    "MaxColumn": 30
+  },
+  {
+    "Block": "OWH",
+    "MinRow": "A",
+    "MaxRow": "H",
+    "MinColumn": 1,
+    "MaxColumn": 41,
+    "ExtraMinRow": "AX",
+    "ExtraMaxRow": "CX",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 40
+  },
+  {
+    "Block": "RAIL",
+    "MinRow": "A",
+    "MaxRow": "C",
+    "MinColumn": 1,
+    "MaxColumn": 129,
+    "ExtraMinRow": "Cx",
+    "ExtraMaxRow": "Cx",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 129
+  },
+  {
+    "Block": "TG",
+    "MinRow": "A",
+    "MaxRow": "D",
+    "MinColumn": 1,
+    "MaxColumn": 12,
+    "ExtraMinRow": "AX",
+    "ExtraMaxRow": "CX",
+    "ExtraMinColumn": 1,
+    "ExtraMaxColumn": 5
+  },
+  {
+    "Block": "Workshop"
+  }
+]
 
 
 
 const letterRange = (min, max) => {
-  const start = String(min || 'A').toUpperCase().charCodeAt(0)
-  const end = String(max || 'A').toUpperCase().charCodeAt(0)
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return []
+  if (!min || !max) return []
+
+  const minStr = String(min).trim()
+  const maxStr = String(max).trim()
+
+  // Single character rows: A to G
+  // Suffix rows: AX to CX, Cx to Gx, Dx to Hx
+  const startLetter = minStr.charAt(0).toUpperCase()
+  const endLetter = maxStr.charAt(0).toUpperCase()
+
+  const startSuffix = minStr.slice(1)
+  const endSuffix = maxStr.slice(1)
+
+  // Suffix should be same for range
+  if (startSuffix.toUpperCase() !== endSuffix.toUpperCase()) {
+    return []
+  }
+
+  const start = startLetter.charCodeAt(0)
+  const end = endLetter.charCodeAt(0)
+
+  if (end < start) return []
+
   const out = []
-  for (let c = start; c <= end; c++) out.push(String.fromCharCode(c))
+
+  for (let c = start; c <= end; c++) {
+    out.push(String.fromCharCode(c) + startSuffix)
+  }
+
   return out
 }
 
@@ -158,18 +213,35 @@ const InventoryMapping = () => {
   }, [searchData, containerNo])
 
   const blocks = useMemo(() => {
-    const apiList = Array.isArray(blockListData?.data) ? blockListData.data : []
-    const list = apiList.length > 0 ? apiList : FALLBACK_BLOCKS
-    return list
-      .map((b) => ({
-        block: String(b?.Block ?? b?.block ?? '').trim(),
-        minRow: b?.MinRow ?? b?.minRow,
-        maxRow: b?.MaxRow ?? b?.maxRow,
-        minColumn: Number(b?.MinColumn ?? b?.minColumn) || 1,
-        maxColumn: Number(b?.MaxColumn ?? b?.maxColumn) || 1,
-      }))
-      .filter((b) => b.block)
-  }, [blockListData])
+  const apiList = Array.isArray(blockListData?.data)
+    ? blockListData.data
+    : []
+
+  const list = apiList.length > 0 ? apiList : FALLBACK_BLOCKS
+
+  return list
+    .map((b) => ({
+      block: String(b?.Block ?? b?.block ?? '').trim(),
+
+      minRow: b?.MinRow ?? b?.minRow,
+      maxRow: b?.MaxRow ?? b?.maxRow,
+
+      minColumn: Number(b?.MinColumn ?? b?.minColumn) || 1,
+      maxColumn: Number(b?.MaxColumn ?? b?.maxColumn) || 1,
+
+      extraMinRow: b?.ExtraMinRow ?? b?.extraMinRow,
+      extraMaxRow: b?.ExtraMaxRow ?? b?.extraMaxRow,
+
+      extraMinColumn: Number(
+        b?.ExtraMinColumn ?? b?.extraMinColumn
+      ) || 1,
+
+      extraMaxColumn: Number(
+        b?.ExtraMaxColumn ?? b?.extraMaxColumn
+      ) || 1,
+    }))
+    .filter((b) => b.block)
+}, [blockListData])
 
   const selectedBlock = useMemo(
     () => blocks.find((b) => b.block === blockName) || null,
@@ -179,10 +251,21 @@ const InventoryMapping = () => {
   // EMR (and any block in ROWLESS_BLOCKS) has no Row
   const isRowless = ROWLESS_BLOCKS.includes(blockName.trim().toUpperCase())
 
-  const rowOptions = useMemo(
-    () => (selectedBlock ? letterRange(selectedBlock.minRow, selectedBlock.maxRow) : []),
-    [selectedBlock]
+  const rowOptions = useMemo(() => {
+  if (!selectedBlock) return []
+
+  const normalRows = letterRange(
+    selectedBlock.minRow,
+    selectedBlock.maxRow
   )
+
+  const extraRows = letterRange(
+    selectedBlock.extraMinRow,
+    selectedBlock.extraMaxRow
+  )
+
+  return [...new Set([...normalRows, ...extraRows])]
+}, [selectedBlock])
 
   const handleBlockChange = (value) => {
     setBlockName(value)

@@ -155,20 +155,28 @@ function SortIcon({ col, sortField, sortDir }) {
 
 // ─── main component ───────────────────────────────────────────────────────────
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
-const toLocalInputValue = (d) => {
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
-}
-const todayLocalDT = () => toLocalInputValue(new Date())
+  const toLocalInputValue = (d) => {
+    const p = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  }
+  const todayLocalDT = () => toLocalInputValue(new Date())
+
+  const defaultFromDT = () => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    d.setHours(0, 0, 0, 0)
+    return toLocalInputValue(d)
+  }
+  const defaultToDT = () => toLocalInputValue(new Date())
 
 export default function ESurvey() {
   const today = todayLocalDT()
   const authUser = useSelector(selectAuthUser)
   const loggedInName = authUser?.first_name || authUser?.username || authUser?.name || 'Unknown'
 
-  const [fromDate,     setFromDate]     = useState(today)
-  const [toDate,       setToDate]       = useState(today)
-  const [gateFilter,   setGateFilter]   = useState('ALL')
+  const [fromDate, setFromDate] = useState(defaultFromDT)
+  const [toDate,   setToDate]   = useState(defaultToDT)
+  const [gateFilter,   setGateFilter]   = useState('GATE_IN')
   const [containerNo,  setContainerNo]  = useState('')
   const [page,         setPage]         = useState(1)
   const [sortField,    setSortField]    = useState('SurveyTime')
@@ -191,9 +199,8 @@ export default function ESurvey() {
   const [fetchSurvey, { data: apiData, isFetching, isError }] = useLazyGetPreGateSurveyQuery()
 
   const buildArgs = useCallback((pg = 1) => {
-    const args = { page: pg, page_size: PAGE_SIZE, from_date: fromDate, to_date: toDate }
-    if (gateFilter !== 'ALL') args.gate_type    = gateFilter
-    if (containerNo.trim())   args.container_no = containerNo.trim()
+    const args = { page: pg, page_size: PAGE_SIZE, from_date: fromDate, to_date: toDate, gate_type: gateFilter }
+    if (containerNo.trim()) args.container_no = containerNo.trim()
     return args
   }, [fromDate, toDate, gateFilter, containerNo])
 
@@ -201,14 +208,15 @@ export default function ESurvey() {
   useEffect(() => {
     if (fetched.current) return
     fetched.current = true
-    fetchSurvey({ page: 1, page_size: PAGE_SIZE, from_date: today, to_date: today })
+    fetchSurvey({ page: 1, page_size: PAGE_SIZE, from_date: fromDate, to_date: toDate, gate_type: gateFilter })
   }, []) // eslint-disable-line
 
   const handleSearch = () => { setPage(1); fetchSurvey(buildArgs(1)) }
-  const handleClear  = () => {
-    setFromDate(today); setToDate(today)
-    setGateFilter('ALL'); setContainerNo(''); setPage(1)
-    fetchSurvey({ page: 1, page_size: PAGE_SIZE, from_date: today, to_date: today })
+  const handleClear = () => {
+    const f = defaultFromDT(), t = defaultToDT()
+    setFromDate(f); setToDate(t)
+    setGateFilter('GATE_IN'); setContainerNo(''); setPage(1)
+    fetchSurvey({ page: 1, page_size: PAGE_SIZE, from_date: f, to_date: t, gate_type: 'GATE_IN' })
   }
   const goToPage = (pg) => {
     const tp = apiData?.total_pages ?? 1
@@ -291,8 +299,8 @@ export default function ESurvey() {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
     doc.text(`SL NO : ${sv.SurveyId ?? '—'}`, M, 40.5)
-    doc.text(`DATE : ${fmt(toLocalInputValue(new Date())).slice(0, 10)}`, W - M, 40.5, { align: 'right' })
-
+    // doc.text(`DATE : ${fmt(toLocalInputValue(new Date())).slice(0, 10)}`, W - M, 40.5, { align: 'right' })
+    doc.text(`DATE : ${fmt(toDate).slice(0, 10)}`, W - M, 40.5, { align: 'right' })
     // ── title ──────────────────────────────────────────────────────────────
     const TITLE = 'SURVEY REPORT CONTAINER CONDITION'
     doc.setFontSize(12)
@@ -464,8 +472,9 @@ export default function ESurvey() {
       M + noteLabelW, H - 11
     )
 
-    doc.save(`esurvey-${sv.ContainerNo || 'report'}-${today.slice(0, 10)}.pdf`)
-  }, [today, loggedInName])
+    // doc.save(`esurvey-${sv.ContainerNo || 'report'}-${today.slice(0, 10)}.pdf`)
+    doc.save(`esurvey-${sv.ContainerNo || 'report'}-${toDate.slice(0, 10)}.pdf`)
+  }, [today, loggedInName, toDate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -482,7 +491,7 @@ export default function ESurvey() {
     })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'E-Survey')
-    writeXlsx(wb, `esurvey-${today.slice(0, 10)}.xlsx`)
+    writeXlsx(wb, `esurvey-${toDate.slice(0, 10)}.xlsx`)
   }
 
   // ── WIZARD VIEW ──────────────────────────────────────────────────────────────
@@ -724,14 +733,14 @@ export default function ESurvey() {
                 <FiFilter className="text-[#0e4a78]" size={11} /> Gate Type
               </label>
               <div className="flex gap-1.5">
-                {['ALL', 'GATE_IN', 'GATE_OUT'].map(t => (
+                {['GATE_IN', 'GATE_OUT'].map(t => (
                   <button key={t} onClick={() => setGateFilter(t)}
                     className={`px-3 py-2 rounded-lg text-xs font-semibold border-2 transition-all ${
                       gateFilter === t
                         ? 'bg-gradient-to-r from-[#0e4a78] to-[#0a3b61] text-white border-[#0e4a78] shadow-md'
                         : 'bg-white text-slate-600 border-slate-300 hover:border-[#0e4a78] hover:text-[#0e4a78]'
                     }`}>
-                    {t === 'ALL' ? 'All' : t === 'GATE_IN' ? 'Gate In' : 'Gate Out'}
+                    {t === 'GATE_IN' ? 'Gate In' : 'Gate Out'}
                   </button>
                 ))}
               </div>

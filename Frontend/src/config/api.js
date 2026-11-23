@@ -191,6 +191,7 @@ export const API_ENDPOINTS = {
     KIOSK_SEARCH: buildUrl('/v1/container/kiosk-search'),
     KIOSK_LIVE_STATUS: buildUrl('/v1/container/kiosk-live-status'),
     GET_LOCATION_SLOTS: buildUrl('/v1/container/location-slots'),
+    GET_WBIN_SURVEY: buildUrl('/v1/container/wbin-survey'),
     GET_PRE_GATE_SURVEY: buildUrl('/v1/container/pre-gate-survey'),
     GET_GATE_NAMES: buildUrl('/v1/container/gate-names'),
     GET_VEHICLE_CONTAINER_DETECTION: buildUrl('/v1/container/vehicle-container-detection'),
@@ -214,6 +215,7 @@ export const API_ENDPOINTS = {
     RAIL_PLAN_DELETE_TASK: buildUrl('/v1/container/rail-plan-delete-task'),
     RAIL_PLAN_UPLOAD: buildUrl('/v1/container/rail-plan-upload'),
     GET_RAIL_MOVEMENT_TAT: buildUrl('/v1/container/rail-movement-tat'),
+    GET_WBIN_SURVEY: buildUrl('/v1/container/wbin-survey'),
   },
 
   // Reports

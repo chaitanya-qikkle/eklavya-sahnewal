@@ -17,3 +17,4 @@ ultralytics
 scipy
 numpy
 Pillow
+openpyxl

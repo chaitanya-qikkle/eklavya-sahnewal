@@ -1039,6 +1039,20 @@ export const ymsApi = createApi({
       },
     }),
 
+    getWbinSurvey: builder.query({
+      query: ({ plant_id, from_date, to_date, container_no } = {}) => {
+        const params = new URLSearchParams()
+        if (plant_id)     params.set('plant_id',     String(plant_id))
+        if (from_date)    params.set('from_date',    from_date)
+        if (to_date)      params.set('to_date',      to_date)
+        if (container_no) params.set('container_no', container_no)
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_WBIN_SURVEY}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+    }),
+
     getPreGateSurvey: builder.query({
       query: ({ gate_type, gate_name, from_date, to_date, container_no, plant_id, page = 1, page_size = 20 } = {}) => {
         const params = new URLSearchParams()
@@ -1052,6 +1066,20 @@ export const ymsApi = createApi({
         params.set('page_size', String(page_size))
         return {
           url: `${API_ENDPOINTS.CONTAINER.GET_PRE_GATE_SURVEY}?${params.toString()}`,
+          method: 'GET',
+        }
+      },
+    }),
+
+    getWbinSurvey: builder.query({
+      query: ({ plant_id, from_date, to_date, container_no } = {}) => {
+        const params = new URLSearchParams()
+        if (plant_id)     params.set('plant_id', String(plant_id))
+        if (from_date)    params.set('from_date', from_date)
+        if (to_date)      params.set('to_date', to_date)
+        if (container_no) params.set('container_no', container_no)
+        return {
+          url: `${API_ENDPOINTS.CONTAINER.GET_WBIN_SURVEY}?${params.toString()}`,
           method: 'GET',
         }
       },
@@ -1372,6 +1400,8 @@ export const {
   useLazyGetRailInQuery,
   useGetPreGateSurveyQuery,
   useLazyGetPreGateSurveyQuery,
+  useGetWbinSurveyQuery,
+  useLazyGetWbinSurveyQuery,
   useGetContainerInOut24hQuery,
   useGetContainerInOut24hThroughputQuery,
   useGetDashboardYardInventoryQuery,

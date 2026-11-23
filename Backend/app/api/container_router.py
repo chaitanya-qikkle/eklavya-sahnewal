@@ -154,6 +154,25 @@ def get_container_info(container_no: str = ""):
     finally:
         svc.repo.db.close()
 
+@router.get("/wbin-survey")
+def get_wbin_survey(
+    plant_id:     int = Query(0),
+    from_date:    Optional[str] = None,
+    to_date:      Optional[str] = None,
+    container_no: Optional[str] = None,
+):
+    svc = _service()
+    try:
+        return svc.get_wbin_survey(
+            plant_id or None,
+            from_date or None,
+            to_date or None,
+            container_no or None,
+        )
+    finally:
+        svc.repo.db.close()
+
+
 
 # ── Update physical location (mobile) ────────────────────────────────────────
 

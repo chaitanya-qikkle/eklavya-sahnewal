@@ -300,7 +300,12 @@ const LiveStatus = () => {
       hazTotal, hazImport, hazExport, hazImp20, hazImp40, hazExp20, hazExp40,
     };
   };
-
+  // "RAIL:C:42:2" -> "RAIL", "HAZ:B:12:1" -> "HAZ"
+    const getYardPrefix = (val) => {
+      const s = String(val ?? "").trim();
+      if (!s) return "";
+      return s.split(":")[0].trim();
+    };
   const applyClientSlice = (page, size, processType) => {
     const all = allRowsRef.current;
     const filtered = all.filter((r) => matchesFilter(r, processType));
@@ -312,11 +317,14 @@ const LiveStatus = () => {
     const slice = filtered.slice(start, start + size).map((item) => ({
       ...item,
       location: item.MASTERTABLE || item.LOCATION_NAME || item.YARD_LOC || "",
-      yardName: item.MASTERTABLE || item.YARD_NAME || "",
+      // yardName: item.MASTERTABLE || item.YARD_NAME || "",
+      yardName: getYardPrefix(item.MASTERTABLE),
       transactionDate: item.TOSS_IN_DATE || item.LAST_MOVED_DATE || "",
       CONTAINER_PROCESS: item.CONTAINER_PROCESS || "",
+      
     }));
-
+    
+    
     setRecords(slice);
     setBackendPagination({
       totalRecords,
@@ -581,7 +589,8 @@ const LiveStatus = () => {
         "Mode":             record.MODE,
         "Shipping Line":    record.SHIPPING_LINE,
         "Location":         record.MASTERTABLE || record.LOCATION_NAME || "",
-        "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
+        // "Yard Name":        record.MASTERTABLE || record.YARD_NAME || "",
+        "Yard Name": getYardPrefix(record.MASTERTABLE ),
         "Gate In Date":     gateIn ?? "",
         "Stuffing Date":    stuffing ?? "",
         "Destuffing Date":  destuffing ?? "",

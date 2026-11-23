@@ -82,6 +82,7 @@ const routeDefinitions = [
   { path: '/gate/pre-gate-in-out', Component: lazyPage(() => import('./modules/gate/pages/PreGateInOut')) },
   { path: '/gate/main-gate', Component: lazyPage(() => import('./modules/gate/pages/MainGate')) },
   { path: '/gate/rail-gate-in', Component: lazyPage(() => import('./modules/gate/pages/RailGateIn')) },
+  { path: '/gate/wb-in-survey', Component: lazyPage(() => import('./modules/gate/pages/WbInSurvey')) },
 
   { path: '/machine/breakdown', Component: lazyPage(() => import('./modules/machine/pages/Breakdown')) },
   { path: '/machine/equipment', Component: lazyPage(() => import('./modules/machine/pages/Equipment')) },

@@ -72,6 +72,19 @@ class ContainerService:
     def get_container_info(self, container_no: str) -> dict:
         return self.repo.get_container_info(container_no.strip().upper())
 
+    def get_wbin_survey(
+        self,
+        plant_id: Optional[int],
+        from_date: Optional[str],
+        to_date: Optional[str],
+        container_no: Optional[str],
+    ) -> dict:
+        result = self.repo.get_wbin_survey(plant_id, from_date, to_date, container_no)
+        if not result or result.get("status") != "success":
+            return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}
+        rows = result.get("data", []) or []
+        return {"status": "success", "count": len(rows), "data": rows}
+
     def update_physical_location(self, container_no: str, location: str) -> dict:
         result = self.repo.update_physical_location(container_no, location)
         if not result or result.get("status") != "success":
@@ -168,6 +181,22 @@ class ContainerService:
             "total_pages":    total_pages,
             "data":           page_rows,
         }
+
+    def get_wbin_survey(
+        self,
+        plant_id,
+        from_date,
+        to_date,
+        container_no,
+    ) -> dict:
+        try:
+            result = self.repo.get_wbin_survey(plant_id, from_date, to_date, container_no)
+            if not result or result.get("status") != "success":
+                return {"status": "error", "message": (result or {}).get("message", "SP failed"), "data": []}
+            rows = result.get("data", []) or []
+            return {"status": "success", "count": len(rows), "data": rows}
+        except Exception as e:
+            return {"status": "error", "message": str(e), "data": []}
 
     def get_trailer_gate_in_list(self) -> dict:
         result = self.repo.get_trailer_gate_in_list()
