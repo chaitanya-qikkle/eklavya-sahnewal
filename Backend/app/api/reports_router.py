@@ -122,3 +122,14 @@ def get_daily_utilisation(
         return svc.get_daily_utilisation(from_date, to_date, group_by)
     finally:
         svc.repo.db.close()
+
+# ── Container ageing report ───────────────────────────────────────────────────
+@router.get("/container-ageing")
+def get_container_ageing(
+    current_user: dict = Depends(get_current_user),
+):
+    svc = _service()
+    try:
+        return svc.get_container_ageing_details(current_user.get("plant_id", 1))
+    finally:
+        svc.repo.db.close()

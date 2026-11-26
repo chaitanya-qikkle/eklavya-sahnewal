@@ -1207,11 +1207,10 @@ export const ymsApi = createApi({
     }),
 
     // ─── Container Agent Details ──
-    getContainerAgentDetails: builder.query({
-      query: ({ plant_id } = {}) => ({
-        url: API_ENDPOINTS.REPORTS.CONTAINER_AGENT_DETIAL,
+    getContainerAgeingDetails: builder.query({
+      query: () => ({
+        url: API_ENDPOINTS.REPORTS.CONTAINER_AGEING_DETAILS,
         method: 'GET',
-        params: plant_id != null ? { plant_id } : undefined,
       }),
       transformResponse: (response) =>
         Array.isArray(response?.data) ? response.data : [],
@@ -1426,6 +1425,6 @@ export const {
   useLazyGetContainerGateReportQuery,
   useGetContainerHistoryReportQuery,
   useLazyGetContainerHistoryReportQuery,
-  useGetContainerAgentDetailsQuery,
-  useLazyGetContainerAgentDetailsQuery,
+  useGetContainerAgeingDetailsQuery,
+  useLazyGetContainerAgeingDetailsQuery,
 } = ymsApi

@@ -72,3 +72,9 @@ class ReportsRepository(BaseRepository):
 
     def get_daily_utilisation(self, sql: str, params: tuple) -> dict:
         return self._exec(sql, params)
+
+    def get_container_ageing_details(self, plant_id: int) -> dict:
+        return self._exec(
+            "EXEC [dbo].[GET_DASHBOARD_CONTAINERAGEING_DETAILS] @PlantID = ?",
+            (plant_id,),
+        )

@@ -188,3 +188,16 @@ class ReportsService:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Failed to update container")
 
         return {"status": "success", "message": "Container updated successfully"}
+
+    def get_container_ageing_details(self, plant_id: int) -> dict:
+        result = self.repo.get_container_ageing_details(plant_id)
+        if result.get("status") != "success":
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result.get("message", "DB error"))
+
+        data = result.get("data") or []
+        return {
+            "status": "success",
+            "message": f"Found {len(data)} record(s).",
+            "total_records": len(data),
+            "data": data,
+        }

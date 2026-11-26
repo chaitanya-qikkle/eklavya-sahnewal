@@ -97,6 +97,7 @@ const routeDefinitions = [
   { path: '/reports/equipment-accuracy', Component: lazyPage(() => import('./modules/report/pages/EquipmentAccuracy')) },
   { path: '/reports/mismatch-handling', Component: lazyPage(() => import('./modules/report/pages/MismatchHandling')) },
   { path: '/reports/gate-in-out-report', Component: lazyPage(() => import('./modules/report/pages/GateInOutReport')) },
+  { path: '/reports/container-ageing-report', Component: lazyPage(() => import('./modules/report/pages/ContainerAgeingReport')) },
   { path: '/reports/daily-equipment-utilization', Component: lazyPage(() => import('./modules/report/pages/DailyEquipmentUtilization')) },
   { path: '/reports/offload-report', Component: lazyPage(() => import('./modules/report/pages/OffloadReport')) },
   { path: '/reports/navision-status', Component: lazyPage(() => import('./modules/report/pages/NavisionStatus')) },
