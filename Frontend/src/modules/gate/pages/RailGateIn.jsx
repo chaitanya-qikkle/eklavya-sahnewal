@@ -12,7 +12,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetRailInQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
+import { StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 /* ─── Rail images: Camera1 = Left, Camera2 = Right ────────────────────────── */
@@ -407,8 +407,61 @@ function SortIcon({ col, sortCol, sortDir }) {
     : <FiChevronDown className="ml-1 text-blue-200" size={11} />
 }
 
+/* ─── Stat card with 20 ft / 40 ft / TEU breakdown ───────────────────────── */
+const CARD_TONES = {
+  emerald: { card: 'bg-emerald-100 border-emerald-300', iconBox: 'text-emerald-600', bar: 'bg-emerald-500', ring: 'ring-emerald-600', pct: 'text-emerald-700' },
+  amber:   { card: 'bg-amber-100 border-amber-300',     iconBox: 'text-amber-600',   bar: 'bg-amber-500',   ring: 'ring-amber-600',   pct: 'text-amber-700' },
+  violet:  { card: 'bg-violet-100 border-violet-300',   iconBox: 'text-violet-600',  bar: 'bg-violet-500',  ring: 'ring-violet-600',  pct: 'text-violet-700' },
+  rose:    { card: 'bg-rose-100 border-rose-300',       iconBox: 'text-rose-600',    bar: 'bg-rose-500',    ring: 'ring-rose-600',    pct: 'text-rose-700' },
+  // Total card ke liye alag colour (blue) — text poora black
+  sky:     { card: 'bg-sky-100 border-sky-300',         iconBox: 'text-sky-700',     bar: 'bg-sky-600',     ring: 'ring-sky-700',     pct: 'text-sky-800',
+             label: 'text-black', value: 'text-black', subLabel: 'text-black', subValue: 'text-black', teu: 'text-black' },
+}
+
+function SizeStatCard({ label, icon: Icon, tone = 'emerald', stat, total, isActive, onClick }) {
+  const t = CARD_TONES[tone] || CARD_TONES.emerald
+  const pct = total ? Math.round((stat.count / total) * 100) : null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative text-left rounded-xl border px-3 pt-3 pb-3 overflow-hidden transition-all hover:shadow-md ${t.card} ${isActive ? `ring-2 ${t.ring} shadow-md` : ''}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={`w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center flex-shrink-0 ${t.iconBox}`}>
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[10px] font-bold uppercase tracking-[0.12em] leading-tight truncate ${t.label || 'text-slate-500'}`}>{label}</p>
+          <p className={`text-2xl font-black leading-tight ${t.value || 'text-slate-800'}`}>{stat.count.toLocaleString()}</p>
+        </div>
+        {pct !== null && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white ${t.pct}`}>{pct}%</span>
+        )}
+      </div>
+
+      {/* 20 ft / 40 ft / TEU */}
+      <div className="mt-2.5 grid grid-cols-3">
+        <div className="px-1.5 text-center">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>20 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || 'text-slate-700'}`}>{stat.c20.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>40 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || 'text-slate-700'}`}>{stat.c40.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>TEU</p>
+          <p className={`text-sm font-black leading-tight ${t.teu || 'text-[#0e4a78]'}`}>{stat.teu.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <span className={`absolute left-0 bottom-0 h-[3px] ${t.bar}`} style={{ width: `${pct ?? 100}%` }} />
+    </button>
+  )
+}
+
 const PAGE_SIZE = 20
-const SIZE_KEYS = ['20', '40']
 const DEBUG = false
 
 // "YYYY-MM-DDTHH:mm" in local time, for datetime-local input defaults.
@@ -423,8 +476,19 @@ const yesterdayStr = () => {
   return toLocalInputValue(d)
 }
 
-const sizeOf = (r) => String(r.ContainerSize ?? '').trim()
+// '20' / '40' / '' — "40HQ", "40" dono 40 ft maane jaate hain
+const sizeOf = (r) => {
+  const s = String(r.ContainerSize ?? '').trim()
+  return s.startsWith('20') ? '20' : s.startsWith('40') ? '40' : ''
+}
 const procOf = (r) => String(r.Process ?? '').trim().toUpperCase()
+
+// Count + 20ft + 40ft + TEU (20ft = 1 TEU, 40ft = 2 TEU) for a list of rows
+const breakdown = (list) => {
+  const c20 = list.filter(r => sizeOf(r) === '20').length
+  const c40 = list.filter(r => sizeOf(r) === '40').length
+  return { count: list.length, c20, c40, teu: c20 + c40 * 2 }
+}
 
 const RailGateIn = () => {
   const [fromDate, setFromDate] = useState(yesterdayStr())
@@ -436,7 +500,7 @@ const RailGateIn = () => {
   const [pageInput, setPageInput] = useState('1') // draft text for the "Page ___" box, committed on blur/Enter
   const [lightbox, setLightbox] = useState(null)
   const [detailIdx, setDetailIdx] = useState(null)
-  // Single active card filter: 'all' | '20' | '40' | 'EXPORT' | 'IMPORT' | 'EMPTY' | 'DOMESTIC'
+  // Single active card filter: 'all' | 'EXPORT' | 'IMPORT' | 'EMPTY' | 'DOMESTIC'
   const [cardFilter, setCardFilter] = useState('all')
 
   useEffect(() => { setPageInput(String(page)) }, [page])
@@ -477,23 +541,19 @@ const RailGateIn = () => {
     })
   }, [rowsAll, sortCol, sortDir])
 
-  const counts = useMemo(() => ({
-    total: rowsAll.length,
-    '20': rowsAll.filter(r => sizeOf(r) === '20').length,
-    '40': rowsAll.filter(r => sizeOf(r) === '40').length,
-    EXPORT: rowsAll.filter(r => procOf(r) === 'EXPORT').length,
-    IMPORT: rowsAll.filter(r => procOf(r) === 'IMPORT').length,
-    EMPTY: rowsAll.filter(r => procOf(r) === 'EMPTY').length,
-    DOMESTIC: rowsAll.filter(r => procOf(r) === 'DOMESTIC').length,
+  // Har card ke liye: count + 20 ft + 40 ft + TEU
+  const stats = useMemo(() => ({
+    total:    breakdown(rowsAll),
+    EXPORT:   breakdown(rowsAll.filter(r => procOf(r) === 'EXPORT')),
+    IMPORT:   breakdown(rowsAll.filter(r => procOf(r) === 'IMPORT')),
+    EMPTY:    breakdown(rowsAll.filter(r => procOf(r) === 'EMPTY')),
+    DOMESTIC: breakdown(rowsAll.filter(r => procOf(r) === 'DOMESTIC')),
   }), [rowsAll])
 
   const filtered = useMemo(() => {
-    let result = sorted
-    if (cardFilter !== 'all') {
-      result = SIZE_KEYS.includes(cardFilter)
-        ? sorted.filter(r => sizeOf(r) === cardFilter)
-        : sorted.filter(r => procOf(r) === cardFilter)
-    }
+    const result = cardFilter === 'all'
+      ? sorted
+      : sorted.filter(r => procOf(r) === cardFilter)
     if (DEBUG) {
       console.log(
         '[RailGateIn] cardFilter =', cardFilter,
@@ -586,69 +646,50 @@ const RailGateIn = () => {
 
           {/* ── Stats + Filter — merged into one card ── */}
           <FilterCard>
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
-            <StatCard
+          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
+            <SizeStatCard
               label="Total"
-              value={counts.total}
               icon={FiLayers}
-              tone="slate"
+              tone="sky"
+              stat={stats.total}
               isActive={cardFilter === 'all'}
               onClick={() => { setCardFilter('all'); setPage(1); setDetailIdx(null) }}
-              total={counts.total}
             />
-            <StatCard
-              label="20 ft"
-              value={counts['20']}
-              icon={FiBox}
-              tone="emerald"
-              isActive={cardFilter === '20'}
-              onClick={() => handleCard('20')}
-              total={counts.total}
-            />
-            <StatCard
-              label="40 ft"
-              value={counts['40']}
-              icon={FiBox}
-              tone="amber"
-              isActive={cardFilter === '40'}
-              onClick={() => handleCard('40')}
-              total={counts.total}
-            />
-            <StatCard
+            <SizeStatCard
               label="Export"
-              value={counts.EXPORT}
               icon={FiDownload}
               tone="amber"
+              stat={stats.EXPORT}
+              total={stats.total.count}
               isActive={cardFilter === 'EXPORT'}
               onClick={() => handleCard('EXPORT')}
-              total={counts.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Import"
-              value={counts.IMPORT}
               icon={FiDownloadIcon}
               tone="emerald"
+              stat={stats.IMPORT}
+              total={stats.total.count}
               isActive={cardFilter === 'IMPORT'}
               onClick={() => handleCard('IMPORT')}
-              total={counts.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Empty"
-              value={counts.EMPTY}
               icon={FiPackage}
               tone="violet"
+              stat={stats.EMPTY}
+              total={stats.total.count}
               isActive={cardFilter === 'EMPTY'}
               onClick={() => handleCard('EMPTY')}
-              total={counts.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Domestic"
-              value={counts.DOMESTIC}
               icon={FiTruck}
               tone="rose"
+              stat={stats.DOMESTIC}
+              total={stats.total.count}
               isActive={cardFilter === 'DOMESTIC'}
               onClick={() => handleCard('DOMESTIC')}
-              total={counts.total}
             />
           </StatGrid>
 

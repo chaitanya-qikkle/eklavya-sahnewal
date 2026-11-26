@@ -66,13 +66,11 @@ PORT         = os.getenv("PORT", "5000").strip()
 DEBUG_MODE   = os.getenv("DEBUG", "true").strip().lower() == "true"
 
 
-# ── App lifespan (startup / shutdown hooks) ───────────────────────────────────
+# # ── App lifespan (startup / shutdown hooks) ───────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup ──────────────────────────────────────────────────────────────
-    start_scheduler()          # daily 10 AM container-ageing email
+    start_scheduler()        
     yield
-    # ── Shutdown ─────────────────────────────────────────────────────────────
     stop_scheduler()
 
 

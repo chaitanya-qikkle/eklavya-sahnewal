@@ -13,7 +13,7 @@ import Navbar from '../../../components/layout/Navbar'
 import Footer from '../../../components/layout/Footer'
 import { useLazyGetWbinSurveyQuery } from '../../../store/api/ymsApi'
 import { buildAssetUrl } from '../../../config/api'
-import { StatCard, StatGrid, FilterCard } from '../../../components/ui/StatCard'
+import { StatGrid, FilterCard } from '../../../components/ui/StatCard'
 import { FilterBar, FilterField, FilterSearchBtn, FilterClearBtn, FilterExportBtn } from '../../../components/ui/FilterBar'
 
 function getWbinImageUrl(rawPath) {
@@ -49,6 +49,19 @@ function formatDate(raw) {
 }
 
 const isSurveyed = (r) => r.IsSuveryCompleted === true || r.IsSuveryCompleted === 1
+
+// '20' / '40' / '' — "20GP", "40HQ" jaise sizes bhi 20 / 40 maane jaate hain
+const sizeOf = (r) => {
+  const s = String(r.ContainerSize || '').trim()
+  return s.startsWith('20') ? '20' : s.startsWith('40') ? '40' : ''
+}
+
+// Count + 20ft + 40ft + TEU (20ft = 1 TEU, 40ft = 2 TEU) for a list of rows
+const breakdown = (list) => {
+  const c20 = list.filter(r => sizeOf(r) === '20').length
+  const c40 = list.filter(r => sizeOf(r) === '40').length
+  return { count: list.length, c20, c40, teu: c20 + c40 * 2 }
+}
 
 // ── Image probe cache ─────────────────────────────────────────────────────────
 const imgProbeCache = new Map()
@@ -295,7 +308,7 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
             </div>
           </div>
 
-          {/* Images — 7 slots */}
+          {/* Images — 6 slots */}
           <div className="flex-1 min-h-0">
             <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 h-full">
               {[
@@ -313,6 +326,60 @@ function DetailModal({ row, index, total, onClose, onPrev, onNext, onZoom }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/* ─── Stat card with 20 ft / 40 ft / TEU breakdown ───────────────────────── */
+const CARD_TONES = {
+  emerald: { card: 'bg-emerald-100 border-emerald-300', iconBox: 'text-emerald-600', bar: 'bg-emerald-500', ring: 'ring-emerald-600', pct: 'text-emerald-700' },
+  amber:   { card: 'bg-amber-100 border-amber-300',     iconBox: 'text-amber-600',   bar: 'bg-amber-500',   ring: 'ring-amber-600',   pct: 'text-amber-700' },
+  violet:  { card: 'bg-violet-100 border-violet-300',   iconBox: 'text-violet-600',  bar: 'bg-violet-500',  ring: 'ring-violet-600',  pct: 'text-violet-700' },
+  rose:    { card: 'bg-rose-100 border-rose-300',       iconBox: 'text-rose-600',    bar: 'bg-rose-500',    ring: 'ring-rose-600',    pct: 'text-rose-700' },
+  // Total card ke liye alag colour (blue) — text poora black
+  sky:     { card: 'bg-sky-100 border-sky-300',         iconBox: 'text-sky-700',     bar: 'bg-sky-600',     ring: 'ring-sky-700',     pct: 'text-sky-800',
+             label: 'text-black', value: 'text-black', subLabel: 'text-black', subValue: 'text-black', teu: 'text-black' },
+}
+
+function SizeStatCard({ label, icon: Icon, tone = 'emerald', stat, total, isActive, onClick }) {
+  const t = CARD_TONES[tone] || CARD_TONES.emerald
+  const pct = total ? Math.round((stat.count / total) * 100) : null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative text-left rounded-xl border px-3 pt-3 pb-3 overflow-hidden transition-all hover:shadow-md ${t.card} ${isActive ? `ring-2 ${t.ring} shadow-md` : ''}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={`w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center flex-shrink-0 ${t.iconBox}`}>
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[10px] font-bold uppercase tracking-[0.12em] leading-tight truncate ${t.label || 'text-slate-500'}`}>{label}</p>
+          <p className={`text-2xl font-black leading-tight ${t.value || 'text-slate-800'}`}>{stat.count.toLocaleString()}</p>
+        </div>
+        {pct !== null && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white ${t.pct}`}>{pct}%</span>
+        )}
+      </div>
+
+      {/* 20 ft / 40 ft / TEU */}
+      <div className="mt-2.5 grid grid-cols-3">
+        <div className="px-1.5 text-center">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>20 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || 'text-slate-700'}`}>{stat.c20.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>40 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || 'text-slate-700'}`}>{stat.c40.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || 'text-slate-500'}`}>TEU</p>
+          <p className={`text-sm font-black leading-tight ${t.teu || 'text-[#0e4a78]'}`}>{stat.teu.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <span className={`absolute left-0 bottom-0 h-[3px] ${t.bar}`} style={{ width: `${pct ?? 100}%` }} />
+    </button>
   )
 }
 
@@ -335,7 +402,6 @@ export default function WbInSurvey() {
   const [detailIdx,   setDetailIdx]   = useState(null)   // index into `rows`
   const [processFilter, setProcessFilter] = useState('all') // 'all' | 'EXPORT' | 'IMPORT' — client-side
   const [surveyFilter, setSurveyFilter] = useState('all') // 'all' | 'done' | 'pending' — client-side
-  const [sizeFilter,   setSizeFilter]   = useState('all') // 'all' | '20' | '40' — client-side
 
   const [fetchWbin, { data, isFetching, isError }] = useLazyGetWbinSurveyQuery()
 
@@ -346,7 +412,7 @@ export default function WbInSurvey() {
   }, [])
 
   const handleSearch = () => {
-    setProcessFilter('all'); setSurveyFilter('all'); setSizeFilter('all')
+    setProcessFilter('all'); setSurveyFilter('all')
     fetchWbin({
       ...(fromDate           ? { from_date:    fromDate }           : {}),
       ...(toDate             ? { to_date:      toDate }             : {}),
@@ -356,7 +422,7 @@ export default function WbInSurvey() {
 
   const handleClear = () => {
     setFromDate(today); setToDate(today); setContainerNo('')
-    setProcessFilter('all'); setSurveyFilter('all'); setSizeFilter('all')
+    setProcessFilter('all'); setSurveyFilter('all')
     fetchWbin({ from_date: today, to_date: today })
   }
 
@@ -375,45 +441,24 @@ export default function WbInSurvey() {
 
   const processOf = (r) => String(r.Process || '').toUpperCase()
 
-  // Export / Import counts — hamesha poore data ke
-  const processStats = {
-    total:       allRowsSorted.length,
-    exportCount: allRowsSorted.filter(r => processOf(r) === 'EXPORT').length,
-    importCount: allRowsSorted.filter(r => processOf(r) === 'IMPORT').length,
-  }
+  // Total / Export / Import — hamesha poore data ke (count + 20 ft + 40 ft + TEU)
+  const totalStat  = breakdown(allRowsSorted)
+  const exportStat = breakdown(allRowsSorted.filter(r => processOf(r) === 'EXPORT'))
+  const importStat = breakdown(allRowsSorted.filter(r => processOf(r) === 'IMPORT'))
 
   const processRows = processFilter === 'all'
     ? allRowsSorted
     : allRowsSorted.filter(r => processOf(r) === processFilter)
 
-  // Survey Done / Pending counts active Export/Import filter ko follow karte hain
-  const surveyStats = {
-    total:   processRows.length,
-    done:    processRows.filter(isSurveyed).length,
-    pending: processRows.filter(r => !isSurveyed(r)).length,
-  }
+  // Survey Done / Pending active Export/Import filter ko follow karte hain
+  const doneStat    = breakdown(processRows.filter(isSurveyed))
+  const pendingStat = breakdown(processRows.filter(r => !isSurveyed(r)))
 
-  const sizeOf = (r) => {
-    const s = String(r.ContainerSize || '').trim()
-    return s.startsWith('20') ? '20' : s.startsWith('40') ? '40' : ''
-  }
-
-  const surveyRows = surveyFilter === 'all'
+  const rows = surveyFilter === 'all'
     ? processRows
     : surveyFilter === 'done'
       ? processRows.filter(isSurveyed)
       : processRows.filter(r => !isSurveyed(r))
-
-  // 20/40 ft counts follow the active survey filter.
-  const sizeStats = {
-    total:  surveyRows.length,
-    size20: surveyRows.filter(r => sizeOf(r) === '20').length,
-    size40: surveyRows.filter(r => sizeOf(r) === '40').length,
-  }
-
-  const rows = sizeFilter === 'all'
-    ? surveyRows
-    : surveyRows.filter(r => sizeOf(r) === sizeFilter)
 
   const total = allRowsSorted.length
 
@@ -486,69 +531,50 @@ export default function WbInSurvey() {
 
           {/* ── Stats + Filter — merged into one card ── */}
           <FilterCard>
-          <StatGrid cols="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7" bare>
-            <StatCard
+          <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
+            <SizeStatCard
               label="Total"
-              value={processStats.total}
               icon={FiPackage}
-              tone="slate"
-              isActive={processFilter === 'all' && surveyFilter === 'all' && sizeFilter === 'all'}
-              onClick={() => { setProcessFilter('all'); setSurveyFilter('all'); setSizeFilter('all') }}
-              total={processStats.total}
+              tone="sky"
+              stat={totalStat}
+              isActive={processFilter === 'all' && surveyFilter === 'all'}
+              onClick={() => { setProcessFilter('all'); setSurveyFilter('all') }}
             />
-            <StatCard
+            <SizeStatCard
               label="Export"
-              value={processStats.exportCount}
               icon={FiDownloadIcon}
               tone="amber"
+              stat={exportStat}
+              total={totalStat.count}
               isActive={processFilter === 'EXPORT'}
               onClick={() => setProcessFilter(processFilter === 'EXPORT' ? 'all' : 'EXPORT')}
-              total={processStats.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Import"
-              value={processStats.importCount}
               icon={FiTruckIcon}
-              tone="emerald"
+              tone="violet"
+              stat={importStat}
+              total={totalStat.count}
               isActive={processFilter === 'IMPORT'}
               onClick={() => setProcessFilter(processFilter === 'IMPORT' ? 'all' : 'IMPORT')}
-              total={processStats.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Survey Done"
-              value={surveyStats.done}
               icon={FiCheckCircle}
               tone="emerald"
+              stat={doneStat}
+              total={processRows.length}
               isActive={surveyFilter === 'done'}
               onClick={() => setSurveyFilter(surveyFilter === 'done' ? 'all' : 'done')}
-              total={surveyStats.total}
             />
-            <StatCard
+            <SizeStatCard
               label="Pending"
-              value={surveyStats.pending}
               icon={FiAlertCircle}
-              tone="amber"
+              tone="rose"
+              stat={pendingStat}
+              total={processRows.length}
               isActive={surveyFilter === 'pending'}
               onClick={() => setSurveyFilter(surveyFilter === 'pending' ? 'all' : 'pending')}
-              total={surveyStats.total}
-            />
-            <StatCard
-              label="20 ft"
-              value={sizeStats.size20}
-              icon={FiPackage}
-              tone="emerald"
-              isActive={sizeFilter === '20'}
-              onClick={() => setSizeFilter(sizeFilter === '20' ? 'all' : '20')}
-              total={sizeStats.total}
-            />
-            <StatCard
-              label="40 ft"
-              value={sizeStats.size40}
-              icon={FiPackage}
-              tone="amber"
-              isActive={sizeFilter === '40'}
-              onClick={() => setSizeFilter(sizeFilter === '40' ? 'all' : '40')}
-              total={sizeStats.total}
             />
           </StatGrid>
 

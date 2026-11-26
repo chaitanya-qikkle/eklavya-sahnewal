@@ -1206,6 +1206,18 @@ export const ymsApi = createApi({
       },
     }),
 
+    // ─── Container Agent Details ──
+    getContainerAgentDetails: builder.query({
+      query: ({ plant_id } = {}) => ({
+        url: API_ENDPOINTS.REPORTS.CONTAINER_AGENT_DETIAL,
+        method: 'GET',
+        params: plant_id != null ? { plant_id } : undefined,
+      }),
+      transformResponse: (response) =>
+        Array.isArray(response?.data) ? response.data : [],
+      providesTags: ['ContainerInventory'],
+    }),
+
     // ─── Breakdowns ──────────────────────────────────────────────────────────
 
     getBreakdowns: builder.query({
@@ -1414,4 +1426,6 @@ export const {
   useLazyGetContainerGateReportQuery,
   useGetContainerHistoryReportQuery,
   useLazyGetContainerHistoryReportQuery,
+  useGetContainerAgentDetailsQuery,
+  useLazyGetContainerAgentDetailsQuery,
 } = ymsApi

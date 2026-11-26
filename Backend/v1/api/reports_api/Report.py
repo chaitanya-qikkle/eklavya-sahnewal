@@ -1469,3 +1469,43 @@ def update_device_container(
             db.close_connection()
         except Exception:
             pass
+            
+@router.get("/container-agent-details")
+def get_container_agent_details(
+    plant_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    db = SQLManager()
+    try:
+        # plant_id int hai (FastAPI validate karta hai), aur int() bhi laga hai
+        query = f"EXEC [dbo].[GET_DASHBOARD_CONTAINERAGEING_DETAILS] @PlantID = {int(plant_id)}"
+
+        result = db.execute_query(query, commit=False)
+
+        if result.get("status") != "success":
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("message") or "Database error"
+            )
+
+        return {
+            "status": "success",
+            "message": "Container ageing details fetched successfully",
+            "data": result.get("data", [])
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        logger.error(f"Get container agent details error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+    finally:
+        try:
+            db.close_connection()
+        except Exception:
+            pass

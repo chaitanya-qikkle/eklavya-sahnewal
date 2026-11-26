@@ -6,7 +6,7 @@ import Navbar from "../../../components/layout/Navbar";
 import Footer from "../../../components/layout/Footer";
 import { notify } from "../../../utils/notify";
 import { useGetTrailerGateOutListQuery, useGateOutTrailerMutation } from "../../../store/api/ymsApi";
-import { StatCard, StatGrid, FilterCard } from "../../../components/ui/StatCard";
+import { StatGrid, FilterCard } from "../../../components/ui/StatCard";
 import { FilterBar, FilterExportBtn } from "../../../components/ui/FilterBar";
 
 const mapRecord = (row) => ({
@@ -54,6 +54,75 @@ const parseDateTime = (value) => {
 
 const getRecordId = (record) =>
   `${record.trailerNo}-${record.gateOutDate}-${record.lineName}`;
+
+// '20' / '40' / '' — "20GP", "40HQ" jaise sizes bhi 20 / 40 maane jaate hain
+const sizeKey = (record) => {
+  const s = String(record.size || "").trim();
+  if (s.startsWith("20")) return "20";
+  if (s.startsWith("40")) return "40";
+  return "";
+};
+
+// Count + 20ft + 40ft + TEU (20ft = 1 TEU, 40ft = 2 TEU) for a list of records
+const breakdown = (list) => {
+  const c20 = list.filter((r) => sizeKey(r) === "20").length;
+  const c40 = list.filter((r) => sizeKey(r) === "40").length;
+  return { count: list.length, c20, c40, teu: c20 + c40 * 2 };
+};
+
+/* ─── Stat card with 20 ft / 40 ft / TEU breakdown ───────────────────────── */
+const CARD_TONES = {
+  emerald: { card: "bg-emerald-100 border-emerald-300", iconBox: "text-emerald-600", bar: "bg-emerald-500", ring: "ring-emerald-600", pct: "text-emerald-700" },
+  amber:   { card: "bg-amber-100 border-amber-300",     iconBox: "text-amber-600",   bar: "bg-amber-500",   ring: "ring-amber-600",   pct: "text-amber-700" },
+  violet:  { card: "bg-violet-100 border-violet-300",   iconBox: "text-violet-600",  bar: "bg-violet-500",  ring: "ring-violet-600",  pct: "text-violet-700" },
+  rose:    { card: "bg-rose-100 border-rose-300",       iconBox: "text-rose-600",    bar: "bg-rose-500",    ring: "ring-rose-600",    pct: "text-rose-700" },
+  // Total card ke liye alag colour (blue) — text poora black
+  sky:     { card: "bg-sky-100 border-sky-300",         iconBox: "text-sky-700",     bar: "bg-sky-600",     ring: "ring-sky-700",     pct: "text-sky-800",
+             label: "text-black", value: "text-black", subLabel: "text-black", subValue: "text-black", teu: "text-black" },
+};
+
+function SizeStatCard({ label, icon: Icon, tone = "emerald", stat, total, isActive, onClick }) {
+  const t = CARD_TONES[tone] || CARD_TONES.emerald;
+  const pct = total ? Math.round((stat.count / total) * 100) : null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative text-left rounded-xl border px-3 pt-3 pb-3 overflow-hidden transition-all hover:shadow-md ${t.card} ${isActive ? `ring-2 ${t.ring} shadow-md` : ""}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={`w-9 h-9 rounded-lg bg-white shadow-sm flex items-center justify-center flex-shrink-0 ${t.iconBox}`}>
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[10px] font-bold uppercase tracking-[0.12em] leading-tight truncate ${t.label || "text-slate-500"}`}>{label}</p>
+          <p className={`text-2xl font-black leading-tight ${t.value || "text-slate-800"}`}>{stat.count.toLocaleString()}</p>
+        </div>
+        {pct !== null && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white ${t.pct}`}>{pct}%</span>
+        )}
+      </div>
+
+      {/* 20 ft / 40 ft / TEU */}
+      <div className="mt-2.5 grid grid-cols-3">
+        <div className="px-1.5 text-center">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || "text-slate-500"}`}>20 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || "text-slate-700"}`}>{stat.c20.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || "text-slate-500"}`}>40 ft</p>
+          <p className={`text-sm font-black leading-tight ${t.subValue || "text-slate-700"}`}>{stat.c40.toLocaleString()}</p>
+        </div>
+        <div className="px-1.5 text-center border-l border-slate-400/40">
+          <p className={`text-[9px] font-bold uppercase tracking-wider leading-tight ${t.subLabel || "text-slate-500"}`}>TEU</p>
+          <p className={`text-sm font-black leading-tight ${t.teu || "text-[#0e4a78]"}`}>{stat.teu.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <span className={`absolute left-0 bottom-0 h-[3px] ${t.bar}`} style={{ width: `${pct ?? 100}%` }} />
+    </button>
+  );
+}
 
 const TrailerGateOut = () => {
   const [search, setSearch] = useState("");
@@ -141,22 +210,14 @@ const TrailerGateOut = () => {
     return result;
   }, [search, filter, sortConfig, gateOutRecords]);
 
-  const stats = useMemo(() => {
-    const total = gateOutRecords.length;
-    const exportCount = gateOutRecords.filter(
-      (record) => record.transactionType === "EXPORT"
-    ).length;
-    const importCount = gateOutRecords.filter(
-      (record) => record.transactionType === "IMPORT"
-    ).length;
-    const emptyCount = gateOutRecords.filter(
-      (record) => record.transactionType === "EMPTY"
-    ).length;
-    const domesticCount = gateOutRecords.filter(
-      (record) => record.transactionType === "DOMESTIC"
-    ).length;
-    return { total, exportCount, importCount, emptyCount, domesticCount };
-  }, [gateOutRecords]);
+  // Har card ke liye: count + 20 ft + 40 ft + TEU
+  const stats = useMemo(() => ({
+    total:    breakdown(gateOutRecords),
+    EXPORT:   breakdown(gateOutRecords.filter((r) => r.transactionType === "EXPORT")),
+    IMPORT:   breakdown(gateOutRecords.filter((r) => r.transactionType === "IMPORT")),
+    EMPTY:    breakdown(gateOutRecords.filter((r) => r.transactionType === "EMPTY")),
+    DOMESTIC: breakdown(gateOutRecords.filter((r) => r.transactionType === "DOMESTIC")),
+  }), [gateOutRecords]);
 
   const handleExport = () => {
     const exportRows = sortedAndFilteredRecords.map((r) => ({
@@ -277,50 +338,49 @@ const TrailerGateOut = () => {
             {/* Stats + Filter — merged into one card */}
             <FilterCard>
             <StatGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" bare>
-              <StatCard
+              <SizeStatCard
                 label="Total Entries"
-                value={stats.total}
                 icon={FiPackage}
-                tone="slate"
+                tone="sky"
+                stat={stats.total}
                 isActive={filter === "all"}
                 onClick={() => setFilter("all")}
-                total={stats.total}
               />
-              <StatCard
+              <SizeStatCard
                 label="Export"
-                value={stats.exportCount}
                 icon={FiUpload}
                 tone="amber"
+                stat={stats.EXPORT}
+                total={stats.total.count}
                 isActive={filter === "EXPORT"}
                 onClick={() => setFilter("EXPORT")}
-                total={stats.total}
               />
-              <StatCard
+              <SizeStatCard
                 label="Import"
-                value={stats.importCount}
                 icon={FiDownload}
                 tone="emerald"
+                stat={stats.IMPORT}
+                total={stats.total.count}
                 isActive={filter === "IMPORT"}
                 onClick={() => setFilter("IMPORT")}
-                total={stats.total}
               />
-              <StatCard
+              <SizeStatCard
                 label="Empty"
-                value={stats.emptyCount}
                 icon={FiPackage}
                 tone="violet"
+                stat={stats.EMPTY}
+                total={stats.total.count}
                 isActive={filter === "EMPTY"}
                 onClick={() => setFilter("EMPTY")}
-                total={stats.total}
               />
-              <StatCard
+              <SizeStatCard
                 label="Domestic"
-                value={stats.domesticCount}
                 icon={FiTruck}
                 tone="rose"
+                stat={stats.DOMESTIC}
+                total={stats.total.count}
                 isActive={filter === "DOMESTIC"}
                 onClick={() => setFilter("DOMESTIC")}
-                total={stats.total}
               />
             </StatGrid>
 

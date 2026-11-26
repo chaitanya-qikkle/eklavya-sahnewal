@@ -202,6 +202,7 @@ export const API_ENDPOINTS = {
     GET_CONTAINER_STATUS_REPORT: buildUrl('/v1/container/container-status-report'),
     GET_CONTAINER_GATE_REPORT: buildUrl('/v1/container/container-gate-report'),
     GET_CONTAINER_HISTORY_REPORT: buildUrl('/v1/container/container-history-report'),
+  
     GET_LIFECYCLE_DETAILS: buildUrl('/v1/container/lifecycle-details'),
     GET_LIFECYCLE_OFFLOAD_TIMELINE: buildUrl('/v1/container/lifecycle-offload-timeline'),
     GET_LIFECYCLE_GATEINOUT: buildUrl('/v1/container/lifecycle-gateinout'),
@@ -247,6 +248,7 @@ export const API_ENDPOINTS = {
     RAIL_JOURNEY: buildUrl('/v1/reports/rail-journey'),
     RAIL_JOURNEY_BY_DOCUMENT: buildUrl('/v1/reports/rail-journey-by-document'),
     MISMATCH_HANDLING: buildUrl('/v1/reports/mismatch-handling'),
+    CONTAINER_AGENT_DETIAL : buildUrl('/v1/reports/container-agent-details')
   },
 };
 

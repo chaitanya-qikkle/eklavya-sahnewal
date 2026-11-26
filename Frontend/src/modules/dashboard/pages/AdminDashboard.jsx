@@ -411,25 +411,53 @@ const ShipTipRow = ({ label, v, color }) => (
 const ShipTip = ({ active, payload }) => {
   const d = payload?.[0]?.payload;
   if (!active || !d) return null;
+
+  const procs = [
+    { label: "Import",   color: T.blue,  total: d.impCount, s20: d.imp20, s40: d.imp40, teu: d.impTeu },
+    { label: "Export",   color: T.pink,  total: d.expCount, s20: d.exp20, s40: d.exp40, teu: d.expTeu },
+    { label: "Empty",    color: T.amber, total: d.empCount, s20: d.emp20, s40: d.emp40, teu: d.empTeu },
+    { label: "Domestic", color: T.teal,  total: d.domCount, s20: d.dom20, s40: d.dom40, teu: d.domTeu },
+  ];
+
+  const cols = { display: "grid", gridTemplateColumns: "72px repeat(4, 1fr)", gap: 8, alignItems: "center" };
+  const head = { fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.05em", color: T.textMute, textAlign: "right" };
+
   return (
     <div className="rounded-xl px-3 py-2 text-xs"
-      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text, minWidth: 200 }}>
+      style={{ background: "rgba(255,255,255,0.98)", border: `1px solid ${T.border}`, boxShadow: "0 8px 24px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)", color: T.text, minWidth: 330 }}>
       <div className="font-black text-[11px] mb-1" style={{ color: T.text }}>{d.name}</div>
+
       <ShipTipRow label="20ft" v={d.size20} color={T.cyan} />
       <ShipTipRow label="40ft" v={d.size40} color={T.indigo} />
-      <div className="border-t my-1" style={{ borderColor: T.border }} />
-            <ShipTipRow label="Import" v={d.impCount} color={T.blue} />
-      <ShipTipRow label="Export" v={d.expCount} color={T.pink} />
-      <ShipTipRow label="Empty" v={d.empCount} color={T.amber} />
-      <ShipTipRow label="Domestic" v={d.domCount} color={T.teal} />
-      <div className="border-t my-1" style={{ borderColor: T.border }} />
+      <div className="border-t my-1.5" style={{ borderColor: T.border }} />
+
+      <div style={{ ...cols, marginBottom: 4 }}>
+        <span />
+        <span style={head}>Total</span>
+        <span style={head}>20ft</span>
+        <span style={head}>40ft</span>
+        <span style={head}>TEUs</span>
+      </div>
+      {procs.map((p) => (
+        <div key={p.label} style={{ ...cols, padding: "2px 0" }}>
+          <span className="flex items-center gap-1.5 font-bold" style={{ color: T.textDim }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+            {p.label}
+          </span>
+          <span className="text-right font-black tabular-nums" style={{ color: p.color }}>{fmtNumber(p.total)}</span>
+          <span className="text-right font-black tabular-nums" style={{ color: T.cyan }}>{fmtNumber(p.s20)}</span>
+          <span className="text-right font-black tabular-nums" style={{ color: T.indigo }}>{fmtNumber(p.s40)}</span>
+          <span className="text-right font-black tabular-nums" style={{ color: T.emerald }}>{fmtNumber(p.teu)}</span>
+        </div>
+      ))}
+
+      <div className="border-t my-1.5" style={{ borderColor: T.border }} />
       <ShipTipRow label="TEUs" v={d.teus} color={T.emerald} />
       <ShipTipRow label="Total" v={d.total} />
       <ShipTipRow label="Share" v={`${d.pct}%`} />
     </div>
   );
 };
-
 // ─── Process Mix tooltip — 20ft · 40ft · Total · TEUs ────────────────────────
 const ProcessTip = ({ active, payload }) => {
   const d = payload?.[0]?.payload;
@@ -1242,13 +1270,12 @@ const MovesCountChart = ({ utilizationApi, date }) => {
       accent={T.blue} className="xl:col-span-6 h-[320px]"
       right={
         <div className="flex items-center gap-2">
-          {/* Date badge — upar Fetch ki hui date */}
           <span
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black tabular-nums"
             style={{ background: `${T.blue}12`, color: T.blue, border: `1px solid ${T.blue}30` }}
-            title="Equipment Daily Utilization me fetch ki hui date"
+            title="Date fetched from Equipment Daily Utilization"
           >
-            <FiClock className="w-3 h-3" /> {fmtYmd(date)}
+           <FiClock className="w-3 h-3" /> {fmtYmd(date)} (24H)
           </span>
           {chartData.length > 0 && (
             <>
