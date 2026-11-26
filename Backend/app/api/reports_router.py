@@ -73,6 +73,7 @@ def get_device_raw_data(
         svc.repo.db.close()
 
 
+
 @router.get("/device-raw-data/kalmar-list")
 def get_device_raw_data_kalmar_list(
     current_user: dict = Depends(get_current_user),
